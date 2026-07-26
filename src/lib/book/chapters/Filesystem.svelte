@@ -8,42 +8,20 @@
 />
 
 <p>
-	The agent appears to have a disk. It can <em>ls</em> a directory, read and write files, edit one
-	in place, match paths with <em>glob</em>, and search contents with <em>grep</em> — six tools, all supplied
-	by the harness. This application wrote none of them, and the agent uses them constantly: its notes,
-	its drafts, its skills and your uploads all live behind those six names.
+	There is no disk. The filesystem is a <em>channel</em> — one field in the graph state, mapping
+	paths to contents — which buys three properties a real disk would not: it is checkpointed with
+	every step, so a rewind restores the files exactly; it is observable, which is how the files panel
+	mirrors it without the agent's cooperation; and it is scoped to the thread, so a new chat starts
+	clean. Six harness-supplied tools — <em>ls</em>, <em>read_file</em>, <em>write_file</em>,
+	<em>edit_file</em>, <em>glob</em>, <em>grep</em> — are all the agent ever sees of it.
 </p>
 
 <p>
-	There is no disk. The filesystem is a <em>channel</em> — one named field inside the state that LangGraph
-	carries from step to step — mapping paths to contents. That implementation detail buys three properties
-	a real disk would not. It is checkpointed: state is snapshotted after every step, so rewinding the conversation
-	restores the files exactly as they stood. It is observable: every write is published on the graph's
-	update stream, which is how the files panel mirrors it without the agent's cooperation. And it is scoped:
-	a new chat starts with a clean slate, because the channel belongs to the thread.
-</p>
-
-<p>
-	What the filesystem is <em>for</em> is keeping bulk out of the conversation. The system prompt
-	teaches this agent conventions: notes from each paper go to <em>/notes/</em>, one file per arXiv
-	id; draft sections go to <em>/paper/</em>; anything you attach lands in
-	<em>/uploads/</em>, a PDF arriving already extracted to a text file beside it; and when the
-	conversation is compacted, the folded-away transcript is archived under
-	<em>/conversation_history/</em>. A fact written to a file costs tokens once when read — the same
-	fact kept in chat is re-sent on every turn forever.
-</p>
-
-<p>
-	One junction in this app is special. A composite backend routes writes by path: everything above
-	lives and dies with the thread, but paths under <em>/memories/</em> are diverted to a store that survives
-	every conversation. Same tools, two lifetimes — the memory chapter is about that seam.
-</p>
-
-<p>
-	And one honest limit: the filesystem is text. Images — generated, extracted from papers, or
-	uploaded — live in an asset store beside it, where <em>ls</em> cannot see them; the agent has a
-	separate <em>list_figures</em> tool for that, and learning to trust it over <em>ls</em> is one of this
-	agent's hard-won lessons.
+	Its purpose is keeping bulk out of the conversation: a fact in a file costs tokens once when read;
+	the same fact in chat is re-sent every turn forever. Two seams matter. Paths under
+	<em>/memories/</em> are routed to a store that outlives every thread — same tools, two lifetimes.
+	And images are not here at all: they live in an asset store <em>ls</em> cannot see, behind the
+	separate <em>list_figures</em> tool.
 </p>
 
 <p class="live">

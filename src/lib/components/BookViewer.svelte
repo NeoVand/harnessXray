@@ -88,7 +88,11 @@
 
 		<div bind:this={scroller} class="min-h-0 flex-1 overflow-y-auto">
 			<article class="bk mx-auto max-w-[72ch] px-8 py-10">
-				<p class="hx-eyebrow mb-6">chapter {index + 1} · {chapter.label}</p>
+				<p class="hx-eyebrow mb-2" style:color="var(--hx-accent, var(--hx-model))">
+					chapter {index + 1} · {chapter.label}
+				</p>
+				<!-- The one loud element on the page. Everything under it defers. -->
+				<h1 class="bk-title">{chapter.title}</h1>
 				<Body />
 
 				<div class="hx-rule mt-12 flex items-center justify-between border-t pt-4">
@@ -121,10 +125,21 @@
 </div>
 
 <style>
-	/* Comfortable measure, generous leading: a book page, not a panel. */
+	/* A page presented, not read: the title carries the chapter, the figures
+	   carry the teaching, and the prose is a quiet caption track in the app's
+	   own type — smaller and dimmer than chat, never competing with a slide. */
 	.bk {
-		font-size: 0.95rem;
-		line-height: 1.8;
+		font-size: 0.855rem;
+		line-height: 1.75;
+		color: color-mix(in oklab, var(--foreground) 82%, var(--muted-foreground));
+	}
+	.bk-title {
+		font-size: 1.55rem;
+		font-weight: 650;
+		letter-spacing: -0.015em;
+		line-height: 1.25;
+		color: var(--foreground);
+		margin: 0 0 1.4em;
 	}
 	.bk :global(p) {
 		margin: 0 0 1.2em;
