@@ -121,6 +121,15 @@ export interface ToolStart extends EventBase {
 	args: unknown;
 	/** False for tools the harness supplied rather than us — write_todos, ls, … */
 	ours: boolean;
+	/**
+	 * Set when this call is the agent opening a skill.
+	 *
+	 * Reaching for a skill is an ordinary `read_file` — that is the whole design,
+	 * and it is why the moment is otherwise invisible in a list of tool calls.
+	 * Naming it here lets the row say what is really happening without inventing
+	 * an event that did not occur.
+	 */
+	skill?: string;
 }
 
 export interface ToolEnd extends EventBase {
@@ -130,6 +139,7 @@ export interface ToolEnd extends EventBase {
 	result: string;
 	status: 'success' | 'error';
 	chars: number;
+	skill?: string;
 }
 
 export interface Todo {
@@ -152,10 +162,110 @@ export interface FsWrite extends EventBase {
 	bytes: number;
 }
 
+export interface ImageStart extends EventBase {
+	kind: 'image_start';
+	path: string;
+	prompt: string;
+	size: string;
+	quality: string;
+}
+
+/** A progressive frame. Carries a thumbnail, never the ~950KB original. */
+export interface ImagePartial extends EventBase {
+	kind: 'image_partial';
+	path: string;
+	index: number;
+	preview: string;
+}
+
+export interface ImageDone extends EventBase {
+	kind: 'image_done';
+	path: string;
+	preview: string;
+	bytes: number;
+	ms: number;
+}
+
+export interface PaperFetched extends EventBase {
+	kind: 'paper_fetched';
+	arxivId: string;
+	title?: string;
+	source: 'html' | 'pdf';
+	chars: number;
+	/** Data-URL thumbnails of the first few pages, when the source was a PDF. */
+	pages: string[];
+}
+
+export interface InterruptEvent extends EventBase {
+	kind: 'interrupt';
+	interruptId: string;
+	actions: { name: string; args: Record<string, unknown> }[];
+	allowed: string[];
+}
+
+export interface ResumeEvent extends EventBase {
+	kind: 'resume';
+	decisions: unknown[];
+	actions: string[];
+}
+
 export interface NodeRun extends EventBase {
 	kind: 'node';
 	nodeName: string;
 	channels: string[];
+}
+
+/**
+ * The context got too big and the harness folded it up.
+ *
+ * `SummarizationMiddleware` ships inside `createDeepAgent`, so this is not
+ * something we implemented — it is something we noticed. It publishes a
+ * `_summarizationEvent` on the updates stream, which is how a mechanism buried
+ * three layers down becomes a row you can click.
+ */
+export interface Compaction extends EventBase {
+	kind: 'compaction';
+	/** How many messages were folded away. */
+	cutoffIndex: number;
+	summary: string;
+	/** Where the originals were written. They are archived, not deleted. */
+	filePath: string | null;
+	trigger: 'auto' | 'manual';
+	tokensBefore?: number;
+}
+
+/**
+ * The conversation was taken back to an earlier checkpoint and re-run.
+ *
+ * Nothing was deleted to make this happen — the turns that followed are still
+ * in the checkpointer as an orphaned branch. That is what a fork is, and it is
+ * the most surprising thing about time travel in a graph, so it gets a row.
+ */
+export interface Rewind extends EventBase {
+	kind: 'rewind';
+	checkpointId: string;
+	/** How many chat messages the live branch dropped. */
+	dropped: number;
+}
+
+/** A file the user handed the agent. */
+export interface Upload extends EventBase {
+	kind: 'upload';
+	path: string;
+	mime: string;
+	bytes: number;
+	/** Extracted text length — a PDF is read, not attached. */
+	chars: number;
+}
+
+/** The skill library the run started with. */
+export interface SkillsLoaded extends EventBase {
+	kind: 'skills_loaded';
+	names: string[];
+	/** What the whole library costs in the prompt: names and descriptions only. */
+	chars: number;
+	/** What it would cost if every SKILL.md were pasted in instead. */
+	fullChars: number;
 }
 
 export type XrayEvent =
@@ -170,7 +280,17 @@ export type XrayEvent =
 	| ToolEnd
 	| TodoUpdate
 	| FsWrite
-	| NodeRun;
+	| ImageStart
+	| ImagePartial
+	| ImageDone
+	| PaperFetched
+	| InterruptEvent
+	| ResumeEvent
+	| NodeRun
+	| Compaction
+	| Rewind
+	| Upload
+	| SkillsLoaded;
 
 export type EventKind = XrayEvent['kind'];
 
@@ -187,7 +307,20 @@ export const DISPLAY_OF: Record<EventKind, DisplayKind> = {
 	tool_end: 'tool',
 	todo_update: 'state',
 	fs_write: 'fs',
-	node: 'state'
+	image_start: 'tool',
+	image_partial: 'tool',
+	image_done: 'tool',
+	paper_fetched: 'fs',
+	interrupt: 'interrupt',
+	resume: 'interrupt',
+	node: 'state',
+	// Compaction is bucketed with memory rather than with the graph's own
+	// bookkeeping: what it is really deciding is what gets kept.
+	compaction: 'memory',
+	// A fork is the graph's own bookkeeping about which run is live.
+	rewind: 'state',
+	upload: 'fs',
+	skills_loaded: 'state'
 };
 
 /** Short mono label shown in the timeline gutter. */
@@ -203,5 +336,15 @@ export const KIND_LABEL: Record<EventKind, string> = {
 	tool_end: 'result',
 	todo_update: 'plan',
 	fs_write: 'file',
-	node: 'node'
+	image_start: 'image',
+	image_partial: 'frame',
+	image_done: 'image',
+	paper_fetched: 'paper',
+	interrupt: 'pause',
+	resume: 'resume',
+	node: 'node',
+	compaction: 'compact',
+	rewind: 'rewind',
+	upload: 'upload',
+	skills_loaded: 'skills'
 };

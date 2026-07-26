@@ -66,6 +66,7 @@
 		"@langchain/openai": "^1.5.5",
 		"deepagents": "^1.11.1",
 		"dompurify": "^3.4.12",
+		"katex": "^0.18.1",
 		"langchain": "^1.5.4",
 		"langsmith": "^0.7.17",
 		"marked": "^18.0.7",

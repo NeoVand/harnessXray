@@ -1,39 +1,76 @@
 <script lang="ts">
 	import { marked } from 'marked';
 	import DOMPurify from 'dompurify';
+	import { assets, assetVersion } from '$lib/storage/assets.svelte';
+	import { extractMath, restoreMath, linkify, isInternalHref, internalPath } from '$lib/paper/enrich';
 
 	/**
 	 * Markdown for agent output.
 	 *
-	 * The model writes markdown; showing it raw was simply a bug. Sanitised with
-	 * DOMPurify because the text is model-authored and, once the research tools
-	 * run, partly *paper*-authored — i.e. genuinely untrusted input that has
-	 * passed through a language model.
+	 * Sanitised with DOMPurify because the text is model-authored and — once the
+	 * research tools run — partly *paper*-authored, i.e. genuinely untrusted
+	 * input that has passed through a language model.
 	 *
-	 * This is the chat renderer. The paper viewer gets the heavier structural
-	 * pipeline (remark → typed blocks → components, no innerHTML at all) when it
-	 * lands; that one needs source-offset anchors for provenance, which this
-	 * cannot give.
+	 * The pipeline is ordered so each stage sees text the next can handle:
+	 *   linkify → resolve figures → extract math → markdown → sanitize → restore math
+	 * Math comes out first because KaTeX output is full of `$`, `\` and `_`,
+	 * which markdown would mangle; it goes back after sanitising, from a source
+	 * we control rather than one we whitelist.
 	 */
-	let { source, compact = false }: { source: string; compact?: boolean } = $props();
+	interface Props {
+		source: string;
+		compact?: boolean;
+		/** Called when an internal link (a file path) is clicked. */
+		onopen?: (path: string) => void;
+	}
+	let { source, compact = false, onopen }: Props = $props();
 
 	marked.setOptions({ gfm: true, breaks: true });
 
-	const html = $derived(
-		DOMPurify.sanitize(marked.parse(source ?? '', { async: false }) as string, {
+	const prepared = $derived.by(() => {
+		void assetVersion.n;
+		// Figure paths are virtual — the bytes live in the asset store, kept out
+		// of graph state because a PNG is ~950KB and state is checkpointed.
+		const withFigures = linkify(source ?? '').replace(
+			/!\[([^\]]*)\]\((\/figures\/[^)\s]+)\)/g,
+			(whole, alt: string, path: string) => {
+				const hit = assets.peek(path);
+				return hit ? `![${alt}](${hit.dataUrl})` : whole;
+			}
+		);
+		return extractMath(withFigures);
+	});
+
+	const html = $derived.by(() => {
+		const parsed = marked.parse(prepared.text, { async: false }) as string;
+		const clean = DOMPurify.sanitize(parsed, {
 			ALLOWED_TAGS: [
 				'p', 'br', 'strong', 'em', 'del', 'code', 'pre', 'blockquote',
 				'ul', 'ol', 'li', 'a', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-				'table', 'thead', 'tbody', 'tr', 'th', 'td', 'hr', 'sup', 'sub'
+				'table', 'thead', 'tbody', 'tr', 'th', 'td', 'hr', 'sup', 'sub', 'img'
 			],
-			ALLOWED_ATTR: ['href', 'title'],
-			ALLOW_DATA_ATTR: false
-		})
-	);
+			ALLOWED_ATTR: ['href', 'title', 'src', 'alt'],
+			ADD_DATA_URI_TAGS: ['img'],
+			ALLOW_DATA_ATTR: false,
+			// `hx:` is our own scheme for internal file links; without this
+			// DOMPurify strips it as an unknown protocol.
+			ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|hx):|[^a-z]|[a-z+.-]+(?:[^a-z+.\-:]|$))/i
+		});
+		return restoreMath(clean, prepared.nodes);
+	});
+
+	/** Intercept internal links; let real URLs behave normally. */
+	function onClick(e: MouseEvent) {
+		const link = (e.target as HTMLElement)?.closest?.('a');
+		const href = link?.getAttribute('href');
+		if (!href || !isInternalHref(href)) return;
+		e.preventDefault();
+		onopen?.(internalPath(href));
+	}
 </script>
 
 <!-- eslint-disable-next-line svelte/no-at-html-tags -- sanitised immediately above -->
-<div class="md" class:compact>{@html html}</div>
+<div class="md" class:compact onclick={onClick} role="presentation">{@html html}</div>
 
 <style>
 	.md {
@@ -56,12 +93,13 @@
 		font-weight: 600;
 		line-height: 1.3;
 		margin: 1.4em 0 0.5em;
+		letter-spacing: -0.01em;
 	}
 	.md :global(h1) {
-		font-size: 1.15em;
+		font-size: 1.3em;
 	}
 	.md :global(h2) {
-		font-size: 1.05em;
+		font-size: 1.1em;
 	}
 	.md :global(h3),
 	.md :global(h4) {
@@ -110,29 +148,60 @@
 	.md :global(a) {
 		text-decoration: underline;
 		text-underline-offset: 2px;
-		text-decoration-color: color-mix(in oklab, currentColor 40%, transparent);
+		text-decoration-color: color-mix(in oklab, currentColor 35%, transparent);
+	}
+	.md :global(a:hover) {
+		text-decoration-color: currentColor;
+	}
+	/* Internal links read as app affordances, not web links. */
+	.md :global(a[href^='hx:']) {
+		color: var(--hx-fs);
+		cursor: pointer;
+	}
+	.md :global(a[href^='hx:'] code) {
+		background: color-mix(in oklab, var(--hx-fs) 12%, transparent);
 	}
 	.md :global(table) {
 		border-collapse: collapse;
-		margin: 0.8em 0;
+		margin: 1em 0;
 		font-size: 0.92em;
 		display: block;
 		overflow-x: auto;
+		max-width: 100%;
 	}
 	.md :global(th),
 	.md :global(td) {
 		border: 1px solid var(--border);
-		padding: 0.35em 0.6em;
+		padding: 0.4em 0.7em;
 		text-align: left;
+		vertical-align: top;
 	}
 	.md :global(th) {
 		font-weight: 600;
 		background: color-mix(in oklab, var(--muted) 60%, transparent);
+		white-space: nowrap;
+	}
+	.md :global(img) {
+		max-width: 100%;
+		height: auto;
+		border-radius: var(--radius-sm);
+		margin: 0.9em 0;
+		display: block;
 	}
 	.md :global(hr) {
 		border: 0;
 		border-top: 1px solid var(--border);
-		margin: 1.2em 0;
+		margin: 1.4em 0;
+	}
+	/* Long display equations should scroll, not blow out the column. */
+	.md :global(.katex-display) {
+		overflow-x: auto;
+		overflow-y: hidden;
+		padding: 0.35em 0;
+		margin: 0.9em 0;
+	}
+	.md :global(.katex) {
+		font-size: 1.02em;
 	}
 	.compact :global(p) {
 		margin: 0.4em 0;

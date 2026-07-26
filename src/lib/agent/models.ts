@@ -29,6 +29,24 @@ export type ModelId = (typeof MODELS)[number]['id'];
 
 export const RATES_VERIFIED = '2026-07';
 
+/**
+ * How many tokens fit in one request.
+ *
+ * The whole gpt-5.6 family shares an input window, so this is a single number
+ * rather than a per-model field. It is the *input* limit specifically — output
+ * is budgeted separately — which is the one that matters here, because the
+ * context gauge is measuring what we send.
+ *
+ * It is stated once, in the open, because everything downstream is relative to
+ * it: the fill bar, the donut in the status rail, and the threshold at which
+ * the harness compacts. If the family's window changes, this line changes and
+ * the rest follows.
+ */
+export const INPUT_LIMIT = 272_000;
+
+/** Compact when the next request would cross this share of the window. */
+export const COMPACT_AT = 0.9;
+
 export function rateFor(model: string) {
 	return MODELS.find((m) => m.id === model) ?? MODELS[1];
 }

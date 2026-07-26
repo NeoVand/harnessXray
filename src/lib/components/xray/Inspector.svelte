@@ -8,29 +8,50 @@
 	import TodoPanel from './TodoPanel.svelte';
 	import FilesPanel from './FilesPanel.svelte';
 	import MemoryPanel from './MemoryPanel.svelte';
-	import PromptPanel from './PromptPanel.svelte';
+	import SkillsPanel from './SkillsPanel.svelte';
+	import { skills } from '$lib/agent/skills.svelte';
 	import { session } from '$lib/agent/session.svelte';
 	import { HugeiconsIcon } from '@hugeicons/svelte';
 	import { ICON, type IconValue } from '$lib/icons';
 
 	interface Props {
 		selectedId: string | null;
+		/** A figure clicked in the timeline; focuses the files tab on it. */
+		openPath?: string | null;
+		/** Open a path in the full-screen reader. */
+		onread?: (path: string) => void;
+		/** Open the skill library. */
+		onmanageskills?: () => void;
 	}
-	let { selectedId }: Props = $props();
+	let {
+		selectedId,
+		openPath = $bindable<string | null>(null),
+		onread,
+		onmanageskills
+	}: Props = $props();
 
 	/**
 	 * Two regions, because the panels are not the same size of thing.
 	 *
 	 * `detail` / `raw` / `files` are documents — they want the room. `plan`,
-	 * `prompt` and `graph` are dashboards: mostly short, and far more useful
+	 * `skills` and `graph` are dashboards: mostly short, and far more useful
 	 * *while* you are reading something else. Stacking them means you can watch
 	 * the plan tick over as a file is written, instead of tabbing away from one
 	 * to see the other.
+	 *
+	 * There used to be a `prompt` tab here. It has gone: the Context tab shows
+	 * the same system prompt in its assembled bands, next to everything else in
+	 * the window, and two places claiming to show one string is worse than one.
 	 */
 	type Top = 'detail' | 'raw' | 'files' | 'memory';
-	type Bottom = 'plan' | 'prompt' | 'graph';
+	type Bottom = 'plan' | 'skills' | 'graph';
 
 	let top = $state<Top>('detail');
+
+	// Opening a figure should also switch to the tab that can show it.
+	$effect(() => {
+		if (openPath) top = 'files';
+	});
 	let bottom = $state<Bottom>('plan');
 
 	const event = $derived.by(() => {
@@ -59,25 +80,29 @@
 
 	const BOTTOM_TABS: { id: Bottom; label: string; icon: IconValue }[] = [
 		{ id: 'plan', label: 'plan', icon: ICON.todo },
-		{ id: 'prompt', label: 'prompt', icon: ICON.prompt },
+		{ id: 'skills', label: 'skills', icon: ICON.skill },
 		{ id: 'graph', label: 'graph', icon: ICON.graph }
 	];
 
 	const counts = $derived({
 		todos: session.todos.length,
 		files: session.fileList.length,
-		memories: session.memories.length
+		memories: session.memories.length,
+		skills: skills.active.length
 	});
 </script>
 
 <Resizable.PaneGroup direction="vertical" autoSaveId="hx:inspector" class="h-full">
 	<!-- Documents -->
 	<Resizable.Pane defaultSize={66} minSize={30}>
-		<div class="flex h-full min-h-0 flex-col">
-			<header class="hx-rule flex items-center gap-3.5 border-b px-3">
+		<div class="relative h-full min-h-0">
+			<header
+				class="hx-rule hx-frost absolute inset-x-0 top-0 z-20 flex h-9 items-center gap-3.5
+				       border-b px-3"
+			>
 				{#each TOP_TABS as t (t.id)}
 					<button
-						class="hx-eyebrow relative flex items-center gap-1.5 py-2.5 transition-colors
+						class="hx-eyebrow relative flex h-full items-center gap-1.5 transition-colors
 						       hover:text-foreground"
 						class:text-foreground={top === t.id}
 						onclick={() => (top = t.id)}
@@ -90,7 +115,7 @@
 							<span class="hx-num text-[9px] opacity-60">{counts.memories}</span>
 						{/if}
 						{#if top === t.id}
-							<span class="absolute inset-x-0 -bottom-px h-px bg-foreground"></span>
+							<span class="absolute inset-x-0 bottom-0 h-px bg-foreground"></span>
 						{/if}
 					</button>
 				{/each}
@@ -104,13 +129,24 @@
 				{/if}
 			</header>
 
+			<!--
+				One rule for clearing the floating header, applied here rather than
+				in each branch.
+
+				`pt-9` on the *scrolling* element is the trick: the padding is inside
+				the scroll box, so content starts below the header and still slides
+				under it as you scroll. Setting it per-branch is how the raw view
+				ended up with none — its first lines sat permanently behind the tab
+				bar, and since the content was shorter than the pane there was no
+				scroll available to recover them.
+			-->
 			<div
-				class="min-h-0 flex-1"
+				class="h-full pt-9"
 				class:overflow-auto={top !== 'files' && top !== 'memory'}
 				class:overflow-hidden={top === 'files' || top === 'memory'}
 			>
 				{#if top === 'files'}
-					<FilesPanel />
+					<FilesPanel bind:openPath {onread} />
 				{:else if top === 'memory'}
 					<MemoryPanel />
 				{:else if !event}
@@ -119,7 +155,7 @@
 					</p>
 				{:else if top === 'detail'}
 					<div class="px-3 py-3">
-						<JsonView value={detailOf(event)} openTo={3} />
+						<JsonView value={detailOf(event)} openTo={3} root />
 					</div>
 					{#if frames.length}
 						<div class="hx-rule border-t px-3 py-3">
@@ -127,6 +163,7 @@
 							<JsonView
 								value={frames.map((f) => (f.kind === 'http_sse_frame' ? f.parsed : null))}
 								openTo={1}
+								root
 							/>
 						</div>
 					{/if}
@@ -141,11 +178,14 @@
 
 	<!-- Dashboards -->
 	<Resizable.Pane defaultSize={34} minSize={12} collapsible collapsedSize={6}>
-		<div class="flex h-full min-h-0 flex-col">
-			<header class="hx-rule flex items-center gap-3.5 border-y px-3">
+		<div class="relative h-full min-h-0">
+			<header
+				class="hx-rule hx-frost absolute inset-x-0 top-0 z-20 flex h-8 items-center gap-3.5
+				       border-y px-3"
+			>
 				{#each BOTTOM_TABS as t (t.id)}
 					<button
-						class="hx-eyebrow relative flex items-center gap-1.5 py-2 transition-colors
+						class="hx-eyebrow relative flex h-full items-center gap-1.5 transition-colors
 						       hover:text-foreground"
 						class:text-foreground={bottom === t.id}
 						onclick={() => (bottom = t.id)}
@@ -154,19 +194,21 @@
 						{t.label}
 						{#if t.id === 'plan' && counts.todos}
 							<span class="hx-num text-[9px] opacity-60">{counts.todos}</span>
+						{:else if t.id === 'skills' && counts.skills}
+							<span class="hx-num text-[9px] opacity-60">{counts.skills}</span>
 						{/if}
 						{#if bottom === t.id}
-							<span class="absolute inset-x-0 -bottom-px h-px bg-foreground"></span>
+							<span class="absolute inset-x-0 bottom-0 h-px bg-foreground"></span>
 						{/if}
 					</button>
 				{/each}
 			</header>
 
-			<div class="min-h-0 flex-1 overflow-auto">
+			<div class="h-full overflow-auto pt-8">
 				{#if bottom === 'plan'}
 					<TodoPanel />
-				{:else if bottom === 'prompt'}
-					<PromptPanel />
+				{:else if bottom === 'skills'}
+					<SkillsPanel onmanage={onmanageskills} />
 				{:else}
 					<GraphView />
 				{/if}

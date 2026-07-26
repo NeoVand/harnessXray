@@ -27,8 +27,13 @@
 	});
 </script>
 
-<div class="flex h-full min-h-0 flex-col">
-	<header class="hx-rule flex items-center justify-between border-y px-3 py-1.5">
+<div class="relative h-full min-h-0">
+	<!-- Floating over the numbers rather than sitting above them, so the run
+	     accounting slides under it as you scroll. -->
+	<header
+		class="hx-rule hx-frost absolute inset-x-0 top-0 z-20 flex h-7 items-center
+		       justify-between border-y px-3"
+	>
 		<span class="hx-eyebrow flex items-center gap-1.5">
 			<HugeiconsIcon icon={ICON.tokens} size={12} strokeWidth={1.5} />
 			run
@@ -38,7 +43,7 @@
 		</span>
 	</header>
 
-	<div class="min-h-0 flex-1 overflow-y-auto px-3 py-2.5">
+	<div class="h-full overflow-y-auto px-3 pt-9 pb-2.5">
 		{#if t.calls === 0}
 			<p class="text-xs text-muted-foreground">
 				No model calls yet. Token counts here come from the provider's own usage object on the

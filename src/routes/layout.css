@@ -3,6 +3,7 @@
 @import "shadcn-svelte/tailwind.css";
 @import "@fontsource-variable/inter";
 @import "@fontsource-variable/jetbrains-mono";
+@import "katex/dist/katex.min.css";
 
 @custom-variant dark (&:is(.dark *));
 @plugin '@tailwindcss/forms';
@@ -209,6 +210,28 @@
 	/* Hairline: half-strength border. Cards separate by *edge*, not by box. */
 	.hx-rule {
 		border-color: color-mix(in oklab, var(--border) 60%, transparent);
+	}
+
+	/*
+	   Frosted chrome.
+
+	   Panel headers sit *over* their scroll area rather than above it, so content
+	   passes underneath and you can feel the header is a layer. The blur is what
+	   makes that legible — an opaque header would just clip, and a plain
+	   translucent one would let text collide with text. Saturation is nudged up
+	   because blurring desaturates whatever is behind it.
+	*/
+	.hx-frost {
+		background: color-mix(in oklab, var(--background) 72%, transparent);
+		backdrop-filter: blur(12px) saturate(1.4);
+		-webkit-backdrop-filter: blur(12px) saturate(1.4);
+	}
+	/* Where the backdrop cannot be blurred, fall back to opaque rather than to
+	   unreadable — a header you can see through onto text is worse than a flat one. */
+	@supports not (backdrop-filter: blur(1px)) {
+		.hx-frost {
+			background: var(--background);
+		}
 	}
 }
 

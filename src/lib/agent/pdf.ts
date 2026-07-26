@@ -82,6 +82,79 @@ function reflow(lines: string[]): string {
 	return out.join('\n');
 }
 
+/**
+ * Render the first few pages to images.
+ *
+ * A fetched paper is otherwise just a number of characters in a tool result —
+ * this is what makes "I read this paper" a *thing you can see*. Rendered at
+ * modest scale and JPEG-compressed, because these are card faces, not a reader.
+ */
+/**
+ * Page previews for an already-stored PDF, rendered once and kept.
+ *
+ * Papers fetched before thumbnails were stored alongside the file have none —
+ * but we still hold the bytes, so there is no reason to show a placeholder.
+ * Rendered on first view and written back into the asset, so it happens once
+ * per document rather than once per glance.
+ */
+export async function pagesOf(path: string): Promise<string[]> {
+	const { assets } = await import('$lib/storage/assets.svelte');
+	const asset = await assets.get(path);
+	if (!asset) return [];
+
+	const known = asset.meta?.pages;
+	if (Array.isArray(known) && known.length) return known as string[];
+
+	try {
+		const bin = atob(asset.dataUrl.split(',')[1] ?? '');
+		const bytes = new Uint8Array(bin.length);
+		for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+		const pages = await renderPdfPages(bytes.buffer, 4);
+		if (pages.length) await assets.put({ ...asset, meta: { ...asset.meta, pages } });
+		return pages;
+	} catch {
+		// A preview we cannot draw is not a failure worth reporting — the caller
+		// falls back to a plain "read it" row and the document still opens.
+		return [];
+	}
+}
+
+export async function renderPdfPages(
+	data: ArrayBuffer,
+	count = 4,
+	width = 240
+): Promise<string[]> {
+	const pdfjs = await import('pdfjs-dist');
+	const workerUrl = (await import('pdfjs-dist/build/pdf.worker.min.mjs?url')).default;
+	pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+
+	const task = pdfjs.getDocument({ data: data.slice(0) });
+	const doc = await task.promise;
+	try {
+		const out: string[] = [];
+		for (let i = 1; i <= Math.min(doc.numPages, count); i++) {
+			const page = await doc.getPage(i);
+			const base = page.getViewport({ scale: 1 });
+			const viewport = page.getViewport({ scale: width / base.width });
+
+			const canvas = document.createElement('canvas');
+			canvas.width = Math.ceil(viewport.width);
+			canvas.height = Math.ceil(viewport.height);
+			const ctx = canvas.getContext('2d');
+			if (!ctx) break;
+			// Papers render as black-on-transparent otherwise.
+			ctx.fillStyle = '#fff';
+			ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+			await page.render({ canvas, canvasContext: ctx, viewport }).promise;
+			out.push(canvas.toDataURL('image/jpeg', 0.72));
+		}
+		return out;
+	} finally {
+		await task.destroy();
+	}
+}
+
 export async function extractPdfText(data: ArrayBuffer, maxPages = 30): Promise<string> {
 	const pdfjs = await import('pdfjs-dist');
 	const workerUrl = (await import('pdfjs-dist/build/pdf.worker.min.mjs?url')).default;
