@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { SvelteSet } from 'svelte/reactivity';
 	import type { XrayEvent } from '$lib/xray/events';
 	import { sseEventName } from '$lib/xray/highlight';
 	import JsonCode from './JsonCode.svelte';
@@ -20,18 +21,20 @@
 
 	let literal = $state(false);
 	let filter = $state<string | null>(null);
-	let expanded = $state<Set<number>>(new Set());
+	const expanded = new SvelteSet<number>();
 
 	const rows = $derived(
 		frames
-			.filter((f): f is Extract<XrayEvent, { kind: 'http_sse_frame' }> => f.kind === 'http_sse_frame')
+			.filter(
+				(f): f is Extract<XrayEvent, { kind: 'http_sse_frame' }> => f.kind === 'http_sse_frame'
+			)
 			.map((f) => ({ i: f.i, raw: f.raw, name: sseEventName(f.raw) ?? 'data' }))
 	);
 
 	const types = $derived.by(() => {
-		const counts = new Map<string, number>();
-		for (const r of rows) counts.set(r.name, (counts.get(r.name) ?? 0) + 1);
-		return [...counts.entries()].sort((a, b) => b[1] - a[1]);
+		const counts: Record<string, number> = {};
+		for (const r of rows) counts[r.name] = (counts[r.name] ?? 0) + 1;
+		return Object.entries(counts).sort((a, b) => b[1] - a[1]);
 	});
 
 	const shown = $derived(filter ? rows.filter((r) => r.name === filter) : rows);
@@ -47,15 +50,16 @@
 	});
 
 	function toggle(i: number) {
-		const next = new Set(expanded);
-		if (next.has(i)) next.delete(i);
-		else next.add(i);
-		expanded = next;
+		if (!expanded.delete(i)) expanded.add(i);
 	}
 
 	/** The one-line gist of a frame, so the list is scannable while collapsed. */
 	function gist(raw: string): string {
-		const data = raw.split('\n').find((l) => l.startsWith('data:'))?.slice(5).trim();
+		const data = raw
+			.split('\n')
+			.find((l) => l.startsWith('data:'))
+			?.slice(5)
+			.trim();
 		if (!data) return raw.slice(0, 80);
 		if (data === '[DONE]') return '[DONE]';
 		try {
@@ -89,7 +93,8 @@
 				onclick={() => (filter = filter === name ? null : name)}
 				title={name}
 			>
-				{name.replace(/^response\./, '')} {n}
+				{name.replace(/^response\./, '')}
+				{n}
 			</button>
 		{/each}
 		<button
@@ -104,10 +109,9 @@
 
 	{#if literal}
 		<div class="px-3 py-3">
-			<pre class="font-mono text-[11px] leading-relaxed whitespace-pre-wrap
-			            [overflow-wrap:anywhere] text-foreground/80">{shown
-					.map((r) => r.raw)
-					.join('\n\n')}</pre>
+			<pre
+				class="font-mono text-[11px] leading-relaxed [overflow-wrap:anywhere]
+			            whitespace-pre-wrap text-foreground/80">{shown.map((r) => r.raw).join('\n\n')}</pre>
 		</div>
 	{:else}
 		<div>

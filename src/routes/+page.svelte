@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { SvelteSet } from 'svelte/reactivity';
 	import * as Resizable from '$lib/components/ui/resizable';
 	import Conversation from '$lib/components/chat/Conversation.svelte';
 	import Composer from '$lib/components/chat/Composer.svelte';
@@ -14,6 +15,8 @@
 	import ThemeIcon from '$lib/components/ThemeIcon.svelte';
 	import { theme } from '$lib/state/theme.svelte';
 	import ContextPanel from '$lib/components/xray/ContextPanel.svelte';
+	import { replay } from '$lib/xray/replay.svelte';
+	import { exitReplay } from '$lib/lab/demo';
 	import ContextDonut from '$lib/components/xray/ContextDonut.svelte';
 	import FilterMenu from '$lib/components/xray/FilterMenu.svelte';
 	import { bus } from '$lib/xray/bus.svelte';
@@ -55,8 +58,10 @@
 
 	// Filters hold what is *hidden*, so "nothing hidden" is the empty set and a
 	// kind that only appears later is visible without anyone updating a list.
-	let hiddenKinds = $state(new Set<string>());
-	let hiddenGroups = $state(new Set<string>());
+	// SvelteSets: the FilterMenu mutates them in place, and `.has()` in every
+	// panel re-runs off those mutations — same object, live contents.
+	const hiddenKinds = new SvelteSet<string>();
+	const hiddenGroups = new SvelteSet<string>();
 
 	const KIND_LABELS: Record<DisplayKind, string> = {
 		user: 'you',
@@ -73,18 +78,18 @@
 	/** Only offer to hide what is actually in the log, with live counts. */
 	const kindOptions = $derived.by(() => {
 		void bus.version;
-		const seen = new Map<string, number>();
+		const seen: Partial<Record<DisplayKind, number>> = {};
 		for (const e of bus.events) {
 			if (e.kind === 'http_sse_frame' && !showFrames) continue;
-			seen.set(e.displayKind, (seen.get(e.displayKind) ?? 0) + 1);
+			seen[e.displayKind] = (seen[e.displayKind] ?? 0) + 1;
 		}
 		return (Object.keys(KIND_LABELS) as DisplayKind[])
-			.filter((k) => seen.has(k))
+			.filter((k) => seen[k] !== undefined)
 			.map((k) => ({
 				key: k,
 				label: KIND_LABELS[k],
 				color: KIND_COLOR[k],
-				count: seen.get(k)
+				count: seen[k]
 			}));
 	});
 
@@ -173,6 +178,26 @@
 			></span>
 			<span class="hx-eyebrow">{session.status}</span>
 		</span>
+
+		{#if replay.active}
+			<!-- Replay is a different physics — no network, no key, no spend — and
+			     the header is the one place that is always visible to say so. -->
+			<span
+				class="ml-2 flex items-center gap-1.5 rounded-full border px-2 py-0.5"
+				style:border-color="color-mix(in oklab, var(--hx-interrupt) 50%, transparent)"
+			>
+				<span class="hx-eyebrow" style:color="var(--hx-interrupt)">
+					replay · {replay.fixtureName || 'fixture'} · no network
+				</span>
+				<button
+					class="hx-eyebrow text-muted-foreground transition-colors hover:text-foreground"
+					onclick={exitReplay}
+					title="Leave replay mode and start a fresh live chat"
+				>
+					exit
+				</button>
+			</span>
+		{/if}
 
 		<div class="ml-auto flex items-center gap-3">
 			<button
@@ -363,13 +388,13 @@
 												{#if lens === 'timeline'}
 													<FilterMenu
 														options={kindOptions}
-														bind:hidden={hiddenKinds}
+														hidden={hiddenKinds}
 														label="event kinds"
 													/>
 												{:else}
 													<FilterMenu
 														options={GROUP_OPTIONS}
-														bind:hidden={hiddenGroups}
+														hidden={hiddenGroups}
 														label="sections"
 													/>
 												{/if}
@@ -419,6 +444,7 @@
 								bind:top={inspectorTop}
 								bind:bottom={inspectorBottom}
 								onread={(p) => (readPath = p)}
+								onjump={select}
 								onmanageskills={() => (skillsOpen = true)}
 							/>
 						</Resizable.Pane>

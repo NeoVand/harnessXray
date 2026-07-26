@@ -32,6 +32,32 @@ export interface Skill {
 export const SKILLS_ROOT = '/skills/';
 export const skillPath = (name: string) => `${SKILLS_ROOT}${name}/SKILL.md`;
 
+/**
+ * Is this tool call the agent opening a skill?
+ *
+ * There is no "use skill" tool to watch for — a skill is a file and using one
+ * is `read_file`. So the only way to see the moment is to recognise the path,
+ * which is exactly what makes skills cheap and also what makes them invisible.
+ * The timeline uses this to caption the row honestly.
+ */
+export function skillReadIn(name: string, args: unknown): string | undefined {
+	if (name !== 'read_file' && name !== 'read') return undefined;
+	const a = args as { file_path?: unknown; path?: unknown } | null;
+	const path =
+		typeof a?.file_path === 'string' ? a.file_path : typeof a?.path === 'string' ? a.path : '';
+	return path.match(/^\/skills\/([^/]+)\/SKILL\.md$/)?.[1];
+}
+
+/** FNV-1a, enough to notice an edited body without storing the body. */
+function fingerprint(s: string): string {
+	let h = 0x811c9dc5;
+	for (let i = 0; i < s.length; i++) {
+		h ^= s.charCodeAt(i);
+		h = Math.imul(h, 0x01000193);
+	}
+	return (h >>> 0).toString(36);
+}
+
 /** The Agent Skills spec: lowercase, digits, hyphens, ≤64 chars. */
 export const NAME_RULE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
@@ -131,7 +157,8 @@ const ARXIV_REVIEW = composeSkill(
 
 1. \`search_papers\` two or three times with **different phrasings**. It is cheap
    and the phrasings surface different literatures. Prefer highly-cited work for
-   foundations and recent work for the frontier.
+   foundations and recent work for the frontier. The text query cannot see
+   author names — for "papers by X", pass the \`author\` parameter.
 2. Only \`fetch_paper\` what you will actually cite — a full paper is tens of
    thousands of tokens. Better still, dispatch a **paper-reader subagent** per
    paper so the full text never enters your context at all.
@@ -159,7 +186,10 @@ Which section this supports, and what it is evidence *for*.
 
 ## Writing
 
-- Every claim from a paper carries an inline citation: \`(Author, year, arXiv:ID)\`.
+- Every citation comes from the **cite tool** — it returns the canonical
+  \`(Author, year, arXiv:ID)\` string and refuses papers this run never read.
+  A refusal means the claim is unsupportable: cut it or read the paper.
+- The References section comes from the **bibliography tool**, verbatim.
 - **Never invent a citation.** If you cannot support a claim, cut the claim.
 - Structure: motivation → what came before → the current split in approaches →
   what is unresolved. Not a list of paper summaries — a list of summaries is
@@ -173,6 +203,8 @@ Which section this supports, and what it is evidence *for*.
 - Escape a literal dollar sign as \`\\$\` or it opens a maths span.
 - Tables need a header row and a separator row; keep cells short.
 - Reference figures by the exact path they were written to: \`![caption](/figures/x.png)\`.
+- Prefer **extract_figures** (the paper's own figure and caption, as evidence)
+  over generated art; attribute it as "Figure from arXiv:ID" in the caption.
 - Link a paper as \`arXiv:2401.12345\` — bare ids are turned into links for you.
 
 ## Do not
@@ -184,51 +216,66 @@ Which section this supports, and what it is evidence *for*.
 
 const INFOGRAPHIC = composeSkill(
 	'infographic',
-	'Design an explanatory figure and write the image prompt for it. Use when a document needs a diagram, a schematic, or a concept illustration rather than a photograph.',
-	`# Explanatory figures
+	'Design a rich, labeled infographic or poster and get it generated well with gpt-image-2. Use when a document needs an infographic, diagram, banner or concept art — anything made with generate_image.',
+	`# Infographics and illustrations
 
-The failure mode is asking for "an illustration of X" and getting decorative
-stock art. A figure earns its place by carrying one idea the text cannot.
+These are made with **generate_image** (usually by delegating to the
+**image-smith** subagent, which writes the final brief). gpt-image-2 renders
+rich, accurate in-image text AND designs beautifully on its own — the craft
+is specifying the content exactly while leaving the design to the model.
+
+**Approval is automatic: calling generate_image IS asking.** The harness
+pauses the call itself and shows the user your exact brief to approve, edit
+or reject. Never ask for permission in prose and never end your turn waiting
+for a go-ahead — a turn that only *describes* a brief has generated nothing.
+Write the brief, call the tool.
+
+**Never hand-author an SVG or HTML "poster" with write_file.** write_file is
+for text; generate_image is for images. (For a figure that already exists in
+a paper, extract_figures — the real thing beats any recreation.)
 
 ## Decide first
 
 1. **What single claim does this figure make?** Write it as a sentence. If you
    cannot, the document does not need the figure.
-2. **What kind of figure carries that claim?**
-   - a *process* → left-to-right flow with labelled stages
-   - a *comparison* → two panels, identical framing, one variable changed
-   - a *structure* → cutaway or exploded view
-   - a *quantity* → do not generate it; write the numbers in a table instead
+2. **What kind of figure carries that claim?** A process → labeled stages in
+   order. A comparison → two labeled panels. A structure → named parts. A
+   quantity → do not generate it; write the numbers in a table instead.
 
-## Then write the prompt
+## The brief: exact content, named bar, no art direction
 
-Name all five, in this order:
-
-1. **Subject** — the specific thing, not the category.
-2. **Composition** — where things sit and where the eye goes.
-3. **Style** — e.g. "technical diagram, flat vector, thin uniform strokes",
-   "cutaway scientific illustration", "isometric schematic".
-4. **Palette** — two or three colours, named. Restraint reads as authority.
-5. **Background** — usually "plain off-white, no gradient, no vignette".
+- **Deliverable, audience, purpose** — one sentence.
+- **The exact words** — title and every label as EXACT strings in quotes, in
+  order; short labels; technical terms spelled as they must appear; end with
+  what must NOT appear ("no other text, no watermark").
+- **The bar, not the style** — "the quality of a Nature or Quanta Magazine
+  explainer". Do NOT dictate palettes, stroke widths, "flat vector",
+  backgrounds or icon styles unless the user asked — an over-specified prompt
+  comes back as clip-art. The model is a better designer than a checklist.
 
 ### Example
 
-> A technical diagram of a transformer attention head. Left to right: a row of
-> input tokens as small squares, thin lines fanning from one highlighted token
-> to all others with varying line weights, converging into a single output
-> square. Flat vector style, uniform 2px strokes, no shadows. Palette: slate
-> grey, one warm ochre accent for the highlighted token, white background.
-> Clean margins, no text labels.
+> An editorial science infographic for ML students, the quality of a Quanta
+> Magazine explainer. It teaches one idea: masked diffusion generates text by
+> parallel prediction and iterative refinement. Title: "How Masked Diffusion
+> Generates Text". Five stages in order, labeled exactly: "Start fully
+> masked", "Predict all positions", "Keep confident tokens", "Remask the
+> rest", "Repeat until done". Small closing note: "Parallel prediction,
+> iterative refinement". No other text, no watermark.
 
 ## Rules
 
-- **Ask for no text in the image.** Generated lettering is unreliable; put
-  labels in the markdown caption underneath.
-- Prefer "flat", "schematic", "diagrammatic" over "realistic" or "detailed" —
-  detail is noise in an explanatory figure.
+- **Quoted strings render reliably; invented text does not.** Everything you
+  want lettered goes in quotes; keep labels short.
+- **quality: "high"** for anything text-dense; landscape (\`1536x1024\`) for
+  posters and flows.
 - One figure, one idea. Two ideas means two figures.
-- Landscape (\`1536x1024\`) for anything that flows left to right.
-- Write a real caption. The caption states the claim; the figure shows it.`
+- The markdown caption carries the citations — attribution lives in the
+  document, not inside the artwork.
+- A misspelled label → regenerate once with that word spelled
+  letter-by-letter.
+- Do not substitute a hand-written SVG, HTML, or ASCII diagram for the image —
+  if generate_image is unavailable or rejected, say so and move on.`
 );
 
 export const BUILTIN_SKILLS: Skill[] = [SKILL_CREATOR, ARXIV_REVIEW, INFOGRAPHIC].map((body) => {
@@ -270,8 +317,21 @@ class SkillLibrary {
 		return this.active.map((s) => s.name).join(',');
 	}
 
+	/**
+	 * Like `signature`, but sensitive to the words too. The timeline compares
+	 * this one, so editing a skill's body — same names, different instructions —
+	 * still earns a `skills_loaded` row. "Did my edit register?" is exactly the
+	 * question that row exists to answer.
+	 */
+	get contentSignature(): string {
+		return this.active.map((s) => `${s.name}:${fingerprint(s.body)}`).join(',');
+	}
+
 	/** The files to seed into the virtual filesystem before a run. */
-	seed(): Record<string, { content: string; mimeType: string; created_at: string; modified_at: string }> {
+	seed(): Record<
+		string,
+		{ content: string; mimeType: string; created_at: string; modified_at: string }
+	> {
 		const now = new Date().toISOString();
 		const out: Record<
 			string,
@@ -333,9 +393,17 @@ class SkillLibrary {
 		const { name, description } = readFrontmatter(body);
 		const bad = validateName(name);
 		if (bad) return bad;
-		if (!description) return 'The frontmatter needs a description — it is the only part always in context.';
+		if (!description)
+			return 'The frontmatter needs a description — it is the only part always in context.';
 
-		const next: Skill = { name, description, body, builtin: false, enabled: true, createdAt: Date.now() };
+		const next: Skill = {
+			name,
+			description,
+			body,
+			builtin: false,
+			enabled: true,
+			createdAt: Date.now()
+		};
 		const at = this.all.findIndex((s) => s.name === name);
 		if (at >= 0 && this.all[at].builtin) return `“${name}” is a built-in. Pick another name.`;
 		if (at >= 0) this.all[at] = next;

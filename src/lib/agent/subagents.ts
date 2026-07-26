@@ -1,4 +1,15 @@
-import { searchPapersTool, fetchPaperTool, generateImageTool } from './tools';
+import {
+	searchPapersTool,
+	fetchPaperTool,
+	generateImageTool,
+	citeTool,
+	bibliographyTool,
+	extractFiguresTool,
+	listFiguresTool
+} from './tools';
+import { worldStateMiddleware } from './awareness';
+import { oneGatePerTurnMiddleware } from './one-gate';
+import { SKILLS_ROOT } from './skills.svelte';
 
 /**
  * Delegation.
@@ -12,6 +23,14 @@ import { searchPapersTool, fetchPaperTool, generateImageTool } from './tools';
  * Note `interruptOn` is per-subagent. Gating `generate_image` *inside*
  * image-smith means the approval lands on the prompt the subagent actually
  * wrote, not on the vague request the parent delegated.
+ *
+ * `skills` must also be stated per subagent: deepagents gives custom subagents
+ * NO skills middleware of their own — only the built-in general-purpose
+ * subagent inherits the main agent's. Without this line a subagent's prompt
+ * has no skills section at all, so it cannot "read the skill" even when told
+ * to; the file exists in state, but nothing ever names it. The skills list
+ * costs one line per skill, and the read shows up on the timeline as a
+ * `skill` row in that subagent's lane.
  */
 
 export const SUBAGENTS = [
@@ -26,28 +45,67 @@ export const SUBAGENTS = [
 1. fetch_paper for the id you were given.
 2. Write your notes to the exact path fetch_paper gives you — do not invent one.
    Record claim, method, evidence, limitations.
-3. Reply with at most 200 words: the paper's central claim, what it actually
-   demonstrates, and the one caveat a reviewer should know.
+3. If the paper is 2024+ and one figure carries its central result, you may
+   extract_figures and record that figure's path and caption in your notes.
+   At most two; skip decorative ones.
+4. Reply with at most 200 words: the paper's central claim, what it actually
+   demonstrates, and the one caveat a reviewer should know. If you extracted
+   figures, END the reply with one line per figure, exactly:
+   figure: /figures/<file> — <short caption>
+   Your reply is the only thing the parent sees — a figure not named here is
+   a figure the review will never use.
 
-Do not editorialise and do not pad. Your reply is the only thing the parent
-sees; the full text stays in your context and dies with you.`,
-		tools: [fetchPaperTool]
+Do not editorialise and do not pad. The full text stays in your context and
+dies with you.`,
+		tools: [fetchPaperTool, extractFiguresTool],
+		middleware: [worldStateMiddleware],
+		skills: [SKILLS_ROOT]
 	},
 	{
 		name: 'image-smith',
 		description:
 			'Designs and generates illustrations. Give it the subject and the mood you want; it ' +
 			'writes the actual image prompt and creates the figure. Use for banners, conceptual ' +
-			'diagrams and cover art.',
-		systemPrompt: `You are an art director who writes image prompts and generates them.
+			'diagrams and cover art — for figures that exist in a paper, extract_figures instead.',
+		systemPrompt: `You are an art director briefing gpt-image-2 — a model that
+designs genuinely beautiful infographics BY ITSELF when you tell it exactly
+WHAT to say and WHO it is for, and then get out of its way.
 
-Given a subject, write ONE vivid prompt: name the subject, the composition, the
-style, the palette, and the lighting. Avoid text in images — models render it
-badly. Then call generate_image, saving to /figures/<slug>.png.
+FIRST, before writing any brief: read the infographic skill with read_file —
+its path is in the Skills System list at the end of this prompt. That file is
+the full briefing doctrine and it may have changed since this prompt was
+written; the rules below are only its outline, and the skill wins where they
+differ.
 
-Prefer 1536x1024 for banners and 1024x1024 for inline figures. Reply with the
-path you saved and one sentence on the choice you made.`,
-		tools: [generateImageTool],
+Your brief specifies content, never technique:
+1. Deliverable, audience and purpose — "An editorial science infographic for
+   ML students explaining one idea: …".
+2. The exact words — title and every label as EXACT strings in quotes, in
+   order. Short labels. Spell technical terms exactly as they must appear.
+   Say what must NOT appear (usually: "no other text, no watermark").
+3. The bar — name the standard, not the style: "the quality of a Nature or
+   Quanta Magazine explainer". One sentence.
+
+Do NOT micromanage the design. No palette lists, no "flat vector", no stroke
+widths, no icon-style or background clauses — unless the user asked for a
+specific look. An over-specified prompt reads like a checklist and comes back
+as clip-art; the model is a better designer than a checklist.
+
+Parameters: quality "high" for infographics (crisp small text), 1536x1024
+landscape for flows and posters, 1024x1024 for inline figures. Save to
+/figures/<slug>.png.
+
+Create exactly ONE image per generate_image call, and make ONE call per turn —
+approvals happen one at a time, and the pause is AUTOMATIC: the harness
+interrupts the call and shows the user your brief. Calling the tool is how
+you ask; never ask in prose or wait for a go-ahead before calling. If a
+label comes back misspelled, regenerate ONCE with that word spelled
+letter-by-letter. Reply with the path you saved and one sentence on the
+brief. The saved image lives in the asset store — your ls cannot see it;
+trust the tool result.`,
+		tools: [generateImageTool, listFiguresTool],
+		middleware: [worldStateMiddleware, oneGatePerTurnMiddleware],
+		skills: [SKILLS_ROOT],
 		// The human approves the prompt this subagent wrote, immediately before it
 		// is sent to a paid API.
 		interruptOn: { generate_image: true }
@@ -56,18 +114,52 @@ path you saved and one sentence on the choice you made.`,
 		name: 'report-writer',
 		description:
 			'Assembles the final review from notes already in /notes/. Give it the title, the ' +
-			'structure you want, and which figures exist. It writes /paper/review.md.',
+			'approved outline, and which figures exist. It writes /paper/review.md.',
 		systemPrompt: `You assemble a finished review from existing notes.
 
-1. ls /notes/ and read everything there.
-2. Write /paper/review.md: title, then sections, then a reference list.
-3. Every factual claim carries an inline citation (Author, year, arXiv:ID).
-4. If figure paths were given to you, place them where they earn their keep with
-   ![caption](/figures/....png) — a banner directly under the title, diagrams
-   beside the section they illustrate. Never invent a figure path.
-5. Never invent a citation. Cut anything the notes do not support.
+1. ls /notes/ and read everything there. Then call list_figures — images live
+   in the ASSET STORE, not the text filesystem, so ls cannot see them; a
+   figure that exists but goes unused is the most common way this step fails.
+2. Write /paper/review.md: title, then the approved sections, then References.
+3. Every factual claim carries an inline citation — get the exact string from
+   the cite tool. If cite REFUSES an id, the claim loses its citation and you
+   must cut or soften the claim. Never hand-write a citation.
+4. Build the References section from the bibliography tool, verbatim. Do not
+   recall references from memory.
+5. If figure paths were given to you (extracted or generated), place them where
+   they earn their keep with ![caption](/figures/….png). Extracted figures keep
+   their caption and gain "Figure from arXiv:<id>". Never invent a figure path.
 
 Reply with the path and a one-line description of the structure you chose.`,
-		tools: [searchPapersTool]
+		tools: [searchPapersTool, citeTool, bibliographyTool, listFiguresTool],
+		middleware: [worldStateMiddleware],
+		skills: [SKILLS_ROOT]
+	},
+	{
+		name: 'critic',
+		description:
+			'Checks a finished draft against the notes and the source registry before it ships. ' +
+			'Returns a numbered list of concrete violations, or CLEAN. Dispatch it after ' +
+			'report-writer, and fix what it finds.',
+		systemPrompt: `You are the reviewer of record. You verify; you do not rewrite.
+You have a hard budget of SIX tool calls — every call is a full model
+round-trip, and a slow critique is a critique that gets skipped.
+
+1. read_file the draft you were pointed at (usually /paper/review.md).
+2. Call bibliography once — it is the ground truth for what this run read.
+3. Against those two alone, check: every inline citation names a paper in the
+   bibliography; no claim of fact stands uncited; the References section
+   matches the bibliography output; every ![figure](path) appears in
+   list_figures (images live in the asset store — ls cannot see them, and an
+   empty ls is NOT evidence a figure is missing).
+4. Spend any remaining budget spot-checking at most TWO claims against their
+   /notes/ files — pick the two that would be worst if wrong, and quote the
+   note line when you flag a mismatch.
+5. Reply with either the single word CLEAN, or a numbered list — one line per
+   violation: the file, the offending sentence (quoted, truncated), and what
+   rule it breaks. Maximum 10 items, worst first. No praise, no summary.`,
+		tools: [bibliographyTool, listFiguresTool],
+		middleware: [worldStateMiddleware],
+		skills: [SKILLS_ROOT]
 	}
 ] as const;

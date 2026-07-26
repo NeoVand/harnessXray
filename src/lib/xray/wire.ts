@@ -43,10 +43,40 @@ function safeJson(text: string): unknown {
 	}
 }
 
-export function createInstrumentedFetch(bus: EventBus, scope: Scope = 'main'): typeof fetch {
+/**
+ * FNV-1a, 32-bit, as eight hex chars.
+ *
+ * The replay key. It only has to be stable and cheap — this is matching a
+ * request to its own recording, not defending against an adversary — and
+ * FNV-1a is both in six lines with no imports.
+ */
+export function fnv1a(text: string): string {
+	let h = 0x811c9dc5;
+	for (let i = 0; i < text.length; i++) {
+		h ^= text.charCodeAt(i);
+		h = Math.imul(h, 0x01000193);
+	}
+	return (h >>> 0).toString(16).padStart(8, '0');
+}
+
+export function createInstrumentedFetch(
+	bus: EventBus,
+	scope: Scope = 'main',
+	/**
+	 * What actually answers the request. Defaults to the real network; replay
+	 * passes a fixture-server here. Everything above this seam — capture, tee,
+	 * frame events — runs identically either way, which is the entire point:
+	 * the X-ray cannot tell a recording from the internet.
+	 */
+	transport?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
+): typeof fetch {
 	return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
 		const url =
-			typeof input === 'string' ? input : input instanceof URL ? input.href : (input as Request).url;
+			typeof input === 'string'
+				? input
+				: input instanceof URL
+					? input.href
+					: (input as Request).url;
 		const body = typeof init?.body === 'string' ? init.body : undefined;
 
 		const request = bus.emit({
@@ -57,6 +87,8 @@ export function createInstrumentedFetch(bus: EventBus, scope: Scope = 'main'): t
 			headers: headerMap(init?.headers),
 			body: body ? safeJson(body) : null,
 			bytes: body?.length ?? 0,
+			// Hashed from the literal string, before any parse — see fnv1a.
+			...(body ? { bodyHash: fnv1a(body) } : {}),
 			label: new URL(url, 'http://x').pathname
 		});
 		const httpId = request.id;
@@ -64,7 +96,7 @@ export function createInstrumentedFetch(bus: EventBus, scope: Scope = 'main'): t
 		const started = performance.now();
 		let res: Response;
 		try {
-			res = await fetch(input, init);
+			res = await (transport ?? fetch)(input, init);
 		} catch (err) {
 			bus.emit({
 				kind: 'http_error',
@@ -136,9 +168,7 @@ export function createInstrumentedFetch(bus: EventBus, scope: Scope = 'main'): t
 						// usage at the top of the frame, the Responses API nests it under
 						// `response`. Reading only the first silently loses every token
 						// count on the path we actually use.
-						const p = parsed as
-							| { usage?: unknown; response?: { usage?: unknown } }
-							| undefined;
+						const p = parsed as { usage?: unknown; response?: { usage?: unknown } } | undefined;
 						if (p?.usage) lastUsage = p.usage;
 						else if (p?.response?.usage) lastUsage = p.response.usage;
 						bus.emit({ kind: 'http_sse_frame', scope, httpId, i: i++, raw, parsed });

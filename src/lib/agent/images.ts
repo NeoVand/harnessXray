@@ -1,6 +1,7 @@
 import { bus } from '$lib/xray/bus.svelte';
 import { keys } from '$lib/state/keys.svelte';
 import { createInstrumentedFetch } from '$lib/xray/wire';
+import { replay, replayTransport } from '$lib/xray/replay.svelte';
 import { assets, thumbnail } from '$lib/storage/assets.svelte';
 
 /**
@@ -40,6 +41,8 @@ export interface GeneratedImage {
 	size: string;
 	quality: string;
 	partials: number;
+	/** An image already lived at this path and was overwritten. */
+	replaced: boolean;
 	usage?: { input_tokens?: number; output_tokens?: number };
 }
 
@@ -60,13 +63,17 @@ export async function generateImage(opts: GenerateImageOptions): Promise<Generat
 	});
 
 	// The same interceptor the model calls use, so image traffic appears on the
-	// wire plane rather than being invisible.
-	const instrumented = createInstrumentedFetch(bus, 'main');
+	// wire plane rather than being invisible — and replays like everything else.
+	const instrumented = createInstrumentedFetch(
+		bus,
+		'main',
+		replay.active ? replayTransport : undefined
+	);
 
 	const res = await instrumented(ENDPOINT, {
 		method: 'POST',
 		headers: {
-			authorization: `Bearer ${keys.require()}`,
+			authorization: `Bearer ${replay.active ? 'sk-replay-fixture' : keys.require()}`,
 			'content-type': 'application/json'
 		},
 		body: JSON.stringify({
@@ -144,6 +151,7 @@ export async function generateImage(opts: GenerateImageOptions): Promise<Generat
 	if (!final) throw new Error('Image stream ended without a completed image.');
 
 	const bytes = Math.round((final.length * 3) / 4);
+	const replaced = !!(await assets.get(path));
 	await assets.put({
 		path,
 		dataUrl: final,
@@ -169,6 +177,7 @@ export async function generateImage(opts: GenerateImageOptions): Promise<Generat
 		size: String(meta.size ?? size),
 		quality: String(meta.quality ?? quality),
 		partials: partialCount,
+		replaced,
 		usage: meta.usage as GeneratedImage['usage']
 	};
 }

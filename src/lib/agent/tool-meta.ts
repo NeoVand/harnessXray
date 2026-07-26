@@ -1,13 +1,18 @@
 import {
 	AsteriskIcon,
+	Bookmark01Icon,
 	CheckListIcon,
 	FileDownloadIcon,
 	FileEditIcon,
 	FileSearchIcon,
+	Image01Icon,
+	LeftToRightListNumberIcon,
 	ListViewIcon,
 	PencilEdit01Icon,
+	QuoteDownIcon,
 	RoboticIcon,
 	Search01Icon,
+	SparklesIcon,
 	Wrench01Icon
 } from '@hugeicons/core-free-icons';
 import type { IconValue } from '$lib/icons';
@@ -34,6 +39,17 @@ const META: Record<string, ToolMeta> = {
 	// ── ours ────────────────────────────────────────────────────────────────
 	search_papers: { icon: Search01Icon, origin: 'ours', blurb: 'OpenAlex literature search' },
 	fetch_paper: { icon: FileDownloadIcon, origin: 'ours', blurb: 'arXiv full text' },
+	cite: { icon: QuoteDownIcon, origin: 'ours', blurb: 'a citation the run can vouch for' },
+	bibliography: { icon: Bookmark01Icon, origin: 'ours', blurb: 'references from the registry' },
+	extract_figures: { icon: Image01Icon, origin: 'ours', blurb: 'real figures from the paper' },
+	list_figures: { icon: ListViewIcon, origin: 'ours', blurb: 'what the asset store holds' },
+	present_outline: {
+		icon: LeftToRightListNumberIcon,
+		origin: 'ours',
+		blurb: 'structure, paused for approval'
+	},
+	generate_image: { icon: SparklesIcon, origin: 'ours', blurb: 'gpt-image-2 illustration' },
+	compact_context: { icon: AsteriskIcon, origin: 'ours', blurb: 'fold the conversation up' },
 
 	// ── the harness supplies these; we never wrote them ──────────────────────
 	write_todos: { icon: CheckListIcon, origin: 'harness', blurb: 'the plan channel' },

@@ -41,13 +41,13 @@
 	>
 		<span
 			class="shrink-0 translate-y-[2px]"
-			style:color={color}
+			style:color
 			style:opacity={call.status === 'running' ? 0.5 : 1}
 			title={meta.blurb}
 		>
 			<HugeiconsIcon icon={meta.icon} size={13} strokeWidth={1.5} />
 		</span>
-		<span class="font-mono text-[11px]" style:color={color}>{call.name}</span>
+		<span class="font-mono text-[11px]" style:color>{call.name}</span>
 		{#if meta.origin === 'harness'}
 			<span class="hx-eyebrow shrink-0 opacity-50" title="Supplied by the harness, not by us">
 				harness

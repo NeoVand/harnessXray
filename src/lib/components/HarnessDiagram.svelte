@@ -29,9 +29,22 @@
 	];
 </script>
 
-<svg viewBox="0 0 800 420" class="w-full" role="img" aria-label="The agent loop: a context window is assembled, sent to the model, the model calls tools and subagents, and the results rejoin the context">
+<svg
+	viewBox="0 0 800 420"
+	class="w-full"
+	role="img"
+	aria-label="The agent loop: a context window is assembled, sent to the model, the model calls tools and subagents, and the results rejoin the context"
+>
 	<defs>
-		<marker id="hx-tip" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto">
+		<marker
+			id="hx-tip"
+			viewBox="0 0 10 10"
+			refX="9"
+			refY="5"
+			markerWidth="5.5"
+			markerHeight="5.5"
+			orient="auto"
+		>
 			<path d="M0,0 L10,5 L0,10 z" fill="currentColor" />
 		</marker>
 	</defs>
@@ -69,8 +82,16 @@
 	<text class="sm mid" x="398" y="214">one call</text>
 
 	<!-- ── what it can call: the fork is symmetric about the model's axis ──── -->
-	<path class="wire w-tool" d="M460,202 H496 a10,10 0 0 0 10,-10 V168 a10,10 0 0 1 10,-10 H542" marker-end="url(#hx-tip)" />
-	<path class="wire w-sub" d="M460,202 H496 a10,10 0 0 1 10,10 V236 a10,10 0 0 0 10,10 H542" marker-end="url(#hx-tip)" />
+	<path
+		class="wire w-tool"
+		d="M460,202 H496 a10,10 0 0 0 10,-10 V168 a10,10 0 0 1 10,-10 H542"
+		marker-end="url(#hx-tip)"
+	/>
+	<path
+		class="wire w-sub"
+		d="M460,202 H496 a10,10 0 0 1 10,10 V236 a10,10 0 0 0 10,10 H542"
+		marker-end="url(#hx-tip)"
+	/>
 	<text class="edge" x="478" y="190">calls</text>
 
 	<g

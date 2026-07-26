@@ -13,6 +13,7 @@
 	import { session } from '$lib/agent/session.svelte';
 	import { HugeiconsIcon } from '@hugeicons/svelte';
 	import { ICON, type IconValue } from '$lib/icons';
+	import { explanations, explain } from '$lib/lab/sidecar.svelte';
 
 	interface Props {
 		selectedId: string | null;
@@ -28,6 +29,8 @@
 		openPath?: string | null;
 		/** Open a path in the full-screen reader. */
 		onread?: (path: string) => void;
+		/** The graph wants to move the timeline selection. */
+		onjump?: (eventId: string) => void;
 		/** Open the skill library. */
 		onmanageskills?: () => void;
 	}
@@ -37,6 +40,7 @@
 		top = $bindable<Top>('detail'),
 		bottom = $bindable<Bottom>('plan'),
 		onread,
+		onjump,
 		onmanageskills
 	}: Props = $props();
 
@@ -128,7 +132,21 @@
 				{/each}
 
 				{#if event && top !== 'files' && top !== 'memory'}
-					<span class="hx-num ml-auto shrink-0 text-[10px] text-muted-foreground/70">
+					{#if top === 'detail'}
+						<button
+							class="hx-eyebrow ml-auto flex shrink-0 items-center gap-1 transition-colors
+							       hover:text-foreground"
+							onclick={() => event && explain(event)}
+							title="Have the lab explain this event — one small luna call, outside the agent"
+						>
+							<HugeiconsIcon icon={ICON.sparkle} size={11} strokeWidth={1.5} />
+							explain
+						</button>
+					{/if}
+					<span
+						class="hx-num shrink-0 text-[10px] text-muted-foreground/70"
+						class:ml-auto={top !== 'detail'}
+					>
 						{stamp(event.t)}
 						{#if event.kind === 'http_request'}· {bytes(event.bytes)}{/if}
 						{#if event.kind === 'http_response'}· {Math.round(event.ms)}ms{/if}
@@ -161,6 +179,26 @@
 						Select an event in the timeline to dissect it.
 					</p>
 				{:else if top === 'detail'}
+					{@const ex = explanations.get(event.id)}
+					{#if ex}
+						<div class="hx-rule border-b px-3 py-3">
+							<p class="hx-eyebrow mb-1.5 flex items-center gap-1.5" style:color="var(--hx-state)">
+								<HugeiconsIcon icon={ICON.sparkle} size={11} strokeWidth={1.5} />
+								{ex.status === 'thinking' ? 'explaining…' : 'explained'}
+								<span class="text-muted-foreground/60">— the lab speaking, not the agent</span>
+							</p>
+							{#if ex.status === 'thinking'}
+								<p class="text-xs text-muted-foreground">Reading the payload…</p>
+							{:else}
+								<p
+									class="max-w-[64ch] text-xs leading-relaxed whitespace-pre-wrap"
+									class:text-muted-foreground={ex.status === 'error'}
+								>
+									{ex.text}
+								</p>
+							{/if}
+						</div>
+					{/if}
 					<div class="px-3 py-3">
 						<JsonView value={detailOf(event)} openTo={3} root />
 					</div>
@@ -217,7 +255,7 @@
 				{:else if bottom === 'skills'}
 					<SkillsPanel onmanage={onmanageskills} />
 				{:else}
-					<GraphView />
+					<GraphView {onjump} />
 				{/if}
 			</div>
 		</div>

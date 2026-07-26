@@ -1,9 +1,11 @@
 <script lang="ts">
+	import { SvelteSet } from 'svelte/reactivity';
 	import { bus } from '$lib/xray/bus.svelte';
 	import { shotStubs, shotAt, groupTotals, type PieceGroup } from '$lib/xray/context';
 	import { COMPACT_AT } from '$lib/agent/models';
 	import { session } from '$lib/agent/session.svelte';
 	import { compact } from '$lib/xray/usage';
+	import { bytes } from '$lib/xray/format';
 	import { HugeiconsIcon } from '@hugeicons/svelte';
 	import { ICON } from '$lib/icons';
 
@@ -24,7 +26,7 @@
 
 	let {
 		/** Groups to leave out. Empty means everything. */
-		hidden = new Set<string>(),
+		hidden = new SvelteSet<string>(),
 		/** Room for the frosted tab bar floating above us. */
 		topPad = '0px'
 	}: { hidden?: Set<string>; topPad?: string } = $props();
@@ -50,12 +52,48 @@
 	/** Anything past this and the harness folds the conversation up. */
 	const threshold = COMPACT_AT;
 
-	let open = $state<Set<string>>(new Set());
+	/**
+	 * Where the cache stopped matching, as a row index.
+	 *
+	 * OpenAI's implicit caching matches a *prefix* of the request, and
+	 * `cached_tokens` says how long that prefix was. Rows are shown in request
+	 * order, so walking their apportioned sizes until the count is spent finds
+	 * the row the boundary lands in. Every number in this is apportioned rather
+	 * than measured — which is why the UI says ≈ and shades rather than rules.
+	 */
+	const cacheEdge = $derived.by(() => {
+		if (!shot || !shot.cached || !shot.measured) return -1;
+		let remaining = shot.cached;
+		for (let i = 0; i < shot.pieces.length; i++) {
+			remaining -= shot.pieces[i].tokens;
+			if (remaining <= 0) return i;
+		}
+		return shot.pieces.length - 1;
+	});
+	const indexOfPiece = $derived(new Map(shot?.pieces.map((p, i) => [p.id, i]) ?? []));
+
+	// A SvelteSet so a row toggling open is a mutation, not a copy of the set.
+	const open = new SvelteSet<string>();
 	function toggle(id: string) {
-		const next = new Set(open);
-		if (!next.delete(id)) next.add(id);
-		open = next;
+		if (!open.delete(id)) open.add(id);
 	}
+
+	/**
+	 * Two readings of the same call: cut into pieces, or the body whole.
+	 *
+	 * The raw view exists because the pieces view is an *interpretation* — a
+	 * useful one, but you should always be able to fall back to the thing
+	 * itself and feel how long the request has actually become.
+	 */
+	let view = $state<'pieces' | 'raw'>('pieces');
+
+	const rawReq = $derived.by(() => {
+		void bus.version;
+		const e = currentId ? bus.byId(currentId) : undefined;
+		return e && e.kind === 'http_request' ? e : undefined;
+	});
+	/** Pretty-printed lazily — the pieces view never pays for the stringify. */
+	const rawText = $derived(view === 'raw' && rawReq ? JSON.stringify(rawReq.body, null, 2) : '');
 
 	function step(by: number) {
 		if (!stubs.length) return;
@@ -137,16 +175,45 @@
 			</div>
 		{/if}
 
-		<button
-			class="hx-eyebrow ml-auto flex items-center gap-1 transition-colors hover:text-foreground
-			       disabled:opacity-30"
-			onclick={() => session.compact()}
-			disabled={session.busy || session.compacting || session.messages.length < 3}
-			title="Fold the earlier conversation into a summary"
-		>
-			<HugeiconsIcon icon={ICON.compact} size={11} strokeWidth={1.5} />
-			{session.compacting ? 'folding…' : 'compact'}
-		</button>
+		<div class="ml-auto flex items-center gap-3">
+			{#if stubs.length}
+				<!-- The same request, two readings: interpreted, or verbatim. -->
+				<div class="flex items-center gap-1.5">
+					<button
+						class="hx-eyebrow transition-colors {view === 'pieces'
+							? 'text-foreground'
+							: 'text-muted-foreground hover:text-foreground'}"
+						onclick={() => (view = 'pieces')}
+						aria-pressed={view === 'pieces'}
+						title="The request cut into system prompt, schemas and messages"
+					>
+						pieces
+					</button>
+					<span class="text-[10px] text-muted-foreground/40">·</span>
+					<button
+						class="hx-eyebrow transition-colors {view === 'raw'
+							? 'text-foreground'
+							: 'text-muted-foreground hover:text-foreground'}"
+						onclick={() => (view = 'raw')}
+						aria-pressed={view === 'raw'}
+						title="The exact request body, whole — every byte the model saw"
+					>
+						raw
+					</button>
+				</div>
+			{/if}
+
+			<button
+				class="hx-eyebrow flex items-center gap-1 transition-colors hover:text-foreground
+				       disabled:opacity-30"
+				onclick={() => session.compact()}
+				disabled={session.busy || session.compacting || session.messages.length < 3}
+				title="Fold the earlier conversation into a summary"
+			>
+				<HugeiconsIcon icon={ICON.compact} size={11} strokeWidth={1.5} />
+				{session.compacting ? 'folding…' : 'compact'}
+			</button>
+		</div>
 	</header>
 
 	{#if !shot}
@@ -183,8 +250,8 @@
 
 			<p class="mt-1.5 mb-3 text-[10px] text-muted-foreground">
 				{#if shot.measured}
-					billed{#if shot.cached}, {compact(shot.cached)} of it a cache hit{/if} · rows below are
-					apportioned by size
+					billed{#if shot.cached}, {compact(shot.cached)} of it a cache hit{/if} · rows below are apportioned
+					by size
 				{:else}
 					estimated — the reply has not come back yet
 				{/if}
@@ -213,68 +280,105 @@
 			</div>
 		</div>
 
-		<div>
-			{#each GROUPS.filter((g) => !hidden.has(g.id)) as g (g.id)}
-				{@const rows = shot.pieces.filter((p) => p.group === g.id)}
-				{#if rows.length}
-					<div
-						class="hx-rule hx-frost sticky z-10 flex items-baseline gap-2 border-b px-3 py-1.5"
-						style:top={under}
-					>
-						<span class="hx-eyebrow">{g.label}</span>
-						<span class="hx-num text-[10px] text-muted-foreground">
-							{rows.length} · {totals[g.id].toLocaleString()}
-						</span>
-						<span class="ml-auto text-[10px] text-muted-foreground/70">{g.note}</span>
-					</div>
+		{#if view === 'raw' && rawReq}
+			<div
+				class="hx-rule hx-frost sticky z-10 flex items-baseline gap-2 border-b px-3 py-1.5"
+				style:top={under}
+			>
+				<span class="hx-eyebrow">the request, whole</span>
+				<span class="hx-num text-[10px] text-muted-foreground">
+					{bytes(rawReq.bytes)} on the wire
+				</span>
+				<span class="ml-auto text-[10px] text-muted-foreground/70">pretty-printed below</span>
+			</div>
 
-					{#each rows as p (p.id)}
-						{@const isOpen = open.has(p.id)}
-						<button
-							class="flex w-full items-baseline gap-2 border-b
-							       border-[color-mix(in_oklab,var(--border)_40%,transparent)] px-3 py-1.5
-							       text-left transition-colors hover:bg-muted/50"
-							onclick={() => toggle(p.id)}
-							aria-expanded={isOpen}
-						>
-							<span
-								class="w-1 shrink-0 self-stretch rounded-full"
-								style:background={p.color}
-								style:opacity={isOpen ? 1 : 0.5}
-							></span>
-							<span class="min-w-0 flex-1">
-								<span class="block truncate font-mono text-[11px]">{p.label}</span>
-								{#if p.note}
-									<span class="block truncate text-[10px] text-muted-foreground">{p.note}</span>
-								{/if}
-							</span>
-							<!-- The share bar is the point of the row: a tool result that is
-							     forty times the system prompt should look forty times bigger. -->
-							<span class="hidden h-1 w-16 shrink-0 self-center bg-muted sm:block">
-								<span
-									class="block h-full"
-									style:width="{Math.max(2, pct(p.tokens))}%"
-									style:background={p.color}
-								></span>
-							</span>
-							<span class="hx-num w-12 shrink-0 text-right text-[10px] text-muted-foreground">
-								{compact(p.tokens)}
-							</span>
-						</button>
-
-						{#if isOpen}
-							<pre class="hx-rule border-b bg-muted/25 px-3 py-2 font-mono text-[10.5px]
-							            leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]
-							            text-foreground/80">{p.text}</pre>
-						{/if}
-					{/each}
-				{/if}
-			{/each}
+			<pre
+				class="px-3 py-2 font-mono text-[10.5px] leading-relaxed [overflow-wrap:anywhere]
+				       whitespace-pre-wrap text-foreground/80">{rawText}</pre>
 
 			<p class="px-3 py-3 text-[10px] leading-relaxed text-muted-foreground/80">
-				Every row here is re-sent on the next call too. That is what makes a long conversation
-				expensive, and why the harness eventually folds the older half into a summary.
+				The entire body of this model call — system prompt, every tool schema, every message, one
+				JSON object. The pieces view cuts exactly these bytes apart; this view is for feeling how
+				long the whole thing has become.
 			</p>
-		</div>
+		{:else}
+			<div>
+				{#each GROUPS.filter((g) => !hidden.has(g.id)) as g (g.id)}
+					{@const rows = shot.pieces.filter((p) => p.group === g.id)}
+					{#if rows.length}
+						<div
+							class="hx-rule hx-frost sticky z-10 flex items-baseline gap-2 border-b px-3 py-1.5"
+							style:top={under}
+						>
+							<span class="hx-eyebrow">{g.label}</span>
+							<span class="hx-num text-[10px] text-muted-foreground">
+								{rows.length} · {totals[g.id].toLocaleString()}
+							</span>
+							<span class="ml-auto text-[10px] text-muted-foreground/70">{g.note}</span>
+						</div>
+
+						{#each rows as p (p.id)}
+							{@const isOpen = open.has(p.id)}
+							{@const at = indexOfPiece.get(p.id) ?? -1}
+							{@const cachedRow = cacheEdge >= 0 && at < cacheEdge}
+							{@const edgeRow = at === cacheEdge}
+							<button
+								class="flex w-full items-baseline gap-2 border-b
+							       border-[color-mix(in_oklab,var(--border)_40%,transparent)] px-3 py-1.5
+							       text-left transition-colors hover:bg-muted/50"
+								style:background={cachedRow
+									? 'color-mix(in oklab, var(--hx-state) 5%, transparent)'
+									: edgeRow
+										? 'linear-gradient(to bottom, color-mix(in oklab, var(--hx-state) 5%, transparent), transparent)'
+										: undefined}
+								title={cachedRow
+									? 'inside the cached prefix — billed at a tenth (apportioned, not exact)'
+									: edgeRow
+										? '≈ the cache boundary lands in this row'
+										: undefined}
+								onclick={() => toggle(p.id)}
+								aria-expanded={isOpen}
+							>
+								<span
+									class="w-1 shrink-0 self-stretch rounded-full"
+									style:background={p.color}
+									style:opacity={isOpen ? 1 : 0.5}
+								></span>
+								<span class="min-w-0 flex-1">
+									<span class="block truncate font-mono text-[11px]">{p.label}</span>
+									{#if p.note}
+										<span class="block truncate text-[10px] text-muted-foreground">{p.note}</span>
+									{/if}
+								</span>
+								<!-- The share bar is the point of the row: a tool result that is
+							     forty times the system prompt should look forty times bigger. -->
+								<span class="hidden h-1 w-16 shrink-0 self-center bg-muted sm:block">
+									<span
+										class="block h-full"
+										style:width="{Math.max(2, pct(p.tokens))}%"
+										style:background={p.color}
+									></span>
+								</span>
+								<span class="hx-num w-12 shrink-0 text-right text-[10px] text-muted-foreground">
+									{compact(p.tokens)}
+								</span>
+							</button>
+
+							{#if isOpen}
+								<pre
+									class="hx-rule border-b bg-muted/25 px-3 py-2 font-mono text-[10.5px]
+							            leading-relaxed [overflow-wrap:anywhere] whitespace-pre-wrap
+							            text-foreground/80">{p.text}</pre>
+							{/if}
+						{/each}
+					{/if}
+				{/each}
+
+				<p class="px-3 py-3 text-[10px] leading-relaxed text-muted-foreground/80">
+					Every row here is re-sent on the next call too. That is what makes a long conversation
+					expensive, and why the harness eventually folds the older half into a summary.
+				</p>
+			</div>
+		{/if}
 	{/if}
 </div>

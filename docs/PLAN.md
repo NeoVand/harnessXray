@@ -7,12 +7,20 @@
 bundles and network probes). Claims below are marked **[proven]** where a command was actually run, and
 **[to prove]** where they are still assumptions with a scheduled gate.
 
+**2026-07 update — shipped since this plan:** the living graph view (own layered layout, no diagram
+dependency), subagent lanes in the timeline, per-turn cost receipts and cache-prefix shading, the source
+registry with a refusing `cite` tool + `bibliography`, the `critic` subagent, the `present_outline` HITL
+gate, `extract_figures` from arXiv HTML editions, sidecar auto-titles and the per-event explainer (outside
+the X-ray by design), and **M6 record/replay** — fixtures fold out of the wire plane, replay swaps only the
+transport under the same instrumented fetch, `static/fixtures/demo.json` plays with no key. Unit tests now
+cover reset, layout, the registry and replay.
+
 ---
 
 ## 0. Thesis
 
 The course is not about `deepagents` syntax. It is about **how the pieces fit together to make something
-that behaves like a mind** — and about giving a student the *vocabulary of ideas* they need to describe a
+that behaves like a mind** — and about giving a student the _vocabulary of ideas_ they need to describe a
 custom brain to a coding model and have it built.
 
 So the product requirement is **total transparency, minimal chrome.** Every byte that goes into the model
@@ -21,7 +29,7 @@ and every byte that comes out is visible, at every moment, without the UI shouti
 Three invariants everything else serves:
 
 1. **Nothing is hidden.** Raw HTTP body, raw SSE frames, assembled prompt with per-fragment token cost,
-   live context composition, filesystem, memory, skills (present vs. *active*), graph topology, state deltas.
+   live context composition, filesystem, memory, skills (present vs. _active_), graph topology, state deltas.
 2. **The agent does not know it is observed.** `src/lib/agent/**` contains zero telemetry calls. Delete the
    instrumentation folder and you have a working, silent agent.
 3. **Retro-minimal.** Hairlines, not cards. Small radius. Mono micro-labels. Type and space do the work.
@@ -30,15 +38,15 @@ Three invariants everything else serves:
 
 ## 1. Decisions locked
 
-| # | Decision | Basis |
-|---|---|---|
-| **D1** | **Browser-only static SPA.** `adapter-static`, no server, ever. | **[proven]** Search via OpenAlex (`ACAO: *`, real results); full text via `arxiv.org/html/<id>` and `arxiv.org/pdf/<id>` (both `ACAO: *`, the latter through its redirect). arXiv's *search* API sends no ACAO — we route around it. |
-| **D2** | **Real `deepagents@1.11.1` (browser build) as substrate, made into a glass box by instrumentation.** | **[proven, with scope]** `dist/browser.js` emits zero `node:` imports of its own. It does **not** bundle for the browser unaided — see §2.2. Four shims fix it; that work is day-one scope, not a contingency. |
-| **D3** | **Four capture planes, one correlation broker, one append-only event log.** | P1 **[proven]**, P4 **[proven]**, P2/P3 **[to prove — M4]**. |
-| **D4** | **`compute` = real model-written JS in a Worker isolate; `plot` = declarative spec → SVG → virtual filesystem.** | Your LangX Analytical Engine pattern. All source files verified present. |
-| **D5** | **One event schema:** capture kind + display kind + `branchId`. | The `__interrupt__` payload shape is now known exactly, so this can be written *before* M2. |
-| **D6** | **Record/replay fixtures are a first-class milestone.** | Offline classroom mode, deterministic Playwright, demo that survives venue wifi. |
-| **D7** | **`gpt-image-2`**, not "GPT Image 2.1". | Verified: current model is `gpt-image-2` (snapshot `gpt-image-2-2026-04-21`). No 2.1 exists; there *is* a `gpt-image-1.5`, likely the mix-up. Returns **`b64_json` only** (no `url`), *may* require org verification, output billed at **$30/1M tokens** — so it stays HITL-gated. |
+| #      | Decision                                                                                                         | Basis                                                                                                                                                                                                                                                                              |
+| ------ | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **D1** | **Browser-only static SPA.** `adapter-static`, no server, ever.                                                  | **[proven]** Search via OpenAlex (`ACAO: *`, real results); full text via `arxiv.org/html/<id>` and `arxiv.org/pdf/<id>` (both `ACAO: *`, the latter through its redirect). arXiv's _search_ API sends no ACAO — we route around it.                                               |
+| **D2** | **Real `deepagents@1.11.1` (browser build) as substrate, made into a glass box by instrumentation.**             | **[proven, with scope]** `dist/browser.js` emits zero `node:` imports of its own. It does **not** bundle for the browser unaided — see §2.2. Four shims fix it; that work is day-one scope, not a contingency.                                                                     |
+| **D3** | **Four capture planes, one correlation broker, one append-only event log.**                                      | P1 **[proven]**, P4 **[proven]**, P2/P3 **[to prove — M4]**.                                                                                                                                                                                                                       |
+| **D4** | **`compute` = real model-written JS in a Worker isolate; `plot` = declarative spec → SVG → virtual filesystem.** | Your LangX Analytical Engine pattern. All source files verified present.                                                                                                                                                                                                           |
+| **D5** | **One event schema:** capture kind + display kind + `branchId`.                                                  | The `__interrupt__` payload shape is now known exactly, so this can be written _before_ M2.                                                                                                                                                                                        |
+| **D6** | **Record/replay fixtures are a first-class milestone.**                                                          | Offline classroom mode, deterministic Playwright, demo that survives venue wifi.                                                                                                                                                                                                   |
+| **D7** | **`gpt-image-2`**, not "GPT Image 2.1".                                                                          | Verified: current model is `gpt-image-2` (snapshot `gpt-image-2-2026-04-21`). No 2.1 exists; there _is_ a `gpt-image-1.5`, likely the mix-up. Returns **`b64_json` only** (no `url`), _may_ require org verification, output billed at **$30/1M tokens** — so it stays HITL-gated. |
 
 **Model layer** goes through LangChain (`ChatOpenAI`) so Azure is a later swap. The one exception is image
 generation — LangChain has no `gpt-image-2` wrapper — so that tool calls REST directly, isolated behind an
@@ -59,7 +67,7 @@ query ──▶ OpenAlex  (ACAO *, keyless)  ── arXiv id + abstract + citati
         arxiv.org/pdf/<id>        ← pdfjs-dist + 2-column reconstruction (from voicebook)
 ```
 
-Fallbacks, zero-infrastructure: OpenAI hosted web search scoped to `arxiv.org` (also a *teaching* artifact —
+Fallbacks, zero-infrastructure: OpenAI hosted web search scoped to `arxiv.org` (also a _teaching_ artifact —
 provider-native vs. client-side tools side by side), and Crossref for DOI resolution.
 
 **Rejected:** `+server.ts` proxies (work in dev, 404 in the static build — the classic way to ship a demo
@@ -71,7 +79,7 @@ that only works on your laptop) and third-party CORS proxies (rate-limited or de
 `@sveltejs/adapter-static` throws `Encountered dynamic routes` at `closeBundle` (bare `adapter()` defaults to
 `strict: true`); `vite build` itself succeeds. **`src/routes/+layout.ts` with `export const prerender = true`
 is necessary and sufficient** — it passes even with the demo routes still present. `ssr = false` alone does
-*not* fix it, and deleting demo routes alone does *not* fix it.
+_not_ fix it, and deleting demo routes alone does _not_ fix it.
 Add `ssr = false` anyway as a **deliberate choice, not the fix**: `@hugeicons/svelte` injects SVG paths in
 `onMount`, so with SSR on the prerendered HTML ships empty icons until hydration.
 
@@ -98,12 +106,12 @@ required regardless of specifier.
 
 ### 2.3 The four capture planes
 
-| Plane | Mechanism | Owns |
-|---|---|---|
-| **P1 Wire** | `configuration.fetch` on `ChatOpenAI` | **[proven]** The literal outbound JSON body, raw SSE frames, `x-request-id`, true latency |
-| **P2 Semantics** | custom `createMiddleware({ wrapModelCall, wrapToolCall })` | **[to prove — M4]** Pre-serialization LangChain view: `BaseMessage[]`, `StructuredTool[]`, the tool `artifact` that never reaches the wire, and short-circuit ability |
-| **P3 Span tree** | `BaseCallbackHandler` via `config.callbacks` | **[to prove — M4]** `runId`/`parentRunId` — the edges that make a trace a *tree* — plus per-token deltas |
-| **P4 Graph** | `agent.stream(..., { streamMode: [...], subgraphs: true })` | **[proven]** Super-steps, per-node state deltas, checkpoint envelopes, subgraph namespaces identifying subagents |
+| Plane            | Mechanism                                                   | Owns                                                                                                                                                                  |
+| ---------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **P1 Wire**      | `configuration.fetch` on `ChatOpenAI`                       | **[proven]** The literal outbound JSON body, raw SSE frames, `x-request-id`, true latency                                                                             |
+| **P2 Semantics** | custom `createMiddleware({ wrapModelCall, wrapToolCall })`  | **[to prove — M4]** Pre-serialization LangChain view: `BaseMessage[]`, `StructuredTool[]`, the tool `artifact` that never reaches the wire, and short-circuit ability |
+| **P3 Span tree** | `BaseCallbackHandler` via `config.callbacks`                | **[to prove — M4]** `runId`/`parentRunId` — the edges that make a trace a _tree_ — plus per-token deltas                                                              |
+| **P4 Graph**     | `agent.stream(..., { streamMode: [...], subgraphs: true })` | **[proven]** Super-steps, per-node state deltas, checkpoint envelopes, subgraph namespaces identifying subagents                                                      |
 
 **P1 is proven outright, not hoped for.** `configuration` is spread verbatim into `new OpenAI(...)`
 (`base.js:227–232`), so our fetch receives the literal request. Empirically captured: URL, method, auth
@@ -148,7 +156,7 @@ every subagent cites the same paper as the same `[S3]`) · `compute` (the Mill) 
 **Subagents:** `paper-reader` (one per paper, parallel — the fan-out set-piece) · `critic`.
 
 **Skills:** authored as real markdown, `?raw`-imported. Written into the **initial input state** at run start
-(or a `StoreBackend`) — *not* "at build time", which is impossible against a `StateBackend`.
+(or a `StoreBackend`) — _not_ "at build time", which is impossible against a `StateBackend`.
 
 **Interrupts:** `present_plan` and `generate_figure`, plus a user-initiated stop/steer path. **HITL has
 exactly three decision literals — `approve` | `edit` | `reject` [proven]**, identical across langchain 1.0.1
@@ -196,8 +204,7 @@ and resolved `paneforge@1.0.2`. End-to-end on a repo copy: Resizable + hugeicons
 ### Appendix — hugeicons contract (the shadcn-svelte skill documents only lucide/tabler)
 
 ```svelte
-import { HugeiconsIcon } from "@hugeicons/svelte";      // NAMED export
-import { BrainIcon } from "@hugeicons/core-free-icons";
+import {HugeiconsIcon} from "@hugeicons/svelte"; // NAMED export import {BrainIcon} from "@hugeicons/core-free-icons";
 <HugeiconsIcon icon={BrainIcon} strokeWidth={2} />
 ```
 
@@ -240,25 +247,25 @@ Do **not** take the TTS stack, DOCX paths, or `prose` on the paper viewer.
 
 ## 6. Build sequence
 
-| M | Goal | Done when |
-|---|---|---|
-| **M0** ✅ | `src/routes/+layout.ts` (`prerender = true` is the fix; `ssr = false` for hugeicons), `git init`, install at the six peer floors | **Done.** `npm run build` green, `npm run check` 779 files / 0 errors |
-| **M1** ✅ | `deepagents/browser` under **Vite 8 / rolldown** — both `vite dev` and `vite build` | **Done.** Agent compiles in-browser; topology reads back 7 nodes / 8 edges with real middleware names. Shims needed: `path`, `util`, `node:fs/promises`, **and `process.env`** (the 4th was found at runtime, not build time) |
-| **M2** ✅ | ALS shim, `interrupt()`, resume | **Done.** `__interrupt__[0].value` observed; `Command({resume})` completed the run |
-| **M3** ✅ | Wire capture — literal HTTP body and SSE frames | **Done.** Proven live: 31.3KB request showing real tool JSON Schema + deepagents' own `write_todos` prompt. Found `gpt-5.6` needs `useResponsesApi` for function tools |
-| **M3.5** ✅ | App shell, chat, timeline, inspector, settings, icons, theme | **Done.** Three panes, live streaming, tool cards, BYO-key + `.env` dev key (constant-folded out of prod, verified) |
-| **M4** | Fuse P2 (middleware) + P3 (callbacks) into one span tree | A two-tool run produces one correct tree with real node boundaries |
-| **M5** | Load-test 20k events; virtualize the timeline | Scrolls at 60fps |
-| **M6** | Fixture record/replay, keyed on (body hash, attempt) | Full demo runs offline with no key |
-| **M6.5** | `IdbCheckpointSaver` — **never scheduled in the original plan, and HITL + time travel + threads all need it** | State survives reload; `getStateHistory` works |
-| **M7** | Retrieval end to end + CORS probe board | Papers fetched and parsed in-browser |
-| **M8** | The paper agent: tools → subagents → skills → interrupts | Writes a real paper; approval card works |
-| **M9** | Paper viewer + editing write-path | Your edits survive the next agent turn |
-| **M10** | Remaining inspector tabs: state diff, filesystem, memory, todos, prompt assembly, context tape, cost | Every concept has a surface |
-| **M11** | Time dock, replay, branching | Scrub rewinds both panes |
-| **M12** | Prompt-injection lesson, ablation mode, lab drawer, command palette | — |
+| M           | Goal                                                                                                                             | Done when                                                                                                                                                                                                                     |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **M0** ✅   | `src/routes/+layout.ts` (`prerender = true` is the fix; `ssr = false` for hugeicons), `git init`, install at the six peer floors | **Done.** `npm run build` green, `npm run check` 779 files / 0 errors                                                                                                                                                         |
+| **M1** ✅   | `deepagents/browser` under **Vite 8 / rolldown** — both `vite dev` and `vite build`                                              | **Done.** Agent compiles in-browser; topology reads back 7 nodes / 8 edges with real middleware names. Shims needed: `path`, `util`, `node:fs/promises`, **and `process.env`** (the 4th was found at runtime, not build time) |
+| **M2** ✅   | ALS shim, `interrupt()`, resume                                                                                                  | **Done.** `__interrupt__[0].value` observed; `Command({resume})` completed the run                                                                                                                                            |
+| **M3** ✅   | Wire capture — literal HTTP body and SSE frames                                                                                  | **Done.** Proven live: 31.3KB request showing real tool JSON Schema + deepagents' own `write_todos` prompt. Found `gpt-5.6` needs `useResponsesApi` for function tools                                                        |
+| **M3.5** ✅ | App shell, chat, timeline, inspector, settings, icons, theme                                                                     | **Done.** Three panes, live streaming, tool cards, BYO-key + `.env` dev key (constant-folded out of prod, verified)                                                                                                           |
+| **M4**      | Fuse P2 (middleware) + P3 (callbacks) into one span tree                                                                         | A two-tool run produces one correct tree with real node boundaries                                                                                                                                                            |
+| **M5**      | Load-test 20k events; virtualize the timeline                                                                                    | Scrolls at 60fps                                                                                                                                                                                                              |
+| **M6**      | Fixture record/replay, keyed on (body hash, attempt)                                                                             | Full demo runs offline with no key                                                                                                                                                                                            |
+| **M6.5**    | `IdbCheckpointSaver` — **never scheduled in the original plan, and HITL + time travel + threads all need it**                    | State survives reload; `getStateHistory` works                                                                                                                                                                                |
+| **M7**      | Retrieval end to end + CORS probe board                                                                                          | Papers fetched and parsed in-browser                                                                                                                                                                                          |
+| **M8**      | The paper agent: tools → subagents → skills → interrupts                                                                         | Writes a real paper; approval card works                                                                                                                                                                                      |
+| **M9**      | Paper viewer + editing write-path                                                                                                | Your edits survive the next agent turn                                                                                                                                                                                        |
+| **M10**     | Remaining inspector tabs: state diff, filesystem, memory, todos, prompt assembly, context tape, cost                             | Every concept has a surface                                                                                                                                                                                                   |
+| **M11**     | Time dock, replay, branching                                                                                                     | Scrub rewinds both panes                                                                                                                                                                                                      |
+| **M12**     | Prompt-injection lesson, ablation mode, lab drawer, command palette                                                              | —                                                                                                                                                                                                                             |
 
-**Before M1**, one cheap probe: a single POST to `api.openai.com` with a *valid* key, confirming the response
+**Before M1**, one cheap probe: a single POST to `api.openai.com` with a _valid_ key, confirming the response
 carries `ACAO`. Every browser-side call depends on it and no valid key was used in verification.
 
 **Ablation mode** (M12): toggles for each harness feature with a side-by-side run diff. Turns "the harness is
@@ -269,13 +276,13 @@ the product" from an assertion into an instrument the student can operate.
 ## 7. Top risks
 
 1. **`interrupt()` context dies before HITL fires.** Mitigated by the strict ordering rule in §2.2. Round-trip
-   proven; the *middleware ordering* is the remaining unknown — gated at M2.
+   proven; the _middleware ordering_ is the remaining unknown — gated at M2.
 2. **`deepagents` under rolldown.** Four shims proven necessary with esbuild; rolldown must be re-proven at M1.
    Fallback: LangX's harness behind the same interface.
 3. **`arxiv.org/pdf` ACAO is operational, not contractual.** All fetches behind one seam with a fallback ladder
    and a live reachability board, so failure is visible rather than mysterious.
 4. **`StateBackend` must not be written outside a graph run — and nothing enforces it.** It uses the private
-   `__pregel_read`/`__pregel_send` config keys. Outside a run it throws an *incidental* `TypeError`; worse,
+   `__pregel_read`/`__pregel_send` config keys. Outside a run it throws an _incidental_ `TypeError`; worse,
    inside a plain LCEL Runnable `write()` **silently no-ops yet returns a success shape**. We add our own
    explicit assertion, because the library will not.
 5. **A present-but-invalid key is intercepted at the edge** on `/v1/chat/completions`, `/v1/responses` and
@@ -297,7 +304,7 @@ exactly `{"input_tokens": number, "object": "response.input_tokens"}`, preflight
 Two caveats. (i) It is a **Responses-API** endpoint, but our default `ChatOpenAI` path is
 `/v1/chat/completions`. Either translate the captured body and label the number "Responses-equivalent", or
 set `useResponsesApi: true` (verified: routes through the same `configuration.fetch`) so the counted body
-*is* the body we send. (ii) A bad key here is opaque, so it sits behind the same key-validation gate.
+_is_ the body we send. (ii) A bad key here is opaque, so it sits behind the same key-validation gate.
 
 Current text models for the picker: `gpt-5.6-sol` (1.05M ctx, $5.00/$0.50 cached/$30.00 per 1M),
 `gpt-5.6-terra` ($2.50/$0.25/$15.00), `gpt-5.6-luna` ($1.00/$0.10/$6.00).

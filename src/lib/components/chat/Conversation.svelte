@@ -1,5 +1,8 @@
 <script lang="ts">
 	import { session } from '$lib/agent/session.svelte';
+	import { money, compact } from '$lib/xray/usage';
+	import { loadBundledDemo } from '$lib/lab/demo';
+	import { replay } from '$lib/xray/replay.svelte';
 	import { keys } from '$lib/state/keys.svelte';
 	import ActivityStrip from './ActivityStrip.svelte';
 	import Markdown from '../Markdown.svelte';
@@ -14,6 +17,7 @@
 
 	let viewport = $state<HTMLElement | null>(null);
 	let pinned = $state(true);
+	let demoError = $state('');
 
 	$effect(() => {
 		// Re-run as text streams in, not only when a message is added.
@@ -61,7 +65,15 @@
 					stream frame, the graph it runs on.
 				</p>
 
-				{#if !keys.present}
+				{#if replay.active}
+					<p
+						class="hx-rule mt-5 max-w-[46ch] rounded-md border px-3 py-2 text-[11px] leading-relaxed text-muted-foreground"
+					>
+						Replaying <span class="font-mono">{replay.fixtureName}</span>. Use the
+						<span style:color="var(--hx-interrupt)">script</span> button in the composer to send the recorded
+						messages — the harness runs for real, only the network is canned.
+					</p>
+				{:else if !keys.present}
 					<button
 						onclick={onopensettings}
 						class="hx-rule mt-5 flex items-center gap-2 rounded-md border px-3 py-2 text-xs
@@ -75,6 +87,19 @@
 						There is no server here. Your key is held in this tab and sent only to api.openai.com.
 						You can still open the <span class="font-mono">graph</span> tab without one.
 					</p>
+
+					<!-- The classroom door: a full recorded run, replayed through the
+					     real harness, with no key and no network. -->
+					<button
+						onclick={async () => (demoError = await loadBundledDemo())}
+						class="hx-eyebrow mt-4 flex items-center gap-1.5 transition-colors hover:text-foreground"
+					>
+						<HugeiconsIcon icon={ICON.run} size={12} strokeWidth={1.5} />
+						or replay the bundled demo — no key needed
+					</button>
+					{#if demoError}
+						<p class="mt-2 text-[11px]" style:color="var(--hx-error)">{demoError}</p>
+					{/if}
 				{:else}
 					<ul class="mt-5 space-y-1.5">
 						{#each SUGGESTIONS as s (s)}
@@ -286,6 +311,18 @@
 						{/if}
 						{#if m.streaming}
 							<span class="caret" aria-label="streaming"></span>
+						{:else if m.usage && m.usage.calls > 0}
+							<!-- The receipt. The single most useful number in the app, put
+							     where the eye already is: what this turn cost, and how much
+							     of its input the cache absorbed. The Run panel has the whole
+							     ledger; this is the line item. -->
+							<p class="hx-num mt-1.5 text-[10px] text-muted-foreground/60">
+								{money(m.usage.costUsd)} · {compact(m.usage.input)} in
+								{#if m.usage.input > 0}
+									({Math.round((m.usage.cached / m.usage.input) * 100)}% cached){/if}
+								· {compact(m.usage.output)} out · {m.usage.calls}
+								{m.usage.calls === 1 ? 'call' : 'calls'} · {(m.usage.ms / 1000).toFixed(1)}s
+							</p>
 						{/if}
 					</div>
 				</article>
@@ -294,6 +331,49 @@
 
 		<div class="mx-auto w-full max-w-[68ch] px-6 pt-2">
 			<ApprovalCard />
+
+			{#if session.stalled && !session.busy}
+				<!-- A stop that lost nothing — the checkpoint holds every completed
+				     step, so this is a pause with a button, not an error. -->
+				<div
+					class="rounded-md border p-3"
+					style:border-color="color-mix(in oklab, var(--hx-interrupt) 45%, transparent)"
+					style:background="color-mix(in oklab, var(--hx-interrupt) 6%, transparent)"
+				>
+					<p class="hx-eyebrow mb-1.5 flex items-center gap-1.5" style:color="var(--hx-interrupt)">
+						<HugeiconsIcon icon={ICON.pause} size={12} strokeWidth={1.5} />
+						{session.stalled === 'ceiling' ? 'step ceiling reached' : 'network dropped mid-run'}
+					</p>
+					<p class="text-xs leading-relaxed text-muted-foreground">
+						{#if session.stalled === 'ceiling'}
+							The run used its {session.stepCeiling}-step budget — a guard against runaway loops,
+							not a failure. Everything so far is checkpointed and every file is saved.
+						{:else}
+							A model call failed at the network level — a blip, brief rate limiting, or being
+							offline. Nothing was lost: everything so far is checkpointed, and Continue retries
+							from exactly where it stopped.
+						{/if}
+					</p>
+					<div class="mt-2 flex items-center gap-3">
+						<button
+							class="rounded px-2.5 py-1 text-xs text-background"
+							style:background="var(--hx-interrupt)"
+							onclick={() => session.continueRun()}
+						>
+							Continue the run
+						</button>
+						{#if session.stalled === 'ceiling'}
+							<button
+								class="hx-eyebrow transition-colors hover:text-foreground"
+								onclick={onopensettings}
+								title="Raise the ceiling so long runs stop hitting it"
+							>
+								raise the ceiling in settings
+							</button>
+						{/if}
+					</div>
+				</div>
+			{/if}
 
 			{#if session.error}
 				<p

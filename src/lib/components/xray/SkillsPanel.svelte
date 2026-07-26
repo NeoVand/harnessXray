@@ -25,14 +25,14 @@
 	/** Which SKILL.md files the agent has actually opened this run. */
 	const opened = $derived.by(() => {
 		void bus.version;
-		const hit = new Set<string>();
+		const hit: string[] = [];
 		for (const e of bus.events) {
 			if (e.kind !== 'tool_start' || e.name !== 'read_file') continue;
 			const path =
 				(e.args as { file_path?: string; path?: string })?.file_path ??
 				(e.args as { path?: string })?.path;
 			const match = typeof path === 'string' && path.match(/^\/skills\/([^/]+)\/SKILL\.md$/);
-			if (match) hit.add(match[1]);
+			if (match && !hit.includes(match[1])) hit.push(match[1]);
 		}
 		return hit;
 	});
@@ -65,7 +65,7 @@
 	{:else}
 		<ul class="space-y-2">
 			{#each skills.active as s (s.name)}
-				{@const isOpen = opened.has(s.name)}
+				{@const isOpen = opened.includes(s.name)}
 				<li class="flex items-baseline gap-2">
 					<span
 						class="mt-1 size-1.5 shrink-0 rounded-full"

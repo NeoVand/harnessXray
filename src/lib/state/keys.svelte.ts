@@ -131,7 +131,8 @@ class KeyStore {
 			return false;
 		} catch {
 			this.status = 'rejected';
-			this.message = 'Could not reach api.openai.com — offline, or a network policy is blocking it.';
+			this.message =
+				'Could not reach api.openai.com — offline, or a network policy is blocking it.';
 			return false;
 		}
 	}

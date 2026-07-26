@@ -70,7 +70,12 @@ export interface ContextShot {
  * breaking the panel.
  */
 const BANDS: { key: string; label: string; marker: string; color: string }[] = [
-	{ key: 'base', label: 'deep agent base', marker: 'You are a Deep Agent', color: 'var(--hx-model)' },
+	{
+		key: 'base',
+		label: 'deep agent base',
+		marker: 'You are a Deep Agent',
+		color: 'var(--hx-model)'
+	},
 	{ key: 'plan', label: 'plan', marker: '## `write_todos`', color: 'var(--hx-state)' },
 	{ key: 'files', label: 'filesystem', marker: '## Filesystem Tools', color: 'var(--hx-fs)' },
 	{ key: 'task', label: 'subagents', marker: '## `task`', color: 'var(--hx-subagent)' },
@@ -94,7 +99,13 @@ function asText(content: unknown): string {
 		.join('');
 }
 
-function splitSystem(text: string): ContextPiece[] {
+/**
+ * Cut one assembled system prompt into its bands. Exported for the skills
+ * test, which pins the installed package's prompt fragment to this
+ * decomposition — if deepagents renames a marker, that test fails before the
+ * panel silently degrades.
+ */
+export function splitSystem(text: string): ContextPiece[] {
 	const hits = BANDS.map((b) => ({ ...b, at: text.indexOf(b.marker) }))
 		.filter((b) => b.at >= 0)
 		.sort((a, b) => a.at - b.at);
@@ -237,10 +248,25 @@ function messagePieces(items: unknown, systemSeen: { text: string }): ContextPie
 		const text = asText(item.content);
 
 		// The system prompt arrives as an ordinary input item — there is no
-		// `instructions` field on this API. Peel it off here so it can be
-		// decomposed into its bands instead of sitting in the message list.
+		// `instructions` field on this API. Peel the FIRST one off so it can be
+		// decomposed into its bands. Any later system item is something a
+		// middleware injected per call — show it as its own row, because "the
+		// context can be edited on the way to the model" is exactly the lesson.
 		if (role === 'system' || role === 'developer') {
-			systemSeen.text = text;
+			if (!systemSeen.text) {
+				systemSeen.text = text;
+				return;
+			}
+			pieces.push({
+				id,
+				group: 'messages',
+				label: 'injected',
+				note: 'added per call by middleware — never stored',
+				color: 'var(--hx-state)',
+				chars: Math.max(text.length, 1),
+				tokens: 0,
+				text
+			});
 			return;
 		}
 
@@ -274,7 +300,9 @@ function build(
 
 	// Responses API uses `input`; Chat Completions uses `messages`.
 	const messages = messagePieces(body.input ?? body.messages, seen);
-	const system = splitSystem(seen.text || (typeof body.instructions === 'string' ? body.instructions : ''));
+	const system = splitSystem(
+		seen.text || (typeof body.instructions === 'string' ? body.instructions : '')
+	);
 	const tools = toolPieces(body.tools);
 
 	const pieces = [...system, ...tools, ...messages];

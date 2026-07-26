@@ -38,4 +38,18 @@
 		label="Open {event.arxivId}"
 		onopen={() => onopen?.(`/papers/${event.arxivId.replace(/\//g, '-')}.pdf`)}
 	/>
+{:else if event.kind === 'figure_extracted'}
+	<button class="block w-full text-left" onclick={() => onopen?.(event.path)}>
+		<img
+			src={event.preview}
+			alt={event.caption || event.path}
+			class="w-full max-w-[280px] rounded border"
+			style:border-color="color-mix(in oklab, var(--border) 70%, transparent)"
+		/>
+		{#if event.caption}
+			<span class="mt-1 block max-w-[280px] text-[10px] leading-snug text-muted-foreground">
+				{event.caption.slice(0, 140)}{event.caption.length > 140 ? '…' : ''}
+			</span>
+		{/if}
+	</button>
 {/if}

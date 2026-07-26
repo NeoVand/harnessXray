@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { SvelteSet } from 'svelte/reactivity';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { HugeiconsIcon } from '@hugeicons/svelte';
 	import { ICON } from '$lib/icons';
@@ -19,18 +20,19 @@
 		count?: number;
 	}
 
+	// A SvelteSet owned by the parent: mutating it here is what re-runs every
+	// panel that reads `.has()`. No copy-and-reassign, so no binding either —
+	// the object never changes identity, only its contents.
 	let {
 		options,
-		hidden = $bindable(new Set<string>()),
+		hidden = new SvelteSet<string>(),
 		label = 'filter'
-	}: { options: Option[]; hidden?: Set<string>; label?: string } = $props();
+	}: { options: Option[]; hidden?: SvelteSet<string>; label?: string } = $props();
 
 	const active = $derived(hidden.size > 0);
 
 	function toggle(key: string) {
-		const next = new Set(hidden);
-		if (!next.delete(key)) next.add(key);
-		hidden = next;
+		if (!hidden.delete(key)) hidden.add(key);
 	}
 </script>
 
@@ -40,10 +42,7 @@
 		title={active ? `${hidden.size} hidden — click to change` : `Filter ${label}`}
 		aria-label="Filter"
 	>
-		<span
-			class="flex items-center gap-1"
-			style:color={active ? 'var(--hx-interrupt)' : undefined}
-		>
+		<span class="flex items-center gap-1" style:color={active ? 'var(--hx-interrupt)' : undefined}>
 			<HugeiconsIcon icon={ICON.filter} size={12} strokeWidth={1.5} />
 			{#if active}
 				<span class="hx-num text-[10px]">{options.length - hidden.size}/{options.length}</span>
@@ -60,10 +59,7 @@
 			>
 				<span class="flex min-w-0 flex-1 items-center gap-2">
 					{#if o.color}
-						<span
-							class="size-1.5 shrink-0 rounded-full"
-							style:background={o.color}
-						></span>
+						<span class="size-1.5 shrink-0 rounded-full" style:background={o.color}></span>
 					{/if}
 					<span class="truncate text-xs">{o.label}</span>
 					{#if o.count !== undefined}
@@ -75,7 +71,7 @@
 
 		{#if active}
 			<DropdownMenu.Separator />
-			<DropdownMenu.Item onSelect={() => (hidden = new Set())}>
+			<DropdownMenu.Item onSelect={() => hidden.clear()}>
 				<span class="text-xs">Show everything</span>
 			</DropdownMenu.Item>
 		{/if}

@@ -1,16 +1,22 @@
 import { browser } from '$app/environment';
 import { bus } from '$lib/xray/bus.svelte';
+import { runTotals } from '$lib/xray/usage';
 import { idb } from '$lib/storage/idb';
+import { resetInProgress } from '$lib/storage/reset';
 import type { XrayEvent } from '$lib/xray/events';
 import { makeModel, INPUT_LIMIT, COMPACT_AT, type ModelId } from './models';
 import { keys } from '$lib/state/keys.svelte';
 import { AGENT_TOOLS } from './tools';
 import { SUBAGENTS } from './subagents';
 import { SYSTEM_PROMPT } from './prompt';
-import { skills, SKILLS_ROOT, skillPath } from './skills.svelte';
+import { skills, SKILLS_ROOT, skillPath, skillReadIn } from './skills.svelte';
 import { compactRequest, compactThread } from './compaction';
+import { worldStateMiddleware } from './awareness';
+import { oneGatePerTurnMiddleware } from './one-gate';
 import { manifest, type Attachment } from './uploads';
 import { assets, setAssetScope } from '$lib/storage/assets.svelte';
+import { sources } from './sources';
+import { replay } from '$lib/xray/replay.svelte';
 import type { Todo, ToolStart as ToolStartEvent } from '$lib/xray/events';
 import type { IdbStore, IdbCheckpointSaver } from './persistence';
 import {
@@ -66,6 +72,22 @@ export interface ChatMessage {
 	toolCalls: ToolCall[];
 	streaming?: boolean;
 	/**
+	 * What this turn actually cost, accumulated across resumes.
+	 *
+	 * Read from the wire's usage objects — the same fold the Run panel uses —
+	 * as a before/after delta around the drive. On the message rather than
+	 * derived at render time, because the log is capped and pruned while a
+	 * receipt should survive its own evidence.
+	 */
+	usage?: {
+		input: number;
+		cached: number;
+		output: number;
+		costUsd: number;
+		ms: number;
+		calls: number;
+	};
+	/**
 	 * Files sent with this message.
 	 *
 	 * Kept beside the text rather than inside it. The model is told about them in
@@ -81,6 +103,8 @@ export interface ThreadSummary {
 	title: string;
 	updated: number;
 	messages: number;
+	/** True once the sidecar has named this thread; the fallback stops overwriting it. */
+	titled?: boolean;
 }
 
 export type RunStatus = 'idle' | 'running' | 'error';
@@ -90,19 +114,18 @@ const OUR_TOOLS: ReadonlySet<string> = new Set<string>(AGENT_TOOLS.map((t) => t.
 const THREADS_KEY = 'hx:threads';
 
 /**
- * Is this call the agent reaching for a skill?
+ * The runaway-loop guard, not a work budget.
  *
- * There is no "use skill" tool to watch for — a skill is a file and using one
- * is `read_file`. So the only way to see the moment is to recognise the path,
- * which is exactly what makes skills cheap and also what makes them invisible.
+ * LangGraph counts super-steps, and in this stack every middleware hook is
+ * one — a single model→tools cycle costs several. The old 60 was ~a dozen
+ * cycles, which starved a two-page review mid-poster after five honest
+ * minutes. 250 is roughly fifty cycles: beyond any legitimate run seen so
+ * far, still finite the day a loop actually runs away. Tunable in settings;
+ * hitting it pauses with a Continue button rather than erroring, because the
+ * checkpoint holds everything and resuming is one null-input invoke.
  */
-function skillIn(name: string, args: unknown): string | undefined {
-	if (name !== 'read_file' && name !== 'read') return undefined;
-	const a = args as { file_path?: unknown; path?: unknown } | null;
-	const path =
-		typeof a?.file_path === 'string' ? a.file_path : typeof a?.path === 'string' ? a.path : '';
-	return path.match(/^\/skills\/([^/]+)\/SKILL\.md$/)?.[1];
-}
+const DEFAULT_STEP_CEILING = 250;
+const CEILING_KEY = 'hx:step-ceiling';
 
 /** Pull display text from a message chunk. v1 content is typed blocks, not a string. */
 function textOf(msg: Record<string, unknown>): string {
@@ -143,13 +166,24 @@ class Session {
 	attachments = $state<Attachment[]>([]);
 	/** True while a compaction is folding the history up. */
 	compacting = $state(false);
+	/** Super-step budget per invocation — the runaway guard, user-tunable. */
+	stepCeiling = $state(DEFAULT_STEP_CEILING);
+	/**
+	 * The last run stopped without finishing, and a Continue resumes it.
+	 * 'ceiling' is the step guard; 'network' is a dropped connection mid-run.
+	 * Either way the checkpoint holds everything and resuming is one
+	 * null-input invoke — the difference is only what the card should say.
+	 */
+	stalled = $state<'' | 'ceiling' | 'network'>('');
 
 	#agent: unknown = null;
 	#agentKey = '';
-	/** The skill set the timeline last reported, so it only reports changes. */
+	/** The skill library (names and bodies) the timeline last reported, so it only reports changes. */
 	#skillsSeen = '';
 	/** Emitted tool_start rows, so streamed arguments can be folded back in. */
 	#toolStarts = new Map<string, ToolStartEvent>();
+	/** Subgraph namespace → subagent name, paired as dispatches are seen. */
+	#lanes = new Map<string, string>();
 	#shape: unknown = null;
 	#n = 0;
 	#abort: AbortController | null = null;
@@ -168,7 +202,39 @@ class Session {
 			this.#loadThreads();
 			// Binaries are per-thread; point the store at whichever we restored.
 			setAssetScope(this.threadId);
+			sources.setScope(this.threadId);
+			const stored = Number(localStorage.getItem(CEILING_KEY));
+			if (Number.isFinite(stored) && stored >= 50) this.stepCeiling = Math.min(stored, 2000);
 		}
+	}
+
+	setStepCeiling(n: number) {
+		this.stepCeiling = Math.max(50, Math.min(2000, Math.round(n) || DEFAULT_STEP_CEILING));
+		if (browser) localStorage.setItem(CEILING_KEY, String(this.stepCeiling));
+	}
+
+	/**
+	 * Pick the run back up after the step ceiling stopped it.
+	 *
+	 * Nothing needs repairing: the checkpoint holds every completed super-step,
+	 * and a null-input invocation tells LangGraph to proceed from exactly there.
+	 * The same mechanism resume() uses for interrupts, minus the Command.
+	 */
+	async continueRun() {
+		if (this.busy || !this.stalled) return;
+		const why = this.stalled;
+		this.stalled = '';
+		this.error = '';
+		bus.emit({
+			kind: 'note',
+			scope: 'main',
+			message:
+				why === 'ceiling'
+					? `continued past the step ceiling (${this.stepCeiling})`
+					: 'continued after a network failure',
+			label: 'continue'
+		});
+		await this.#drive(null);
 	}
 
 	get busy() {
@@ -216,10 +282,18 @@ class Session {
 
 	#persist() {
 		if (!browser) return;
+		// A factory reset has wiped storage and is about to reload. The pagehide
+		// flush still calls this on the way out, and writing now would resurrect
+		// the very state the user just erased.
+		if (resetInProgress.value) return;
 		const first = this.messages.find((m) => m.role === 'user')?.text ?? 'New chat';
+		// A sidecar-generated title survives; the first-message fallback is only
+		// for threads nothing has named yet.
+		const prior = this.threads.find((t) => t.id === this.threadId);
 		const summary: ThreadSummary = {
 			id: this.threadId,
-			title: first.slice(0, 60),
+			title: prior?.titled ? prior.title : first.slice(0, 60),
+			titled: prior?.titled ?? false,
 			updated: Date.now(),
 			messages: this.messages.length
 		};
@@ -269,12 +343,16 @@ class Session {
 		if (this.busy) return;
 		this.threadId = id;
 		setAssetScope(id);
+		sources.setScope(id);
+		replay.resetWebRecording();
+		if (replay.active) replay.rewindServing();
 		this.#agent = null; // a thread is a checkpoint scope; don't carry state across
 		this.messages = [];
 		this.todos = [];
 		this.files = {};
 		this.#n = 0;
 		this.pending = null;
+		this.stalled = '';
 		// Anything staged in the composer belongs to the conversation you staged
 		// it for, not to the next one.
 		this.attachments = [];
@@ -282,6 +360,7 @@ class Session {
 		// thing that happens in a run, and it is not "unchanged" to a blank log.
 		this.#skillsSeen = '';
 		this.#toolStarts.clear();
+		this.#lanes.clear();
 		bus.clear();
 		this.#restore(id); // re-seeds #n past the restored ids
 	}
@@ -290,12 +369,16 @@ class Session {
 		if (this.busy) return;
 		this.threadId = `t${Date.now().toString(36)}`;
 		setAssetScope(this.threadId);
+		sources.setScope(this.threadId);
+		replay.resetWebRecording();
+		if (replay.active) replay.rewindServing();
 		this.#agent = null;
 		this.messages = [];
 		this.todos = [];
 		this.files = {};
 		this.#n = 0;
 		this.pending = null;
+		this.stalled = '';
 		// Anything staged in the composer belongs to the conversation you staged
 		// it for, not to the next one.
 		this.attachments = [];
@@ -303,6 +386,7 @@ class Session {
 		this.status = 'idle';
 		this.#skillsSeen = '';
 		this.#toolStarts.clear();
+		this.#lanes.clear();
 		bus.clear();
 	}
 
@@ -328,6 +412,7 @@ class Session {
 			// Its figures and PDFs go too, or the disk grows forever while the
 			// history shrinks.
 			void assets.dropThread(id);
+			sources.drop(id);
 		}
 		if (id === this.threadId) this.newThread();
 	}
@@ -356,7 +441,7 @@ class Session {
 		// The skill library is part of the signature because SkillsMiddleware
 		// scans once and caches the result in a closure. A skill added to a live
 		// agent would simply never be seen.
-		const signature = `${this.model}:${keys.tail}:${JSON.stringify(this.interruptOn)}:${skills.signature}`;
+		const signature = `${this.model}:${keys.tail}:${JSON.stringify(this.interruptOn)}:${skills.signature}:${replay.active ? `replay:${replay.fixtureName}` : 'live'}`;
 		if (this.#agent && this.#agentKey === signature) return this.#agent;
 
 		const {
@@ -426,7 +511,13 @@ class Session {
 					backend,
 					trigger: { type: 'tokens', value: Math.round(INPUT_LIMIT * COMPACT_AT) },
 					keep: { type: 'messages', value: 8 }
-				})
+				}),
+				// Awareness is pushed, not pulled: every model call carries a small
+				// ephemeral <world_state> block naming the images and sources that
+				// exist. See awareness.ts for why this is middleware and not a tool.
+				worldStateMiddleware,
+				// And gates are serialized, not assumed serial — see one-gate.ts.
+				oneGatePerTurnMiddleware
 			] as never,
 			// Gated tools pause the graph via interrupt() before running.
 			interruptOn: this.interruptOn,
@@ -466,6 +557,7 @@ class Session {
 		if ((!text.trim() && !this.attachments.length) || this.busy) return;
 
 		this.error = '';
+		this.stalled = '';
 
 		// Everything the agent should be able to *read* becomes a file: its own
 		// skills, and any text or PDF the user attached. Both go in through the
@@ -494,11 +586,20 @@ class Session {
 			this.files[path] = (file as { content: string }).content;
 		}
 
-		// Only when the library actually changed. A row per turn saying the same
-		// three skills are loaded is noise; the row that matters is the one where
-		// the set is different from last time.
-		if (skills.active.length && skills.signature !== this.#skillsSeen) {
-			this.#skillsSeen = skills.signature;
+		// Only when the library actually changed — the same three skills every
+		// turn is noise. Content-sensitive on purpose: editing a skill's body
+		// keeps the names and still earns a row, because "did my edit register?"
+		// is exactly the question this row answers.
+		if (skills.active.length && skills.contentSignature !== this.#skillsSeen) {
+			const namesOf = (sig: string) =>
+				sig
+					.split(',')
+					.filter(Boolean)
+					.map((p) => p.split(':')[0])
+					.join(',');
+			const edited =
+				!!this.#skillsSeen && namesOf(this.#skillsSeen) === namesOf(skills.contentSignature);
+			this.#skillsSeen = skills.contentSignature;
 			const listed = skills.active.reduce((n, s) => n + s.name.length + s.description.length, 0);
 			bus.emit({
 				kind: 'skills_loaded',
@@ -506,7 +607,7 @@ class Session {
 				names: skills.active.map((s) => s.name),
 				chars: listed,
 				fullChars: skills.active.reduce((n, s) => n + s.body.length, 0),
-				label: `${skills.active.length} skills`
+				label: `${skills.active.length} skills${edited ? ' · updated' : ''}`
 			});
 		}
 
@@ -640,6 +741,7 @@ class Session {
 		this.status = 'running';
 
 		const started = performance.now();
+		const before = runTotals(bus, this.model);
 		this.#abort = new AbortController();
 		let interrupted = false;
 
@@ -659,7 +761,7 @@ class Session {
 					thread_id: this.threadId,
 					...(checkpointId ? { checkpoint_id: checkpointId } : {})
 				},
-				recursionLimit: 60,
+				recursionLimit: this.stepCeiling,
 				signal: this.#abort.signal
 			});
 
@@ -668,8 +770,16 @@ class Session {
 
 				if (mode === 'messages') {
 					const [msg] = payload as [Record<string, unknown>];
-					if (!msg.tool_call_id) reply.text += textOf(msg);
-					this.#absorbMessage(msg, reply);
+					// On the messages stream the namespace names the *emitting node*
+					// too — root deltas arrive as ["model_request:<task>"], not [].
+					// The speaker's identity is the path with that last segment
+					// removed: empty means the root agent, anything longer means a
+					// subagent's own invocation. Without this cut, `subgraphs: true`
+					// wrote the paper-reader's digest into the parent's sentence —
+					// and with a naive `ns.length` cut, nothing arrived at all.
+					const speaker = ns.slice(0, -1);
+					if (!msg.tool_call_id && !speaker.length) reply.text += textOf(msg);
+					this.#absorbMessage(msg, reply, speaker);
 					continue;
 				}
 
@@ -693,7 +803,12 @@ class Session {
 							merged.reviewConfigs.push(...(req.reviewConfigs ?? []));
 						}
 
-						if (merged.actionRequests.length) {
+						// With `subgraphs: true` a gate inside a subagent surfaces twice —
+						// once on the subagent's own namespace and once bubbled at the
+						// root. Same id, same pause: one row. Guarded by id rather than
+						// namespace so a genuinely new interrupt after a resume still
+						// lands.
+						if (merged.actionRequests.length && this.pending?.id !== entries[0]?.id) {
 							this.pending = { request: merged, id: entries[0]?.id };
 							interrupted = true;
 							bus.emit({
@@ -725,8 +840,17 @@ class Session {
 		} catch (e) {
 			const message = e instanceof Error ? e.message : String(e);
 			const aborted = /abort/i.test(message);
-			this.error = aborted ? '' : message;
-			this.status = aborted ? 'idle' : 'error';
+			// Two stops that lose nothing get a Continue button instead of an
+			// error string: the step guard, and a connection dropping mid-run
+			// (our tools return network failures as text now, so a throw here is
+			// the model call itself — retryable by definition).
+			const ceiling = /recursion limit/i.test(message);
+			const network = !ceiling && /failed to fetch|networkerror|load failed/i.test(message);
+			if (ceiling) this.stalled = 'ceiling';
+			if (network) this.stalled = 'network';
+			const paused = aborted || ceiling || network;
+			this.error = paused ? '' : message;
+			this.status = paused ? 'idle' : 'error';
 			bus.emit({
 				kind: 'run_end',
 				scope: 'main',
@@ -735,6 +859,18 @@ class Session {
 				label: aborted ? 'stopped' : message.slice(0, 60)
 			});
 		} finally {
+			// The receipt: this drive's share of the wire, added to whatever the
+			// turn had already spent before an interrupt paused it.
+			const after = runTotals(bus, this.model);
+			const prior = reply.usage;
+			reply.usage = {
+				input: (prior?.input ?? 0) + (after.input - before.input),
+				cached: (prior?.cached ?? 0) + (after.cached - before.cached),
+				output: (prior?.output ?? 0) + (after.output - before.output),
+				costUsd: (prior?.costUsd ?? 0) + (after.costUsd - before.costUsd),
+				ms: (prior?.ms ?? 0) + (performance.now() - started),
+				calls: (prior?.calls ?? 0) + (after.calls - before.calls)
+			};
 			// A paused run is still mid-turn: keep the caret until it resumes.
 			reply.streaming = interrupted;
 			this.#abort = null;
@@ -745,6 +881,8 @@ class Session {
 			await this.#checkpointer?.flushNow();
 			this.#persist();
 			await this.refreshMemories();
+			// Fire-and-forget: naming the chat must never hold the turn open.
+			if (!interrupted) void this.#autoTitle();
 		}
 
 		// The turn is over, so the message list is no longer being read from.
@@ -754,6 +892,36 @@ class Session {
 			compactRequest.pending = false;
 			await this.compact();
 		}
+	}
+
+	/**
+	 * Name the thread once it has one real exchange.
+	 *
+	 * A lab-sidecar call (see lab/sidecar.svelte.ts) — cheapest model, invisible
+	 * to the X-ray by design. Failure leaves the fallback title, silently: a
+	 * chat that keeps its first words as its name is not a problem worth a
+	 * banner.
+	 */
+	async #autoTitle() {
+		if (resetInProgress.value) return;
+		const entry = this.threads.find((t) => t.id === this.threadId);
+		if (!entry || entry.titled) return;
+		const asked = this.messages.find((m) => m.role === 'user')?.text ?? '';
+		const replied = this.messages.findLast((m) => m.role === 'assistant' && m.text)?.text ?? '';
+		if (!asked || !replied) return;
+
+		const { generateTitle } = await import('$lib/lab/sidecar.svelte');
+		const title = await generateTitle(asked, replied);
+		if (!title) return;
+
+		// Re-find: the turn may have switched threads while the call was out.
+		const hit = this.threads.find((t) => t.id === entry.id);
+		if (!hit) return;
+		hit.title = title;
+		hit.titled = true;
+		this.threads = [...this.threads];
+		if (browser && !resetInProgress.value)
+			localStorage.setItem(THREADS_KEY, JSON.stringify(this.threads));
 	}
 
 	/** Write everything to disk now. Called when the page is going away. */
@@ -912,6 +1080,7 @@ class Session {
 		this.messages = this.messages.slice(0, index);
 		this.pending = null;
 		this.#toolStarts.clear();
+		this.#lanes.clear();
 		compactRequest.pending = false;
 
 		this.messages.push({
@@ -984,6 +1153,11 @@ class Session {
 				noticePath: result.filePath
 			});
 			this.#persist();
+			// The conversation just changed shape; let the sidecar rename it from
+			// the newer material.
+			const entry = this.threads.find((t) => t.id === this.threadId);
+			if (entry) entry.titled = false;
+			void this.#autoTitle();
 		} catch (e) {
 			this.error = e instanceof Error ? e.message : String(e);
 		} finally {
@@ -991,8 +1165,38 @@ class Session {
 		}
 	}
 
-	/** Tool calls and results, as they stream. */
-	#absorbMessage(m: Record<string, unknown>, reply: ChatMessage) {
+	/**
+	 * Which subagent a namespace belongs to, in human terms.
+	 *
+	 * The stream says `sub:<node>:<taskId>`; a person wants "paper-reader". The
+	 * only place that name exists is the arguments of the `task` call that did
+	 * the dispatching, so the nth new namespace is paired with the nth `task`
+	 * dispatch. Honest but not bulletproof — parallel dispatches start in order
+	 * today, and a mispairing shows as a wrong label while the scope string
+	 * stays the ground truth.
+	 */
+	#laneOf(ns: string[]): string | undefined {
+		if (!ns.length) return undefined;
+		const key = ns.join('/');
+		const known = this.#lanes.get(key);
+		if (known) return known;
+		const dispatches: string[] = [];
+		for (const m of this.messages)
+			for (const t of m.toolCalls)
+				if (t.name === 'task') {
+					const type = (t.args as { subagent_type?: string })?.subagent_type;
+					dispatches.push(typeof type === 'string' ? type : '');
+				}
+		const next = dispatches[this.#lanes.size];
+		if (!next) return undefined;
+		this.#lanes.set(key, next);
+		return next;
+	}
+
+	/** Tool calls and results, as they stream. `ns` is the speaker's path. */
+	#absorbMessage(m: Record<string, unknown>, reply: ChatMessage, ns: string[] = []) {
+		const scope = ns.length ? (`sub:${ns.join('/')}` as const) : 'main';
+		const lane = this.#laneOf(ns);
 		const calls = m.tool_calls as { id?: string; name: string; args: unknown }[] | undefined;
 		if (Array.isArray(calls)) {
 			for (const c of calls) {
@@ -1010,7 +1214,7 @@ class Session {
 						// Each chunk hands over a fresh args object, so identity is a
 						// sufficient and cheap "has anything actually arrived?".
 						if (started && started.args !== c.args) {
-							const skill = skillIn(c.name, c.args);
+							const skill = skillReadIn(c.name, c.args);
 							this.#toolStarts.set(
 								id,
 								bus.revise(started, {
@@ -1028,12 +1232,13 @@ class Session {
 						status: 'running',
 						ours: OUR_TOOLS.has(c.name)
 					});
-					const skill = skillIn(c.name, c.args);
+					const skill = skillReadIn(c.name, c.args);
 					this.#toolStarts.set(
 						id,
 						bus.emit({
 							kind: 'tool_start',
-							scope: 'main',
+							scope,
+							...(lane ? { lane } : {}),
 							toolCallId: id,
 							name: c.name,
 							args: c.args ?? {},
@@ -1055,10 +1260,11 @@ class Session {
 				hit.status = m.status === 'error' ? 'error' : 'done';
 				// The args live on the call we recorded at start, so the skill can be
 				// recognised again here without the result having to mention it.
-				const skill = skillIn(hit.name, hit.args);
+				const skill = skillReadIn(hit.name, hit.args);
 				bus.emit({
 					kind: 'tool_end',
-					scope: 'main',
+					scope,
+					...(lane ? { lane } : {}),
 					toolCallId,
 					name: hit.name,
 					result: content,
@@ -1084,9 +1290,11 @@ class Session {
 	) {
 		if (!update) return;
 
+		const lane = this.#laneOf(ns);
 		bus.emit({
 			kind: 'node',
-			scope: ns.length ? (`sub:${ns[0]}` as const) : 'main',
+			scope: ns.length ? (`sub:${ns.join('/')}` as const) : 'main',
+			...(lane ? { lane } : {}),
 			nodeName,
 			channels: Object.keys(update),
 			label: nodeName

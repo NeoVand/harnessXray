@@ -7,6 +7,9 @@
 	import { ICON } from '$lib/icons';
 	import { Checkbox } from '$lib/components/ui/checkbox';
 	import { factoryReset, storageUsage } from '$lib/storage/reset';
+	import { bus } from '$lib/xray/bus.svelte';
+	import { replay, parseFixture } from '$lib/xray/replay.svelte';
+	import { exportCurrentRun, enterReplay, exitReplay, loadBundledDemo } from '$lib/lab/demo';
 
 	let usage = $state('—');
 	let resetting = $state(false);
@@ -26,11 +29,45 @@
 	}
 
 	/** Tools worth gating — the ones with cost or side effects. */
-	const GATEABLE = ['generate_image', 'fetch_paper', 'search_papers', 'write_file', 'edit_file'];
+	const GATEABLE = [
+		'generate_image',
+		'present_outline',
+		'fetch_paper',
+		'search_papers',
+		'write_file',
+		'edit_file'
+	];
 	/** Gating these is unsafe: they run inside parallel subagents. */
 	const PARALLEL_RISKY = new Set(['fetch_paper', 'search_papers']);
 
 	let { open = $bindable(false) }: { open?: boolean } = $props();
+
+	/** Model exchanges captured in this thread — what an export would contain. */
+	const recorded = $derived.by(() => {
+		void bus.version;
+		return bus.events.filter((e) => e.kind === 'http_request' && e.bodyHash).length;
+	});
+
+	let fixturePicker = $state<HTMLInputElement | null>(null);
+	let replayError = $state('');
+
+	async function loadFixtureFile(list: FileList | null) {
+		const file = list?.[0];
+		if (!file) return;
+		replayError = '';
+		try {
+			enterReplay(parseFixture(await file.text()));
+			open = false;
+		} catch (e) {
+			replayError = e instanceof Error ? e.message : String(e);
+		}
+		if (fixturePicker) fixturePicker.value = '';
+	}
+
+	async function demo() {
+		replayError = await loadBundledDemo();
+		if (!replayError) open = false;
+	}
 
 	let draft = $state('');
 	let revealed = $state(false);
@@ -170,6 +207,30 @@
 				</div>
 			</section>
 
+			<!-- Run limits -->
+			<section>
+				<p class="hx-eyebrow mb-3 flex items-center gap-1.5">
+					<HugeiconsIcon icon={ICON.state} size={12} strokeWidth={1.5} />
+					step ceiling
+				</p>
+				<div class="flex items-center gap-2.5">
+					<input
+						type="number"
+						min="50"
+						max="2000"
+						step="10"
+						value={session.stepCeiling}
+						onchange={(e) => session.setStepCeiling(Number(e.currentTarget.value))}
+						class="hx-rule hx-field w-24 rounded-md border bg-transparent px-2.5 py-1.5
+						       font-mono text-xs"
+					/>
+					<span class="text-[11px] leading-snug text-muted-foreground">
+						super-steps per run — the runaway-loop guard. Every middleware hook counts as one, so a
+						model→tools cycle costs several. Hitting it pauses with a Continue button.
+					</span>
+				</div>
+			</section>
+
 			<!-- Approvals -->
 			<section>
 				<p class="hx-eyebrow mb-3 flex items-center gap-1.5">
@@ -199,6 +260,71 @@
 						</label>
 					{/each}
 				</div>
+			</section>
+
+			<!-- Record & replay -->
+			<section>
+				<p class="hx-eyebrow mb-3 flex items-center gap-1.5">
+					<HugeiconsIcon icon={ICON.run} size={12} strokeWidth={1.5} />
+					record & replay
+				</p>
+
+				{#if replay.active}
+					<p class="mb-2 text-[11px] text-muted-foreground">
+						Replaying <span class="font-mono">{replay.fixtureName}</span> — every byte comes from the
+						recording. No key, no network, no spend.
+					</p>
+					<button
+						onclick={() => {
+							exitReplay();
+							open = false;
+						}}
+						class="hx-rule rounded-md border px-2.5 py-1 text-xs transition-colors hover:bg-muted"
+					>
+						Exit replay
+					</button>
+				{:else}
+					<p class="mb-2 text-[11px] leading-relaxed text-muted-foreground">
+						Every run is already a recording — the wire plane holds the literal bytes. Export this
+						thread as a fixture anyone can replay with no key and no network, or load one.
+					</p>
+					<input
+						bind:this={fixturePicker}
+						type="file"
+						accept=".json,application/json"
+						class="hidden"
+						onchange={(e) => loadFixtureFile(e.currentTarget.files)}
+					/>
+					<div class="flex flex-wrap items-center gap-2">
+						<button
+							onclick={exportCurrentRun}
+							disabled={recorded === 0 || session.busy}
+							class="hx-rule rounded-md border px-2.5 py-1 text-xs transition-colors
+							       hover:bg-muted disabled:opacity-40"
+							title={recorded === 0 ? 'Run something first — there is nothing to export' : ''}
+						>
+							Export this run ({recorded} exchanges)
+						</button>
+						<button
+							onclick={() => fixturePicker?.click()}
+							disabled={session.busy}
+							class="hx-rule rounded-md border px-2.5 py-1 text-xs transition-colors
+							       hover:bg-muted disabled:opacity-40"
+						>
+							Load fixture…
+						</button>
+						<button
+							onclick={demo}
+							disabled={session.busy}
+							class="hx-eyebrow transition-colors hover:text-foreground disabled:opacity-40"
+						>
+							bundled demo
+						</button>
+					</div>
+					{#if replayError}
+						<p class="mt-2 text-[11px]" style:color="var(--hx-error)">{replayError}</p>
+					{/if}
+				{/if}
 			</section>
 
 			<!-- Storage -->

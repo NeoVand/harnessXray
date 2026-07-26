@@ -14,6 +14,7 @@
  */
 
 import { cached } from './search-cache';
+import { labFetch } from '$lib/xray/replay.svelte';
 
 export interface PaperHit {
 	arxivId: string | null;
@@ -47,9 +48,24 @@ const ARXIV_ID = String.raw`(\d{4}\.\d{4,5}|[a-z-]+(?:\.[A-Z]{2})?\/\d{7})`;
 
 export const ARXIV_ID_RE = new RegExp(`^${ARXIV_ID}(v\\d+)?$`, 'i');
 
-function arxivIdFrom(work: Record<string, unknown>): string | null {
-	const loc = work.primary_location as { pdf_url?: string; landing_page_url?: string } | null;
-	const candidates = [loc?.pdf_url, loc?.landing_page_url, work.doi as string | undefined];
+interface OaLocation {
+	pdf_url?: string;
+	landing_page_url?: string;
+}
+
+export function arxivIdFrom(work: Record<string, unknown>): string | null {
+	// Every location, not just the primary one. For published papers OpenAlex
+	// promotes the journal to primary_location and the arXiv record slides down
+	// the list — checking only the front row is how a paper with a perfectly
+	// readable preprint came back "(no arXiv id — cannot be read)".
+	const primary = work.primary_location as OaLocation | null;
+	const rest = (work.locations as OaLocation[] | undefined) ?? [];
+	const candidates = [
+		primary?.pdf_url,
+		primary?.landing_page_url,
+		...rest.flatMap((l) => [l?.pdf_url, l?.landing_page_url]),
+		work.doi as string | undefined
+	];
 	for (const c of candidates) {
 		if (!c) continue;
 		const m =
@@ -58,6 +74,19 @@ function arxivIdFrom(work: Record<string, unknown>): string | null {
 		if (m) return m[1];
 	}
 	return null;
+}
+
+/**
+ * Authors, formatted so the one that matters survives.
+ *
+ * "First et al." erased exactly the name a "latest paper by X" question needs
+ * — in Tenenbaum-style fields the senior author is listed LAST. Short lists
+ * print whole; long ones keep both ends.
+ */
+export function authorsLine(authors: string[]): string {
+	if (!authors.length) return 'unknown';
+	if (authors.length <= 3) return authors.join(', ');
+	return `${authors[0]} … ${authors[authors.length - 1]} (${authors.length} authors)`;
 }
 
 /** arXiv mints DOIs of the form 10.48550/arXiv.<id>, so a DOI can yield an id. */
@@ -70,22 +99,29 @@ async function searchOpenAlex(
 	query: string,
 	limit: number,
 	fromYear: number | null,
-	sort: string
+	sort: string,
+	author: string | null
 ): Promise<PaperHit[]> {
 	const filters = ['type:article'];
 	if (fromYear) filters.push(`from_publication_date:${fromYear}-01-01`);
+	// `search=` matches title/abstract TEXT — an author's name in it finds
+	// papers that mention them, not papers by them. Author queries need the
+	// author filter, which is a different index entirely. Commas would read as
+	// filter separators, so they cannot ride along.
+	if (author) filters.push(`raw_author_name.search:${author.replace(/,/g, ' ')}`);
 
 	const params = new URLSearchParams({
-		search: query,
 		per_page: String(Math.min(limit * 3, 50)),
 		filter: filters.join(','),
 		select:
-			'id,doi,title,publication_year,cited_by_count,authorships,primary_location,abstract_inverted_index'
+			'id,doi,title,publication_year,cited_by_count,authorships,primary_location,locations,abstract_inverted_index'
 	});
+	if (query.trim()) params.set('search', query);
 	if (sort === 'citations') params.set('sort', 'cited_by_count:desc');
-	if (sort === 'recency') params.set('sort', 'publication_year:desc');
+	// publication_date, not publication_year: "latest" is a day-granular question.
+	if (sort === 'recency') params.set('sort', 'publication_date:desc');
 
-	const res = await fetch(`https://api.openalex.org/works?${params}`);
+	const res = await labFetch(`https://api.openalex.org/works?${params}`);
 	if (res.status === 429) {
 		// A daily credit quota, not a per-second rate — retrying immediately
 		// cannot help, so say when it actually resets.
@@ -101,8 +137,10 @@ async function searchOpenAlex(
 	return (json.results ?? []).map((w) => ({
 		arxivId: arxivIdFrom(w),
 		title: String(w.title ?? 'Untitled'),
+		// 25, not 6: the senior author on a ten-name paper is the one a reader
+		// asks about, and slicing at six silently deleted them.
 		authors: ((w.authorships as { author?: { display_name?: string } }[] | undefined) ?? [])
-			.slice(0, 6)
+			.slice(0, 25)
 			.map((a) => a.author?.display_name ?? '')
 			.filter(Boolean),
 		year: (w.publication_year as number) ?? null,
@@ -120,13 +158,18 @@ async function searchOpenAlex(
  * abstracts and only yields an arXiv id when the DOI is an arXiv one — a
  * genuinely worse result, which is why it is the fallback and not the default.
  */
-async function searchCrossref(query: string, limit: number): Promise<PaperHit[]> {
+async function searchCrossref(
+	query: string,
+	limit: number,
+	author: string | null
+): Promise<PaperHit[]> {
 	const params = new URLSearchParams({
-		'query.bibliographic': query,
 		rows: String(Math.min(limit * 2, 30)),
 		select: 'DOI,title,issued,is-referenced-by-count,author,abstract'
 	});
-	const res = await fetch(`https://api.crossref.org/works?${params}`, {
+	if (query.trim()) params.set('query.bibliographic', query);
+	if (author) params.set('query.author', author);
+	const res = await labFetch(`https://api.crossref.org/works?${params}`, {
 		headers: { Accept: 'application/json' }
 	});
 	if (!res.ok) throw new Error(`Crossref returned HTTP ${res.status}.`);
@@ -143,8 +186,7 @@ async function searchCrossref(query: string, limit: number): Promise<PaperHit[]>
 				.filter(Boolean),
 			year:
 				((it.issued as { 'date-parts'?: number[][] } | undefined)?.['date-parts']?.[0]?.[0] as
-					| number
-					| undefined) ?? null,
+					number | undefined) ?? null,
 			citations: (it['is-referenced-by-count'] as number) ?? 0,
 			abstract: String(it.abstract ?? '').replace(/<[^>]+>/g, ''),
 			url: doi ? `https://doi.org/${doi}` : ''
@@ -159,17 +201,24 @@ export async function searchPapers(opts: {
 	limit?: number;
 	fromYear?: number | null;
 	sort?: 'relevance' | 'citations' | 'recency';
+	author?: string | null;
 }): Promise<PaperHit[] & { source?: string }> {
-	const { query, limit = 8, fromYear = null, sort = 'relevance' } = opts;
-	const key = `oa:${query}|${limit}|${fromYear}|${sort}`;
+	const { query, limit = 8, fromYear = null, sort = 'relevance', author = null } = opts;
+	const key = `oa:${query}|${limit}|${fromYear}|${sort}|${author ?? ''}`;
 
 	const hits = await cached(key, async () => {
 		try {
-			return { source: 'OpenAlex', hits: await searchOpenAlex(query, limit, fromYear, sort) };
+			return {
+				source: 'OpenAlex',
+				hits: await searchOpenAlex(query, limit, fromYear, sort, author)
+			};
 		} catch (e) {
 			if (!(e instanceof QuotaError)) throw e;
 			// Degrade rather than fail: a worse source beats no source.
-			return { source: 'Crossref (OpenAlex quota spent)', hits: await searchCrossref(query, limit) };
+			return {
+				source: 'Crossref (OpenAlex quota spent)',
+				hits: await searchCrossref(query, limit, author)
+			};
 		}
 	});
 
@@ -183,12 +232,141 @@ export async function searchPapers(opts: {
 	return sorted;
 }
 
+export interface ExtractedFigure {
+	path: string;
+	caption: string;
+	bytes: number;
+}
+
+/**
+ * Resolve a figure src against the page it appeared on — browser semantics.
+ *
+ * The srcs are relative paths that already carry the versioned directory
+ * ("2602.22296v1/x1.png") while the page URL is version-less. Appending a
+ * slash to the page URL kept the version-less id as a directory and 404'd
+ * every figure; the browser rule — strip the last path segment, then resolve
+ * — lands on the real asset. Exported pure, so the geometry stays pinned by
+ * a test instead of by luck.
+ */
+export function resolveFigureUrl(src: string, pageUrl: string): string {
+	return new URL(src, pageUrl).href;
+}
+
+/**
+ * Lift the real figures out of a paper's HTML edition.
+ *
+ * `htmlToText` deliberately drops everything that is not prose; this walks the
+ * same LaTeXML page for the part it drops. Each `<figure>` carries the actual
+ * image asset and the paper's own `<figcaption>` — which means a review can
+ * embed the genuine figure with attribution instead of describing it from
+ * memory. HTML editions exist for 2024+ papers only; older papers get an
+ * honest refusal rather than a scrape attempt.
+ */
+export async function fetchPaperFigures(
+	arxivId: string,
+	max = 6
+): Promise<{ figures: ExtractedFigure[]; note: string }> {
+	const id = arxivId.trim().replace(/^arxiv:/i, '');
+	if (id.includes('/')) {
+		return {
+			figures: [],
+			note: `arXiv:${id} is a legacy id — it predates the HTML edition, so its figures cannot be extracted. Only the PDF text is available.`
+		};
+	}
+
+	let res: Response;
+	try {
+		res = await labFetch(`https://arxiv.org/html/${id}`);
+	} catch {
+		// A refused connection, not a status — the burst-limiter makes this
+		// rare, but when it happens the model gets words, not a detonation.
+		return {
+			figures: [],
+			note: `arxiv.org refused the connection while fetching figures for ${id} — usually rate limiting after many parallel fetches. Continue without these figures, or retry later.`
+		};
+	}
+	if (!res.ok) {
+		return {
+			figures: [],
+			note: `arXiv:${id} has no HTML edition (HTTP ${res.status}) — usually a pre-2024 paper. Figures cannot be extracted.`
+		};
+	}
+
+	const doc = new DOMParser().parseFromString(await res.text(), 'text/html');
+	const nodes = [...doc.querySelectorAll('figure.ltx_figure')];
+	if (!nodes.length)
+		return { figures: [], note: `The HTML edition of arXiv:${id} contains no figures.` };
+
+	const { assets, toBase64, thumbnail } = await import('$lib/storage/assets.svelte');
+	const { bus } = await import('$lib/xray/bus.svelte');
+	const slug = id.replace(/\//g, '-').replace(/\./g, '-');
+
+	const figures: ExtractedFigure[] = [];
+	let firstFailure = '';
+	for (const fig of nodes) {
+		if (figures.length >= max) break;
+		const img = fig.querySelector('img');
+		const src = img?.getAttribute('src');
+		if (!src) continue;
+
+		const caption = (fig.querySelector('figcaption')?.textContent ?? '')
+			.replace(/\s+/g, ' ')
+			.trim();
+
+		try {
+			const imgRes = await labFetch(
+				resolveFigureUrl(src, res.url || `https://arxiv.org/html/${id}`)
+			);
+			if (!imgRes.ok) {
+				firstFailure ||= `HTTP ${imgRes.status} for ${src}`;
+				continue;
+			}
+			const mime = imgRes.headers.get('content-type') ?? 'image/png';
+			const ext = mime.includes('jpeg') ? 'jpg' : mime.includes('webp') ? 'webp' : 'png';
+			const buf = await imgRes.arrayBuffer();
+			const dataUrl = `data:${mime};base64,${toBase64(buf)}`;
+			const path = `/figures/${slug}-fig${figures.length + 1}.${ext}`;
+
+			await assets.put({
+				path,
+				dataUrl,
+				kind: 'image',
+				bytes: buf.byteLength,
+				createdAt: Date.now(),
+				meta: { arxivId: id, caption, source: 'extracted' }
+			});
+			bus.emit({
+				kind: 'figure_extracted',
+				scope: 'main',
+				arxivId: id,
+				path,
+				caption,
+				preview: await thumbnail(dataUrl, 320),
+				bytes: buf.byteLength,
+				label: path
+			});
+			figures.push({ path, caption, bytes: buf.byteLength });
+		} catch (e) {
+			// One unfetchable figure should not sink the rest — but its reason
+			// must survive, or the failure reads as superstition.
+			firstFailure ||= e instanceof Error ? e.message : String(e);
+		}
+	}
+
+	return figures.length
+		? { figures, note: '' }
+		: {
+				figures: [],
+				note: `Found ${nodes.length} figures in arXiv:${id} but none could be downloaded (first error: ${firstFailure || 'none had a usable src'}).`
+			};
+}
+
 /** Strip an arXiv LaTeXML page down to readable text, keeping section structure. */
 function htmlToText(html: string): string {
 	const doc = new DOMParser().parseFromString(html, 'text/html');
-	doc.querySelectorAll('script,style,nav,footer,.ltx_bibliography,.ltx_page_footer').forEach((n) =>
-		n.remove()
-	);
+	doc
+		.querySelectorAll('script,style,nav,footer,.ltx_bibliography,.ltx_page_footer')
+		.forEach((n) => n.remove());
 	const root = doc.querySelector('.ltx_page_content') ?? doc.body;
 
 	const out: string[] = [];
@@ -224,7 +402,7 @@ export async function fetchPaper(arxivId: string, maxChars = 24000): Promise<Fet
 	// real headings, real math, no column interleaving.
 	try {
 		if (legacy) throw new Error('legacy id — PDF only');
-		const res = await fetch(`https://arxiv.org/html/${id}`);
+		const res = await labFetch(`https://arxiv.org/html/${id}`);
 		if (res.ok) {
 			const text = htmlToText(await res.text());
 			if (text.length > 500) {
@@ -241,7 +419,15 @@ export async function fetchPaper(arxivId: string, maxChars = 24000): Promise<Fet
 		/* fall through to PDF */
 	}
 
-	const res = await fetch(`https://arxiv.org/pdf/${id}`);
+	let res: Response;
+	try {
+		res = await labFetch(`https://arxiv.org/pdf/${id}`);
+	} catch {
+		throw new Error(
+			`arxiv.org refused the connection for ${id} — usually rate limiting after many parallel ` +
+				`fetches. Wait a moment and retry, or pick a different paper.`
+		);
+	}
 	if (!res.ok) {
 		throw new Error(
 			`Could not fetch ${id} (HTTP ${res.status}). arXiv HTML exists only for 2024+ papers; ` +
@@ -257,7 +443,7 @@ export async function fetchPaper(arxivId: string, maxChars = 24000): Promise<Fet
 	try {
 		pages = await renderPdfPages(buf, 4);
 	} catch {
-		pages = [];
+		/* the initialiser already is the fallback */
 	}
 
 	// Keep the PDF itself. The agent reads the extracted text, but a person

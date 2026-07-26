@@ -37,16 +37,19 @@ export interface Attachment {
 	pages?: string[];
 }
 
-const TEXT_EXT = /\.(md|markdown|txt|csv|tsv|json|ya?ml|tex|bib|py|ts|js|html?|css|sql|sh|toml|ini|log)$/i;
+const TEXT_EXT =
+	/\.(md|markdown|txt|csv|tsv|json|ya?ml|tex|bib|py|ts|js|html?|css|sql|sh|toml|ini|log)$/i;
 
 /** Filesystem-safe, collision-resistant, still recognisable. */
 function slug(name: string): string {
-	return name
-		.replace(/\.[^.]+$/, '')
-		.toLowerCase()
-		.replace(/[^a-z0-9]+/g, '-')
-		.replace(/^-|-$/g, '')
-		.slice(0, 48) || 'file';
+	return (
+		name
+			.replace(/\.[^.]+$/, '')
+			.toLowerCase()
+			.replace(/[^a-z0-9]+/g, '-')
+			.replace(/^-|-$/g, '')
+			.slice(0, 48) || 'file'
+	);
 }
 
 async function readAsDataUrl(file: File): Promise<string> {
@@ -62,7 +65,9 @@ export const MAX_UPLOAD_BYTES = 24 * 1024 * 1024;
 
 export async function ingest(file: File): Promise<Attachment> {
 	if (file.size > MAX_UPLOAD_BYTES) {
-		throw new Error(`${file.name} is ${(file.size / 1024 / 1024).toFixed(1)} MB — the cap is 24 MB.`);
+		throw new Error(
+			`${file.name} is ${(file.size / 1024 / 1024).toFixed(1)} MB — the cap is 24 MB.`
+		);
 	}
 
 	const base = slug(file.name);
@@ -78,7 +83,7 @@ export async function ingest(file: File): Promise<Attachment> {
 		try {
 			pages = await renderPdfPages(buf, 4);
 		} catch {
-			pages = [];
+			/* the initialiser already is the fallback */
 		}
 
 		const path = `/uploads/${base}.pdf`;
@@ -135,7 +140,9 @@ export async function ingest(file: File): Promise<Attachment> {
 	}
 
 	if (!TEXT_EXT.test(file.name) && !file.type.startsWith('text/')) {
-		throw new Error(`${file.name} is not something the agent can read. Try a PDF, an image, or text.`);
+		throw new Error(
+			`${file.name} is not something the agent can read. Try a PDF, an image, or text.`
+		);
 	}
 
 	const text = await file.text();

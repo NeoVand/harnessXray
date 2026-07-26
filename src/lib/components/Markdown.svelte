@@ -2,7 +2,15 @@
 	import { marked } from 'marked';
 	import DOMPurify from 'dompurify';
 	import { assets, assetVersion } from '$lib/storage/assets.svelte';
-	import { extractMath, restoreMath, linkify, isInternalHref, internalPath } from '$lib/paper/enrich';
+	import { session } from '$lib/agent/session.svelte';
+	import { svgToDataUrl } from '$lib/paper/svg';
+	import {
+		extractMath,
+		restoreMath,
+		linkify,
+		isInternalHref,
+		internalPath
+	} from '$lib/paper/enrich';
 
 	/**
 	 * Markdown for agent output.
@@ -29,13 +37,21 @@
 
 	const prepared = $derived.by(() => {
 		void assetVersion.n;
-		// Figure paths are virtual — the bytes live in the asset store, kept out
-		// of graph state because a PNG is ~950KB and state is checkpointed.
+		// Figure paths are virtual. Rasters live in the asset store (a PNG is
+		// ~950KB and graph state is checkpointed); an SVG the agent hand-wrote is
+		// ordinary text in the files channel, so it resolves from there — through
+		// the sanitiser, because model-authored markup is untrusted markup.
 		const withFigures = linkify(source ?? '').replace(
-			/!\[([^\]]*)\]\((\/figures\/[^)\s]+)\)/g,
+			/!\[([^\]]*)\]\((\/(?:figures|paper|notes|uploads)\/[^)\s]+)\)/g,
 			(whole, alt: string, path: string) => {
 				const hit = assets.peek(path);
-				return hit ? `![${alt}](${hit.dataUrl})` : whole;
+				if (hit) return `![${alt}](${hit.dataUrl})`;
+				if (path.endsWith('.svg')) {
+					const text = session.files[path];
+					const url = typeof text === 'string' ? svgToDataUrl(text) : '';
+					if (url) return `![${alt}](${url})`;
+				}
+				return whole;
 			}
 		);
 		return extractMath(withFigures);
@@ -45,9 +61,34 @@
 		const parsed = marked.parse(prepared.text, { async: false }) as string;
 		const clean = DOMPurify.sanitize(parsed, {
 			ALLOWED_TAGS: [
-				'p', 'br', 'strong', 'em', 'del', 'code', 'pre', 'blockquote',
-				'ul', 'ol', 'li', 'a', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-				'table', 'thead', 'tbody', 'tr', 'th', 'td', 'hr', 'sup', 'sub', 'img'
+				'p',
+				'br',
+				'strong',
+				'em',
+				'del',
+				'code',
+				'pre',
+				'blockquote',
+				'ul',
+				'ol',
+				'li',
+				'a',
+				'h1',
+				'h2',
+				'h3',
+				'h4',
+				'h5',
+				'h6',
+				'table',
+				'thead',
+				'tbody',
+				'tr',
+				'th',
+				'td',
+				'hr',
+				'sup',
+				'sub',
+				'img'
 			],
 			ALLOWED_ATTR: ['href', 'title', 'src', 'alt'],
 			ADD_DATA_URI_TAGS: ['img'],

@@ -1,6 +1,12 @@
 <script lang="ts">
 	import { bus } from '$lib/xray/bus.svelte';
-	import { KIND_LABEL, type DisplayKind } from '$lib/xray/events';
+	import {
+		KIND_LABEL,
+		KIND_HELP,
+		SKILL_READ_HELP,
+		type DisplayKind,
+		type XrayEvent
+	} from '$lib/xray/events';
 	import { KIND_COLOR, iconOf, stamp, summarise, detailOf } from '$lib/xray/format';
 	import JsonCode from './JsonCode.svelte';
 	import EventMedia from './EventMedia.svelte';
@@ -32,12 +38,39 @@
 		topPad = '0px'
 	}: Props = $props();
 
+	interface Row {
+		e: XrayEvent;
+		/** This event came from inside a subagent's own run. */
+		sub: boolean;
+		/** First row of a consecutive subagent stretch — gets the lane header. */
+		laneStart: boolean;
+		laneLabel: string;
+	}
+
+	/**
+	 * Rows plus lane bookkeeping in one pass.
+	 *
+	 * Events from a subagent carry `scope: sub:<namespace>`; consecutive rows
+	 * from the same namespace render as one indented lane under a single header
+	 * naming the subagent. Fan-out then *looks* like fan-out: the parent's rows
+	 * stay on the spine and each delegate's work hangs off it.
+	 */
 	const rows = $derived.by(() => {
 		void bus.version; // the log is a plain array; this is the reactive edge
-		return bus.events.filter(
-			(e) =>
-				(showFrames || e.kind !== 'http_sse_frame') && !hidden.has(e.displayKind)
-		);
+		const out: Row[] = [];
+		let prevScope = '';
+		for (const e of bus.events) {
+			if ((!showFrames && e.kind === 'http_sse_frame') || hidden.has(e.displayKind)) continue;
+			const sub = e.scope !== 'main';
+			out.push({
+				e,
+				sub,
+				laneStart: sub && e.scope !== prevScope,
+				laneLabel: e.lane ?? (sub ? e.scope.slice(4).split(':')[0] : '')
+			});
+			prevScope = e.scope;
+		}
+		return out;
 	});
 
 	/** Expanded in place — selection drives the inspector, this is a peek. */
@@ -73,8 +106,22 @@
 			</p>
 		{/if}
 
-		{#each rows as e (e.id)}
+		{#each rows as r (r.e.id)}
+			{@const e = r.e}
 			{@const active = e.id === selectedId}
+			{@const skillRow = (e.kind === 'tool_start' || e.kind === 'tool_end') && !!e.skill}
+			{#if r.laneStart}
+				<div
+					class="flex items-center gap-1.5 border-b
+					       border-[color-mix(in_oklab,var(--border)_45%,transparent)] py-1 pl-5"
+				>
+					<HugeiconsIcon icon={ICON.subagent} size={11} strokeWidth={1.5} />
+					<span class="hx-eyebrow" style:color="var(--hx-subagent)">
+						{r.laneLabel || 'subagent'}
+					</span>
+					<span class="hx-eyebrow text-muted-foreground/60">— its own context window</span>
+				</div>
+			{/if}
 			<!-- Two sibling controls, not nested ones: selecting drives the
 			     inspector, expanding peeks in place. A button inside a button is
 			     invalid HTML and unreachable by keyboard. -->
@@ -83,6 +130,10 @@
 				       border-[color-mix(in_oklab,var(--border)_45%,transparent)] transition-colors
 				       hover:bg-muted/50"
 				class:bg-muted={active}
+				style:border-left={r.sub
+					? '2px solid color-mix(in oklab, var(--hx-subagent) 55%, transparent)'
+					: undefined}
+				style:margin-left={r.sub ? '12px' : undefined}
 			>
 				<button
 					class="grid min-w-0 flex-1 grid-cols-[3px_14px_1fr_auto] items-baseline gap-x-2
@@ -106,13 +157,10 @@
 					<span class="min-w-0">
 						<span
 							class="hx-eyebrow"
+							title={skillRow ? SKILL_READ_HELP : KIND_HELP[e.kind]}
 							style:color={active ? KIND_COLOR[e.displayKind as DisplayKind] : undefined}
 						>
-							{e.kind === 'tool_start' && e.skill
-								? 'skill'
-								: e.kind === 'tool_end' && e.skill
-									? 'skill'
-									: KIND_LABEL[e.kind]}
+							{skillRow ? 'skill' : KIND_LABEL[e.kind]}
 						</span>
 						<span class="block truncate text-xs text-foreground/85">{summarise(e)}</span>
 					</span>
@@ -135,7 +183,7 @@
 				</button>
 			</div>
 
-			{#if e.kind === 'image_partial' || e.kind === 'image_done' || e.kind === 'paper_fetched'}
+			{#if e.kind === 'image_partial' || e.kind === 'image_done' || e.kind === 'paper_fetched' || e.kind === 'figure_extracted'}
 				<div
 					class="border-b border-[color-mix(in_oklab,var(--border)_45%,transparent)] px-3 pt-1 pb-2"
 					class:pl-8={e.kind !== 'paper_fetched'}

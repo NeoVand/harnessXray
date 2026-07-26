@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { SvelteSet } from 'svelte/reactivity';
 	import { HugeiconsIcon } from '@hugeicons/svelte';
 	import { ICON } from '$lib/icons';
 	import { fileType } from '$lib/xray/filetype';
@@ -50,11 +51,11 @@
 
 	// Directories start open — this is a working tree, not a file manager, and
 	// it is small enough that hiding anything costs more than it saves.
-	let collapsed = $state<Set<string>>(new Set());
+	// A SvelteSet so membership is reactive under direct mutation — no
+	// copy-and-replace dance just to flip one path.
+	const collapsed = new SvelteSet<string>();
 	function toggle(path: string) {
-		const next = new Set(collapsed);
-		next.has(path) ? next.delete(path) : next.add(path);
-		collapsed = next;
+		if (!collapsed.delete(path)) collapsed.add(path);
 	}
 
 	function size(n: number) {
