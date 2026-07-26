@@ -7,6 +7,7 @@
 	import { downloadMarkdown, printToPdf } from '$lib/paper/download';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import PdfView from './PdfView.svelte';
+	import { fileType } from '$lib/xray/filetype';
 
 	let body = $state<HTMLElement | null>(null);
 
@@ -36,6 +37,7 @@
 	const isPdf = $derived(!!path && /\.pdf$/i.test(path));
 	const asset = $derived(path ? assets.peek(path) : undefined);
 	const text = $derived(path ? (session.files[path] ?? '') : '');
+	const kind = $derived(fileType(path ?? ''));
 
 	let showSource = $state(false);
 
@@ -61,15 +63,8 @@
 	-->
 	<div class="flex h-full min-h-0 flex-col bg-background" aria-label={path}>
 		<header class="hx-rule flex shrink-0 items-center gap-3 border-b px-4 py-2.5">
-			<span
-				class="shrink-0"
-				style:color={isImage ? 'var(--hx-tool)' : isPdf ? 'var(--hx-memory)' : 'var(--hx-fs)'}
-			>
-				<HugeiconsIcon
-					icon={isImage ? ICON.sparkle : isPdf ? ICON.file : ICON.file}
-					size={14}
-					strokeWidth={1.5}
-				/>
+			<span class="shrink-0" style:color={kind.color} title={kind.label}>
+				<HugeiconsIcon icon={kind.icon} size={14} strokeWidth={1.5} />
 			</span>
 			<span class="min-w-0 flex-1 truncate font-mono text-xs">{path}</span>
 

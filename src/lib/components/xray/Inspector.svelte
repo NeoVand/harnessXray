@@ -16,6 +16,14 @@
 
 	interface Props {
 		selectedId: string | null;
+		/**
+		 * Which tabs are showing. Owned by the page, not by this component,
+		 * because opening a document unmounts the whole inspector — local state
+		 * would reset to `detail` every time you closed a file, which is not what
+		 * "close" should mean.
+		 */
+		top?: Top;
+		bottom?: Bottom;
 		/** A figure clicked in the timeline; focuses the files tab on it. */
 		openPath?: string | null;
 		/** Open a path in the full-screen reader. */
@@ -26,6 +34,8 @@
 	let {
 		selectedId,
 		openPath = $bindable<string | null>(null),
+		top = $bindable<Top>('detail'),
+		bottom = $bindable<Bottom>('plan'),
 		onread,
 		onmanageskills
 	}: Props = $props();
@@ -46,13 +56,10 @@
 	type Top = 'detail' | 'raw' | 'files' | 'memory';
 	type Bottom = 'plan' | 'skills' | 'graph';
 
-	let top = $state<Top>('detail');
-
 	// Opening a figure should also switch to the tab that can show it.
 	$effect(() => {
 		if (openPath) top = 'files';
 	});
-	let bottom = $state<Bottom>('plan');
 
 	const event = $derived.by(() => {
 		void bus.version;

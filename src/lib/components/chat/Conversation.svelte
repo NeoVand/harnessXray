@@ -7,6 +7,7 @@
 	import { HugeiconsIcon } from '@hugeicons/svelte';
 	import { ICON } from '$lib/icons';
 	import { assets, assetVersion } from '$lib/storage/assets.svelte';
+	import { attachmentType } from '$lib/xray/filetype';
 
 	let { onopensettings, onread }: { onopensettings: () => void; onread?: (path: string) => void } =
 		$props();
@@ -20,19 +21,6 @@
 		void session.messages.at(-1)?.text;
 		if (pinned && viewport) viewport.scrollTop = viewport.scrollHeight;
 	});
-
-	// Attachment thumbnails come from the asset store, which fills in
-	// asynchronously — re-read when it changes or an image chip stays blank.
-	const ATTACH_ICON: Record<string, typeof ICON.file> = {
-		text: ICON.file,
-		pdf: ICON.file,
-		image: ICON.image
-	};
-	const ATTACH_COLOR: Record<string, string> = {
-		text: 'var(--hx-fs)',
-		pdf: 'var(--hx-memory)',
-		image: 'var(--hx-tool)'
-	};
 
 	function onScroll() {
 		if (!viewport) return;
@@ -209,10 +197,14 @@
 										{:else}
 											<span
 												class="grid size-8 shrink-0 place-items-center rounded-[2px]"
-												style:background="color-mix(in oklab, {ATTACH_COLOR[a.kind]} 12%, transparent)"
-												style:color={ATTACH_COLOR[a.kind]}
+												style:background="color-mix(in oklab, {attachmentType(a.kind).color} 12%, transparent)"
+												style:color={attachmentType(a.kind).color}
 											>
-												<HugeiconsIcon icon={ATTACH_ICON[a.kind]} size={14} strokeWidth={1.5} />
+												<HugeiconsIcon
+													icon={attachmentType(a.kind).icon}
+													size={14}
+													strokeWidth={1.5}
+												/>
 											</span>
 										{/if}
 										<span class="min-w-0">

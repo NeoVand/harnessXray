@@ -6,6 +6,7 @@
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { HugeiconsIcon } from '@hugeicons/svelte';
 	import { ICON } from '$lib/icons';
+	import { attachmentType } from '$lib/xray/filetype';
 
 	let { onopenskills }: { onopenskills?: () => void } = $props();
 
@@ -70,8 +71,6 @@
 	}
 
 	let dragging = $state(false);
-
-	const ATTACH_ICON = { text: ICON.file, pdf: ICON.file, image: ICON.image } as const;
 </script>
 
 <div
@@ -105,8 +104,8 @@
 								class="hx-rule flex items-center gap-1.5 rounded border px-2 py-1 text-[10px]"
 								title={a.path}
 							>
-								<span style:color={a.kind === 'image' ? 'var(--hx-tool)' : 'var(--hx-fs)'}>
-									<HugeiconsIcon icon={ATTACH_ICON[a.kind]} size={11} strokeWidth={1.5} />
+								<span style:color={attachmentType(a.kind).color}>
+									<HugeiconsIcon icon={attachmentType(a.kind).icon} size={11} strokeWidth={1.5} />
 								</span>
 								<span class="max-w-[18ch] truncate font-mono">{a.name}</span>
 								<span class="hx-num text-muted-foreground">

@@ -150,6 +150,17 @@
 
 	/* Focus ring. Literal alpha for the same reason as the scrollbar above. */
 	--hx-focus: oklch(0.5 0.062 195 / 0.55);
+
+	/* File types — a separate family from the event palette above, on purpose.
+	   --hx-* is a legend (ochre means a tool ran); reusing it for file types
+	   would assert something untrue about a PDF. These are free to use the
+	   conventional associations a reader already has. */
+	--hx-file-doc: oklch(0.5 0.05 250);
+	--hx-file-pdf: oklch(0.53 0.13 27);
+	--hx-file-image: oklch(0.53 0.075 300);
+	--hx-file-data: oklch(0.5 0.07 150);
+	--hx-file-code: oklch(0.52 0.07 80);
+	--hx-file-plain: oklch(0.52 0.012 260);
 }
 
 .dark {
@@ -180,6 +191,13 @@
 	--hx-scroll-hover: oklch(1 0 0 / 0.24);
 	--hx-scroll-active: oklch(1 0 0 / 0.34);
 	--hx-focus: oklch(0.72 0.075 195 / 0.6);
+
+	--hx-file-doc: oklch(0.72 0.055 250);
+	--hx-file-pdf: oklch(0.71 0.13 27);
+	--hx-file-image: oklch(0.72 0.08 300);
+	--hx-file-data: oklch(0.72 0.08 150);
+	--hx-file-code: oklch(0.74 0.08 80);
+	--hx-file-plain: oklch(0.68 0.012 260);
 }
 
 /* ── Themes ──────────────────────────────────────────────────────────────

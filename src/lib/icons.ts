@@ -39,8 +39,12 @@ import {
 	ComputerIcon,
 	Database01Icon,
 	Delete02Icon,
+	Csv01Icon,
+	Doc01Icon,
 	File01Icon,
 	FilterIcon,
+	Pdf01Icon,
+	Txt01Icon,
 	FlashIcon,
 	FolderOpenIcon,
 	GitBranchIcon,
@@ -99,6 +103,13 @@ export const ICON = {
 	context: PieChartIcon,
 	compact: ArrowShrink02Icon,
 	filter: FilterIcon,
+
+	// File types. Their colours live in layout.css as --hx-file-*; see
+	// $lib/xray/filetype.ts for why they are not the event palette.
+	doc: Doc01Icon,
+	pdf: Pdf01Icon,
+	data: Csv01Icon,
+	text: Txt01Icon,
 	github: Github01Icon,
 	linkedin: Linkedin01Icon,
 	/**

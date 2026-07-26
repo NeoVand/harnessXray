@@ -39,6 +39,12 @@
 	let lens = $state<'timeline' | 'context'>('timeline');
 	let showFrames = $state(false);
 
+	// Owned here so the inspector's tabs survive a document being opened and
+	// closed — that unmounts the whole component, and local state would snap
+	// back to `detail` on every close.
+	let inspectorTop = $state<'detail' | 'raw' | 'files' | 'memory'>('detail');
+	let inspectorBottom = $state<'plan' | 'skills' | 'graph'>('plan');
+
 	/** Height of the floating tab bar; panels leave this much room at the top. */
 	const TAB_H = '36px';
 
@@ -410,6 +416,8 @@
 							<Inspector
 								{selectedId}
 								bind:openPath
+								bind:top={inspectorTop}
+								bind:bottom={inspectorBottom}
 								onread={(p) => (readPath = p)}
 								onmanageskills={() => (skillsOpen = true)}
 							/>
