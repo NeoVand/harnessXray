@@ -1,65 +1,11 @@
-<svg
-	class="d"
-	viewBox="0 0 640 236"
-	role="img"
-	aria-label="The model asks for tools by name; nine were written for this agent and eight more came with the harness, and every schema is re-sent with every request"
->
-	<defs>
-		<marker
-			id="bk-tl-a"
-			viewBox="0 0 8 8"
-			refX="7"
-			refY="4"
-			markerWidth="5"
-			markerHeight="5"
-			orient="auto"
-		>
-			<path d="M0,0 L8,4 L0,8 z" fill="currentColor" />
-		</marker>
-	</defs>
-
-	<g style="color: var(--hx-model)">
-		<rect class="b" x="24" y="88" width="104" height="56" rx="3" />
-		<text class="c" x="76" y="112">MODEL</text>
-		<text class="m c" x="76" y="127">asks by name</text>
-	</g>
-
-	<path class="w" d="M128,100 H226" marker-end="url(#bk-tl-a)" />
-	<path
-		class="w"
-		d="M128,116 H204 a10,10 0 0 1 10,10 V176 a10,10 0 0 0 10,10 H514 a10,10 0 0 0 10,-10 V154"
-		marker-end="url(#bk-tl-a)"
-	/>
-
-	<g style="color: var(--hx-tool)">
-		<rect class="b" x="230" y="20" width="180" height="140" rx="3" />
-		<text x="242" y="38">WRITTEN FOR THIS AGENT</text>
-		<text class="m" x="242" y="56">search_papers</text>
-		<text class="m" x="242" y="68">fetch_paper</text>
-		<text class="m" x="242" y="80">present_outline</text>
-		<text class="m" x="242" y="92">cite</text>
-		<text class="m" x="242" y="104">bibliography</text>
-		<text class="m" x="242" y="116">extract_figures</text>
-		<text class="m" x="242" y="128">list_figures</text>
-		<text class="m" x="242" y="140">compact_context</text>
-		<text class="m" x="242" y="152">generate_image · subagent-only</text>
-	</g>
-
-	<g style="color: var(--hx-state)">
-		<rect class="b" x="440" y="20" width="176" height="130" rx="3" />
-		<text x="452" y="38">THE HARNESS SUPPLIES</text>
-		<text class="m" x="452" y="56">write_todos</text>
-		<text class="m" x="452" y="68">ls</text>
-		<text class="m" x="452" y="80">read_file</text>
-		<text class="m" x="452" y="92">write_file</text>
-		<text class="m" x="452" y="104">edit_file</text>
-		<text class="m" x="452" y="116">glob</text>
-		<text class="m" x="452" y="128">grep</text>
-		<text class="m" x="452" y="140">task</text>
-	</g>
-
-	<text class="m c" x="320" y="226">every schema above is re-sent with every single request</text>
-</svg>
+<img
+	class="plate"
+	src="/book/03-tools.jpg"
+	alt="A small model figure points at a pegboard of instruments while the harness’s mechanical hands do the actual work"
+	width="1536"
+	height="1024"
+	loading="lazy"
+/>
 
 <p>
 	A <em>tool</em> is a function the model can ask the harness to run: a name, a description, and a typed

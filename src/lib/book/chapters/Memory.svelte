@@ -1,65 +1,11 @@
-<svg
-	class="d"
-	viewBox="0 0 640 232"
-	role="img"
-	aria-label="write_file passes through a composite backend that routes by path: most paths go to the thread's checkpoint, /memories/ goes to a store that survives every thread"
->
-	<defs>
-		<marker
-			id="bk-me-a"
-			viewBox="0 0 8 8"
-			refX="7"
-			refY="4"
-			markerWidth="5"
-			markerHeight="5"
-			orient="auto"
-		>
-			<path d="M0,0 L8,4 L0,8 z" fill="currentColor" />
-		</marker>
-	</defs>
-
-	<g style="color: var(--hx-tool)">
-		<rect class="b" x="24" y="92" width="110" height="48" rx="3" />
-		<text class="c" x="79" y="112">WRITE_FILE</text>
-		<text class="m c" x="79" y="126">one tool</text>
-	</g>
-
-	<path class="w" d="M134,116 H192" marker-end="url(#bk-me-a)" />
-
-	<rect class="b" x="196" y="92" width="150" height="48" rx="3" />
-	<text class="c" x="271" y="112">COMPOSITE BACKEND</text>
-	<text class="m c" x="271" y="126">routes by path</text>
-
-	<g style="color: var(--hx-state)">
-		<text class="m" x="356" y="86">everything else</text>
-		<path
-			class="w"
-			d="M346,106 H380 a10,10 0 0 0 10,-10 V70 a10,10 0 0 1 10,-10 H426"
-			marker-end="url(#bk-me-a)"
-		/>
-		<rect class="b" x="430" y="28" width="186" height="64" rx="3" />
-		<text x="442" y="48">CHECKPOINT — THIS THREAD</text>
-		<text class="m" x="442" y="64">messages · files · todos,</text>
-		<text class="m" x="442" y="78">written every super-step</text>
-	</g>
-
-	<g style="color: var(--hx-memory)">
-		<text class="m" x="356" y="156">/memories/ only</text>
-		<path
-			class="w"
-			d="M346,126 H380 a10,10 0 0 1 10,10 V162 a10,10 0 0 0 10,10 H426"
-			marker-end="url(#bk-me-a)"
-		/>
-		<rect class="b" x="430" y="140" width="186" height="64" rx="3" />
-		<text x="442" y="160">STORE — EVERY THREAD</text>
-		<text class="m" x="442" y="176">outlives the conversation,</text>
-		<text class="m" x="442" y="190">and every one after it</text>
-	</g>
-
-	<text class="m c" x="320" y="224"
-		>the graph streams its own state; the store must be polled — observability follows ownership</text
-	>
-</svg>
+<img
+	class="plate"
+	src="/book/07-memory.jpg"
+	alt="A spiral notebook tied to a speech bubble beside a heavy archive vault — memory for this thread, and memory that outlives every thread"
+	width="1536"
+	height="1024"
+	loading="lazy"
+/>
 
 <p>
 	Memory in this harness is two mechanisms with two lifetimes, and keeping them distinct is the

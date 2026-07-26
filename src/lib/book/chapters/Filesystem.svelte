@@ -1,59 +1,11 @@
-<svg
-	class="d"
-	viewBox="0 0 640 232"
-	role="img"
-	aria-label="Six file tools write into a files channel inside graph state; paths under /memories/ route onward to the store, and images live apart in the asset store"
->
-	<defs>
-		<marker
-			id="bk-fs-a"
-			viewBox="0 0 8 8"
-			refX="7"
-			refY="4"
-			markerWidth="5"
-			markerHeight="5"
-			orient="auto"
-		>
-			<path d="M0,0 L8,4 L0,8 z" fill="currentColor" />
-		</marker>
-	</defs>
-
-	<g style="color: var(--hx-tool)">
-		<rect class="b" x="20" y="76" width="118" height="64" rx="3" />
-		<text x="32" y="94">FILE TOOLS</text>
-		<text class="m" x="32" y="110">ls · read_file</text>
-		<text class="m" x="32" y="122">write_file · edit_file</text>
-		<text class="m" x="32" y="134">glob · grep</text>
-	</g>
-
-	<path class="w" d="M138,108 H184" marker-end="url(#bk-fs-a)" />
-
-	<g style="color: var(--hx-fs)">
-		<rect class="b" x="188" y="24" width="248" height="184" rx="3" />
-		<text x="200" y="44">FILES — A CHANNEL IN GRAPH STATE</text>
-		<text class="m" x="200" y="66">/notes/2401.12345.md</text>
-		<text class="m" x="200" y="82">/paper/review.md</text>
-		<text class="m" x="200" y="98">/skills/arxiv-review/SKILL.md</text>
-		<text class="m" x="200" y="114">/uploads/your-paper.txt</text>
-		<text class="m" x="200" y="130">/conversation_history/…</text>
-		<text class="m" x="200" y="154" style="fill: var(--hx-memory)">/memories/reader-style.md</text>
-		<text class="m" x="200" y="192">checkpointed with the graph —</text>
-		<text class="m" x="200" y="204">a rewind restores every file</text>
-	</g>
-
-	<g style="color: var(--hx-memory)">
-		<path class="w" d="M436,150 H468" marker-end="url(#bk-fs-a)" />
-		<rect class="b" x="472" y="118" width="148" height="58" rx="3" />
-		<text x="484" y="138">STORE</text>
-		<text class="m" x="484" y="154">routed by path prefix,</text>
-		<text class="m" x="484" y="166">outlives every thread</text>
-	</g>
-
-	<rect class="g" x="472" y="30" width="148" height="64" rx="3" />
-	<text x="484" y="50">ASSET STORE</text>
-	<text class="m" x="484" y="66">/figures/*.png</text>
-	<text class="m" x="484" y="78">ls cannot see these</text>
-</svg>
+<img
+	class="plate"
+	src="/book/02-filesystem.jpg"
+	alt="Robots share one drawer of folders — /notes, /paper, /skills — passing pages in and out; the drawer is saved with the conversation"
+	width="1536"
+	height="1024"
+	loading="lazy"
+/>
 
 <p>
 	The agent appears to have a disk. It can <em>ls</em> a directory, read and write files, edit one

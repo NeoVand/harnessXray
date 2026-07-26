@@ -1,86 +1,11 @@
-<svg
-	class="d"
-	viewBox="0 0 640 208"
-	role="img"
-	aria-label="The model calls write_todos, which replaces the todos channel in graph state wholesale; the previous list is gone, not merged"
->
-	<defs>
-		<marker
-			id="bk-pl-a"
-			viewBox="0 0 8 8"
-			refX="7"
-			refY="4"
-			markerWidth="5"
-			markerHeight="5"
-			orient="auto"
-		>
-			<path d="M0,0 L8,4 L0,8 z" fill="currentColor" />
-		</marker>
-	</defs>
-
-	<g style="color: var(--hx-model)">
-		<rect class="b" x="24" y="76" width="104" height="56" rx="3" />
-		<text class="c" x="76" y="108">MODEL</text>
-	</g>
-
-	<g style="color: var(--hx-tool)">
-		<text class="m c" x="168" y="96">write_todos</text>
-		<path class="w" d="M128,104 H206" marker-end="url(#bk-pl-a)" />
-	</g>
-
-	<g style="color: var(--hx-state)">
-		<rect class="b" x="210" y="24" width="230" height="160" rx="3" />
-		<text x="222" y="44">TODOS — GRAPH STATE</text>
-
-		<rect class="bar" x="222" y="56" width="10" height="10" rx="1" />
-		<text class="m" x="240" y="65">search broadly</text>
-
-		<rect
-			x="222"
-			y="76"
-			width="10"
-			height="10"
-			rx="1"
-			fill="none"
-			stroke="currentColor"
-			stroke-width="1.2"
-		/>
-		<rect class="bar" x="222" y="76" width="5" height="10" rx="1" />
-		<text class="m" x="240" y="85">dispatch paper-readers</text>
-
-		<rect
-			x="222"
-			y="96"
-			width="10"
-			height="10"
-			rx="1"
-			fill="none"
-			stroke="currentColor"
-			stroke-width="1.2"
-		/>
-		<text class="m" x="240" y="105">draft each section</text>
-
-		<rect
-			x="222"
-			y="116"
-			width="10"
-			height="10"
-			rx="1"
-			fill="none"
-			stroke="currentColor"
-			stroke-width="1.2"
-		/>
-		<text class="m" x="240" y="125">critique, then fix</text>
-
-		<text class="m" x="222" y="154">one list, one channel —</text>
-		<text class="m" x="222" y="166">every write replaces it whole</text>
-	</g>
-
-	<path class="wd" d="M440,74 H466" marker-end="url(#bk-pl-a)" />
-	<rect class="g" x="470" y="40" width="150" height="68" rx="3" />
-	<text class="m" x="482" y="62">the previous list</text>
-	<text class="m" x="482" y="76">gone — not merged</text>
-</svg>
+<img
+	class="plate"
+	src="/book/04-plan.jpg"
+	alt="A fresh checklist sheet slides over the old one on a clipboard — write_todos replaces the whole plan, never appends"
+	width="1536"
+	height="1024"
+	loading="lazy"
+/>
 
 <p>
 	<em>write_todos</em> came with the harness. It maintains the plan: a list of items, each marked

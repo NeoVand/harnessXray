@@ -1,50 +1,11 @@
-<svg
-	class="d"
-	viewBox="0 0 640 216"
-	role="img"
-	aria-label="The system prompt carries one line per skill; the full SKILL.md file is read with read_file only when the model decides it is relevant"
->
-	<defs>
-		<marker
-			id="bk-sk-a"
-			viewBox="0 0 8 8"
-			refX="7"
-			refY="4"
-			markerWidth="5"
-			markerHeight="5"
-			orient="auto"
-		>
-			<path d="M0,0 L8,4 L0,8 z" fill="currentColor" />
-		</marker>
-	</defs>
-
-	<g style="color: var(--hx-model)">
-		<rect class="b" x="24" y="32" width="270" height="118" rx="3" />
-		<text x="36" y="52">SYSTEM PROMPT — THE SKILL LIST</text>
-		<text class="m" x="36" y="74">arxiv-review — papers into a review</text>
-		<text class="m" x="36" y="90">infographic — brief gpt-image-2 well</text>
-		<text class="m" x="36" y="106">skill-creator — write a new skill</text>
-		<text class="m" x="36" y="134">one line each · always in context</text>
-	</g>
-
-	<g style="color: var(--hx-fs)">
-		<text class="m c" x="344" y="80">read_file — only when relevant</text>
-		<path class="w" d="M294,90 H390" marker-end="url(#bk-sk-a)" />
-		<rect class="b" x="394" y="28" width="222" height="126" rx="3" />
-		<text class="m" x="406" y="48">/skills/arxiv-review/SKILL.md</text>
-		<rect x="406" y="60" width="180" height="3" fill="currentColor" opacity="0.25" />
-		<rect x="406" y="72" width="150" height="3" fill="currentColor" opacity="0.25" />
-		<rect x="406" y="84" width="170" height="3" fill="currentColor" opacity="0.25" />
-		<rect x="406" y="96" width="120" height="3" fill="currentColor" opacity="0.25" />
-		<rect x="406" y="108" width="160" height="3" fill="currentColor" opacity="0.25" />
-		<rect x="406" y="120" width="90" height="3" fill="currentColor" opacity="0.25" />
-		<text class="m" x="406" y="142">the whole doctrine — paid for only if read</text>
-	</g>
-
-	<text class="m c" x="320" y="196"
-		>twenty skills would cost a few hundred tokens — until one is needed</text
-	>
-</svg>
+<img
+	class="plate"
+	src="/book/06-skills.jpg"
+	alt="A shelf of thin closed manuals, one pulled out open and glowing — a skill costs one line until it is read"
+	width="1536"
+	height="1024"
+	loading="lazy"
+/>
 
 <p>
 	A <em>skill</em> is a markdown file. That is the whole idea, and it is worth sitting with: no

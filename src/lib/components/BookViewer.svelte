@@ -161,69 +161,19 @@
 		color: var(--muted-foreground);
 	}
 
-	/* ── the diagram vocabulary ─────────────────────────────────────────────
-	   Every chapter draws with the same five classes, defined once here, so
-	   the diagrams cannot drift apart in weight or ink. Neutral ink keys off
-	   the muted foreground (the hairline --border vanishes against tinted
-	   fills); anything that means something elsewhere is wrapped in a group
-	   carrying its --hx-* colour, and currentColor does the rest. */
-	.bk :global(svg.d) {
+	/* ── the plates ─────────────────────────────────────────────────────────
+	   Chapters 2–10 open on a generated editorial illustration (gpt-image-2,
+	   static/book/). They are printed plates, not UI: each carries its own
+	   warm paper background, so instead of chasing the theme they sit inside
+	   a hairline frame like a figure tipped into the page — consistent in
+	   every theme, dark ones included. width/height attributes on the img
+	   reserve the box before the bytes arrive. */
+	.bk :global(img.plate) {
 		display: block;
 		width: 100%;
 		height: auto;
 		margin: 0.4em 0 2.6em;
-		color: color-mix(in oklab, var(--muted-foreground) 40%, var(--foreground));
-	}
-	.bk :global(svg.d text) {
-		font-family: var(--font-mono);
-		font-size: 9.5px;
-		letter-spacing: 0.07em;
-		fill: currentColor;
-	}
-	.bk :global(svg.d .m) {
-		font-size: 8.5px;
-		letter-spacing: 0.03em;
-		fill: var(--muted-foreground);
-	}
-	.bk :global(svg.d .c) {
-		text-anchor: middle;
-	}
-	.bk :global(svg.d .e) {
-		text-anchor: end;
-	}
-	.bk :global(svg.d .b) {
-		fill: color-mix(in oklab, currentColor 7%, transparent);
-		stroke: color-mix(in oklab, currentColor 55%, transparent);
-		stroke-width: 1.5;
-		stroke-linejoin: round;
-	}
-	.bk :global(svg.d .g) {
-		fill: none;
-		stroke: color-mix(in oklab, currentColor 40%, transparent);
-		stroke-width: 1.5;
-		stroke-dasharray: 4 3;
-		stroke-linejoin: round;
-	}
-	.bk :global(svg.d .w) {
-		fill: none;
-		stroke: color-mix(in oklab, currentColor 55%, transparent);
-		stroke-width: 1.5;
-		stroke-linecap: round;
-		stroke-linejoin: round;
-	}
-	.bk :global(svg.d .wd) {
-		fill: none;
-		stroke: color-mix(in oklab, currentColor 45%, transparent);
-		stroke-width: 1.5;
-		stroke-dasharray: 4 3;
-		stroke-linecap: round;
-	}
-	.bk :global(svg.d .bar) {
-		fill: currentColor;
-		opacity: 0.75;
-	}
-	/* Dark needs more tint to register at all — same tuning HarnessDiagram uses. */
-	:global(.dark) .bk :global(svg.d .b) {
-		fill: color-mix(in oklab, currentColor 10%, transparent);
+		border: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
+		border-radius: 4px;
 	}
 </style>
