@@ -163,11 +163,12 @@
 
 	/* ── the plates ─────────────────────────────────────────────────────────
 	   Chapters 2–10 open on a generated editorial illustration (gpt-image-2,
-	   static/book/). They are printed plates, not UI: each carries its own
-	   warm paper background, so instead of chasing the theme they sit inside
-	   a hairline frame like a figure tipped into the page — consistent in
-	   every theme, dark ones included. width/height attributes on the img
-	   reserve the box before the bytes arrive. */
+	   static/book/). Every plate is painted on midnight's own page colour
+	   (#131316) — the default theme — so in dark themes the artwork sits
+	   directly on the page, borderless, as if drawn there. Light themes get
+	   the hairline frame back, because there the plate really is a dark
+	   print tipped into a pale page. width/height attributes reserve the box
+	   before the bytes arrive. */
 	.bk :global(img.plate) {
 		display: block;
 		width: 100%;
@@ -175,5 +176,16 @@
 		margin: 0.4em 0 2.6em;
 		border: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
 		border-radius: 4px;
+	}
+	:global(.dark) .bk :global(img.plate) {
+		border-color: transparent;
+		border-radius: 0;
+		/* The plates are painted on midnight's #131316, but a generated black
+		   is never exact and JPEG wobbles it further. Lighten-blending makes
+		   the page win wherever the plate is darker, so the background melts
+		   into ANY dark theme pixel-perfectly and only the luminous artwork
+		   stays. Light themes keep normal rendering — there the plate is a
+		   framed print, not part of the page. */
+		mix-blend-mode: lighten;
 	}
 </style>
