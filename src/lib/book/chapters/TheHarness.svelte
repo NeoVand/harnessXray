@@ -2,7 +2,14 @@
 	import HarnessDiagram from '../HarnessDiagram.svelte';
 </script>
 
-<HarnessDiagram />
+<img
+	class="plate"
+	src="/book/01-the-harness.jpg"
+	alt="A luminous loop: envelopes travel from the model past tool stations and return transformed — the harness is the loop"
+	width="1536"
+	height="1024"
+	loading="lazy"
+/>
 
 <p>
 	An agent is not a smarter model. It is a loop wrapped around an ordinary one: assemble everything
@@ -20,6 +27,8 @@
 	browser — and the X-ray half only reads what the framework already publishes: every number here is
 	a measurement, not an illustration.
 </p>
+
+<HarnessDiagram />
 
 <p class="live">
 	See it live: the events and context tabs to the left of this page — the loop as it actually ran,

@@ -22,6 +22,15 @@
 	where it learned otherwise.
 </p>
 
+<img
+	class="plate"
+	src="/book/04-plan-tech.jpg"
+	alt="Schematic: write_todos replaces the todos channel whole — pending, in_progress, completed"
+	width="1536"
+	height="1024"
+	loading="lazy"
+/>
+
 <p class="live">
 	See it live: the plan tab in the inspector, and the state-coloured todo rows on the events
 	timeline — one per revision, with what changed.

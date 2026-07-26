@@ -24,6 +24,15 @@
 	separate <em>list_figures</em> tool.
 </p>
 
+<img
+	class="plate"
+	src="/book/02-filesystem-tech.jpg"
+	alt="Schematic: six file tools feed the files channel in graph state — checkpointed every step; /memories/ branches to the store; the asset store stands apart"
+	width="1536"
+	height="1024"
+	loading="lazy"
+/>
+
 <p class="live">
 	See it live: the files tab in the inspector, and the sage fs rows on the events timeline — one per
 	write, as the graph commits it.

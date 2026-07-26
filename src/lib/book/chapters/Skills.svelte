@@ -22,6 +22,15 @@
 	is why this app captions those timeline rows with the skill's name.
 </p>
 
+<img
+	class="plate"
+	src="/book/06-skills-tech.jpg"
+	alt="Schematic: one line per skill in the prompt; read_file(SKILL.md) loads the full instructions only when needed"
+	width="1536"
+	height="1024"
+	loading="lazy"
+/>
+
 <p class="live">
 	See it live: the skills tab in the inspector, and the captioned skill reads on the events timeline
 	the moment the agent opens one.

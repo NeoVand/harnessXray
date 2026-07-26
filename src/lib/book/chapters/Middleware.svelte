@@ -24,6 +24,15 @@
 	timeline, gate first, todo list last.
 </p>
 
+<img
+	class="plate"
+	src="/book/08-middleware-tech.jpg"
+	alt="Schematic: the middleware onion around the model — the request passes down the rings, the reply climbs back out"
+	width="1536"
+	height="1024"
+	loading="lazy"
+/>
+
 <p class="live">
 	See it live: the context tab — each layer's prompt fragment, and the injected world_state block
 	riding every request — and the layers' own after_model nodes named on the events timeline.

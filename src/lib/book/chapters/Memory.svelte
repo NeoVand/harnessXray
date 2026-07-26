@@ -22,6 +22,15 @@
 	memory panel must poll — observability follows ownership.
 </p>
 
+<img
+	class="plate"
+	src="/book/07-memory-tech.jpg"
+	alt="Schematic: write_file forks by path — ordinary paths to the thread’s checkpointer, /memories/ to the store that outlives every thread"
+	width="1536"
+	height="1024"
+	loading="lazy"
+/>
+
 <p class="live">
 	See it live: the memory tab in the inspector — the store's contents, refreshed after each turn,
 	plus every /memories/ write as a clay row on the timeline.

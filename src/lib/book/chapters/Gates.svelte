@@ -24,6 +24,15 @@
 	one mechanism.
 </p>
 
+<img
+	class="plate"
+	src="/book/09-gates-tech.jpg"
+	alt="Schematic: a gated call stops at the interrupt, the checkpoint holds, and approve, edit or reject resumes a second invocation"
+	width="1536"
+	height="1024"
+	loading="lazy"
+/>
+
 <p class="live">
 	See it live: the approval card in the conversation when a gated call fires, and the amber
 	interrupt and resume rows on the events timeline.

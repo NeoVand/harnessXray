@@ -22,6 +22,15 @@
 	never aware. A harness you can inspect is one you can teach with.
 </p>
 
+<img
+	class="plate"
+	src="/book/10-build-tech.jpg"
+	alt="Schematic: model, tools, subagents, skills, middleware, backend and checkpointer plug into createDeepAgent; out comes the loop"
+	width="1536"
+	height="1024"
+	loading="lazy"
+/>
+
 <p class="live">
 	See it live: the graph tab in the inspector — the assembled machine, drawn from the running graph
 	itself.

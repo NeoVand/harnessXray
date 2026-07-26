@@ -23,6 +23,15 @@
 	around, because one thrown exception inside a parallel fan-out once killed a whole run.
 </p>
 
+<img
+	class="plate"
+	src="/book/03-tools-tech.jpg"
+	alt="Schematic: the model emits a tool call, the harness executes it, the result rejoins the context; every schema re-sent with every request"
+	width="1536"
+	height="1024"
+	loading="lazy"
+/>
+
 <p class="live">
 	See it live: tool rows on the events timeline — ochre for this app's, slate for the harness's —
 	and the schemas band in the context tab.

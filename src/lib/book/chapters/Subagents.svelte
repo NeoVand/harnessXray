@@ -24,6 +24,15 @@
 	<em>nothing</em>, so each names its skills directory explicitly.
 </p>
 
+<img
+	class="plate"
+	src="/book/05-subagents-tech.jpg"
+	alt="Schematic: one task call fans into parallel subagent context windows; only small digests return — 40k inside, 200 back"
+	width="1536"
+	height="1024"
+	loading="lazy"
+/>
+
 <p class="live">
 	See it live: the subagent lanes on the events timeline — the dispatch, everything it did in its
 	own window, and the one summary that returned.
