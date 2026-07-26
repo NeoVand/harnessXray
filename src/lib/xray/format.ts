@@ -14,8 +14,29 @@ export const KIND_ICON: Record<EventKind, IconValue> = {
 	tool_end: ICON.tool,
 	todo_update: ICON.todo,
 	fs_write: ICON.file,
-	node: ICON.graph
+	image_start: ICON.sparkle,
+	image_partial: ICON.sparkle,
+	image_done: ICON.sparkle,
+	paper_fetched: ICON.file,
+	interrupt: ICON.pause,
+	resume: ICON.run,
+	node: ICON.graph,
+	compaction: ICON.compact,
+	rewind: ICON.branch,
+	upload: ICON.upload,
+	skills_loaded: ICON.skill
 };
+
+/**
+ * The glyph for one event, after any per-event override.
+ *
+ * A skill being opened is a `read_file` like any other, so the kind alone would
+ * draw a wrench. The override is what lets the row look like what it means.
+ */
+export function iconOf(e: XrayEvent): IconValue {
+	if ((e.kind === 'tool_start' || e.kind === 'tool_end') && e.skill) return ICON.skill;
+	return KIND_ICON[e.kind];
+}
 
 /** Timeline colour per display kind. */
 export const KIND_COLOR: Record<DisplayKind, string> = {
@@ -61,12 +82,14 @@ export function summarise(e: XrayEvent): string {
 		case 'note':
 			return e.message;
 		case 'tool_start': {
+			if (e.skill) return `opening the ${e.skill} skill`;
 			const a = e.args as Record<string, unknown> | null;
 			const first = a && typeof a === 'object' ? Object.values(a)[0] : undefined;
 			const hint = typeof first === 'string' ? ` ${first.slice(0, 34)}` : '';
 			return `${e.name}${hint}`;
 		}
 		case 'tool_end':
+			if (e.skill) return `${e.skill} → ${e.chars.toLocaleString()} chars of instructions`;
 			return `${e.name} → ${e.chars.toLocaleString()} chars`;
 		case 'todo_update':
 			return e.statusChanged.length
@@ -74,8 +97,28 @@ export function summarise(e: XrayEvent): string {
 				: `${e.todos.length} items planned`;
 		case 'fs_write':
 			return `${e.op} ${e.path}`;
+		case 'interrupt':
+			return `paused — ${e.actions.map((a) => a.name).join(', ')}`;
+		case 'resume':
+			return `${e.decisions.map((d) => (d as { type?: string }).type).join(', ')} — ${e.actions.join(', ')}`;
+		case 'image_start':
+			return e.prompt.slice(0, 48);
+		case 'image_partial':
+			return `frame ${e.index + 1} · ${e.path}`;
+		case 'image_done':
+			return `${e.path} · ${(e.bytes / 1024).toFixed(0)} KB`;
+		case 'paper_fetched':
+			return `${e.arxivId} · ${e.source} · ${e.chars.toLocaleString()} chars`;
 		case 'node':
 			return e.nodeName;
+		case 'rewind':
+			return `re-ran from an earlier checkpoint · ${e.dropped} messages left the live branch`;
+		case 'compaction':
+			return `folded ${e.cutoffIndex} messages into a summary`;
+		case 'upload':
+			return `${e.path} · ${e.chars.toLocaleString()} chars`;
+		case 'skills_loaded':
+			return e.names.length ? e.names.join(', ') : 'no skills loaded';
 	}
 }
 
