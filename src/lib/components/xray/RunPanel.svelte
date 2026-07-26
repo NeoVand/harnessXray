@@ -46,8 +46,8 @@
 	<div class="h-full overflow-y-auto px-3 pt-9 pb-2.5">
 		{#if t.calls === 0}
 			<p class="text-xs text-muted-foreground">
-				No model calls yet. Token counts here come from the provider's own usage object on the
-				wire, not from an estimate.
+				No model calls yet. Token counts here come from the provider's own usage object on the wire,
+				not from an estimate.
 			</p>
 		{:else}
 			<!-- headline -->
@@ -61,7 +61,10 @@
 			<!-- fresh vs cached input -->
 			<div class="mb-1 flex h-1.5 overflow-hidden rounded-full bg-muted">
 				<span style:width="{freshPct}%" style:background="var(--hx-model)"></span>
-				<span style:width="{100 - freshPct}%" style:background="var(--hx-state)" style:opacity="0.45"
+				<span
+					style:width="{100 - freshPct}%"
+					style:background="var(--hx-state)"
+					style:opacity="0.45"
 				></span>
 			</div>
 			<p class="mb-4 text-[10px] text-muted-foreground">
@@ -76,6 +79,17 @@
 						<dd class="hx-num">{v}</dd>
 					</div>
 				{/each}
+				{#if t.imageCalls}
+					<!-- A different meter, kept visibly separate: image output is billed
+					     around 30× a text token, and hiding it inside "output" is how a
+					     $0.12 picture looks like a rounding error. -->
+					<div class="flex justify-between">
+						<dt class="text-muted-foreground">image gen</dt>
+						<dd class="hx-num">
+							{t.imageCalls} × · {compact(t.imageOut)} tok · {money(t.imageUsd)}
+						</dd>
+					</div>
+				{/if}
 			</dl>
 
 			<div class="hx-rule mt-3 border-t pt-2.5">
@@ -90,8 +104,8 @@
 			</div>
 
 			<p class="mt-3 text-[10px] leading-relaxed text-muted-foreground/60">
-				Cost uses {session.model} list rates verified {RATES_VERIFIED}. `cache_write_tokens` is
-				read from the wire — LangChain's normalised usage drops it.
+				Cost uses {session.model} list rates verified {RATES_VERIFIED}. `cache_write_tokens` is read
+				from the wire — LangChain's normalised usage drops it.
 			</p>
 		{/if}
 	</div>

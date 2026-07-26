@@ -68,7 +68,8 @@
 				// Placeholders first, sized from page one so the scrollbar is honest
 				// before anything has rendered.
 				const first = await doc.getPage(1);
-				const ratio = first.getViewport({ scale: 1 }).height / first.getViewport({ scale: 1 }).width;
+				const ratio =
+					first.getViewport({ scale: 1 }).height / first.getViewport({ scale: 1 }).width;
 
 				for (let i = 1; i <= doc.numPages; i++) {
 					const canvas = document.createElement('canvas');

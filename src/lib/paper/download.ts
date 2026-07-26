@@ -11,15 +11,19 @@ import { assets } from '$lib/storage/assets.svelte';
  * dialog — a fair trade for output that matches the screen.
  */
 
-export function downloadMarkdown(path: string, source: string) {
-	const name = path.split('/').pop() ?? 'document.md';
-	const blob = new Blob([source], { type: 'text/markdown;charset=utf-8' });
+export function downloadText(path: string, source: string, mime = 'text/plain') {
+	const name = path.split('/').pop() ?? 'document.txt';
+	const blob = new Blob([source], { type: `${mime};charset=utf-8` });
 	const url = URL.createObjectURL(blob);
 	const a = document.createElement('a');
 	a.href = url;
 	a.download = name;
 	a.click();
 	URL.revokeObjectURL(url);
+}
+
+export function downloadMarkdown(path: string, source: string) {
+	downloadText(path, source, 'text/markdown');
 }
 
 /** Inline every figure so the printed copy is self-contained. */
@@ -38,9 +42,7 @@ export function printToPdf(path: string, renderedHtml: string) {
 	// KaTeX needs its stylesheet in the new window, and the print engine will not
 	// wait for it unless we hold the print call until load.
 	const katexHref =
-		[...document.styleSheets]
-			.map((s) => s.href)
-			.find((h) => h?.includes('katex')) ?? '';
+		[...document.styleSheets].map((s) => s.href).find((h) => h?.includes('katex')) ?? '';
 
 	win.document.write(`<!doctype html>
 <html><head><meta charset="utf-8"><title>${name}</title>

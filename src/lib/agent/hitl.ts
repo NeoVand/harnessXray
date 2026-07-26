@@ -67,7 +67,11 @@ export function reviewFor(req: HITLRequest, actionName: string): ReviewConfig | 
  * The settings panel says so next to the toggles.
  */
 export const DEFAULT_INTERRUPT_ON: Record<string, boolean> = {
-	generate_image: true
+	generate_image: true,
+	// The outline is the one decision that steers everything after it, and the
+	// tool runs in the MAIN lane — never inside parallel subagents — so gating
+	// it is safe under the single-store ALS shim.
+	present_outline: true
 };
 
 /** Tools that can run concurrently in subagents, where gating is unsafe. */

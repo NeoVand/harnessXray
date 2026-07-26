@@ -19,7 +19,8 @@
 	 */
 
 	/** Counted, not stated — a hardcoded number here would quietly go stale. */
-	const OURS = ['zero', 'one', 'two', 'three', 'four', 'five'][AGENT_TOOLS.length] ?? AGENT_TOOLS.length;
+	const OURS =
+		['zero', 'one', 'two', 'three', 'four', 'five'][AGENT_TOOLS.length] ?? AGENT_TOOLS.length;
 	const PARTS: {
 		id: string;
 		label: string;
@@ -27,73 +28,72 @@
 		icon: IconValue;
 		body: string;
 		where: string;
-	}[] =
-		[
-			{
-				id: 'prompt',
-				label: 'System prompt',
-				color: 'var(--hx-model)',
-				icon: ICON.prompt,
-				body: 'You write a fraction of it. Every middleware the harness installs appends its own fragment to the rest.',
-				where: 'Context tab'
-			},
-			{
-				id: 'skills',
-				label: 'Skills',
-				color: 'var(--hx-tool)',
-				icon: ICON.skill,
-				body: 'Markdown files the model can choose to read. Only their names and descriptions sit in the prompt.',
-				where: 'Skills tab'
-			},
-			{
-				id: 'memory',
-				label: 'Memory',
-				color: 'var(--hx-memory)',
-				icon: ICON.memory,
-				body: 'Two lifetimes, one tool. The checkpointer holds this conversation; the Store outlives every thread.',
-				where: 'Memory tab'
-			},
-			{
-				id: 'files',
-				label: 'Filesystem',
-				color: 'var(--hx-fs)',
-				icon: ICON.files,
-				body: 'Not a disk — a channel in the graph state, which is why it is checkpointed and can be diffed.',
-				where: 'Files tab'
-			},
-			{
-				id: 'todos',
-				label: 'Plan',
-				color: 'var(--hx-state)',
-				icon: ICON.todo,
-				body: 'write_todos came with the harness. Last write wins, so a partial write replaces the whole list.',
-				where: 'Plan tab'
-			},
-			{
-				id: 'tools',
-				label: 'Tools',
-				color: 'var(--hx-tool)',
-				icon: ICON.tool,
-				body: `We wrote ${OURS}; the rest came with the harness. Every schema is re-sent on every single request.`,
-				where: 'Context tab'
-			},
-			{
-				id: 'messages',
-				label: 'Messages',
-				color: 'var(--hx-user)',
-				icon: ICON.message,
-				body: 'The whole transcript so far, resent in full each turn. This is the part that grows.',
-				where: 'Context tab'
-			},
-			{
-				id: 'subagents',
-				label: 'Subagents',
-				color: 'var(--hx-subagent)',
-				icon: ICON.subagent,
-				body: 'Its own context window, and only a summary comes back. 40k spent, 400 returned.',
-				where: 'Timeline'
-			}
-		];
+	}[] = [
+		{
+			id: 'prompt',
+			label: 'System prompt',
+			color: 'var(--hx-model)',
+			icon: ICON.prompt,
+			body: 'You write a fraction of it. Every middleware the harness installs appends its own fragment to the rest.',
+			where: 'Context tab'
+		},
+		{
+			id: 'skills',
+			label: 'Skills',
+			color: 'var(--hx-tool)',
+			icon: ICON.skill,
+			body: 'Markdown files the model can choose to read. Only their names and descriptions sit in the prompt.',
+			where: 'Skills tab'
+		},
+		{
+			id: 'memory',
+			label: 'Memory',
+			color: 'var(--hx-memory)',
+			icon: ICON.memory,
+			body: 'Two lifetimes, one tool. The checkpointer holds this conversation; the Store outlives every thread.',
+			where: 'Memory tab'
+		},
+		{
+			id: 'files',
+			label: 'Filesystem',
+			color: 'var(--hx-fs)',
+			icon: ICON.files,
+			body: 'Not a disk — a channel in the graph state, which is why it is checkpointed and can be diffed.',
+			where: 'Files tab'
+		},
+		{
+			id: 'todos',
+			label: 'Plan',
+			color: 'var(--hx-state)',
+			icon: ICON.todo,
+			body: 'write_todos came with the harness. Last write wins, so a partial write replaces the whole list.',
+			where: 'Plan tab'
+		},
+		{
+			id: 'tools',
+			label: 'Tools',
+			color: 'var(--hx-tool)',
+			icon: ICON.tool,
+			body: `We wrote ${OURS}; the rest came with the harness. Every schema is re-sent on every single request.`,
+			where: 'Context tab'
+		},
+		{
+			id: 'messages',
+			label: 'Messages',
+			color: 'var(--hx-user)',
+			icon: ICON.message,
+			body: 'The whole transcript so far, resent in full each turn. This is the part that grows.',
+			where: 'Context tab'
+		},
+		{
+			id: 'subagents',
+			label: 'Subagents',
+			color: 'var(--hx-subagent)',
+			icon: ICON.subagent,
+			body: 'Its own context window, and only a summary comes back. 40k spent, 400 returned.',
+			where: 'Timeline'
+		}
+	];
 </script>
 
 <svelte:window
@@ -131,9 +131,9 @@
 
 		<div class="min-h-0 flex-1 overflow-y-auto px-5 py-5">
 			<p class="mb-5 max-w-[62ch] text-xs leading-relaxed text-muted-foreground">
-				An agent is a loop: assemble a context, call the model once, run whatever tools it asked for,
-				fold the results back in, repeat. The panels on the right of the app show every piece of it
-				live.
+				An agent is a loop: assemble a context, call the model once, run whatever tools it asked
+				for, fold the results back in, repeat. The panels on the right of the app show every piece
+				of it live.
 			</p>
 
 			<!-- Below ~520px the labels stop being legible, so the drawing keeps a floor

@@ -65,7 +65,9 @@ function textOf(m: AnyMessage): string {
 	if (typeof c === 'string') return c;
 	if (!Array.isArray(c)) return '';
 	return c
-		.map((b) => (b && typeof b === 'object' && 'text' in b ? String((b as { text: unknown }).text) : ''))
+		.map((b) =>
+			b && typeof b === 'object' && 'text' in b ? String((b as { text: unknown }).text) : ''
+		)
 		.join('');
 }
 
@@ -91,9 +93,10 @@ function transcribe(messages: AnyMessage[]): string {
 			const kind = typeOf(m);
 			const text = textOf(m);
 			if (kind === 'tool') return `[tool result] ${text.slice(0, 600)}`;
-			const calls = Array.isArray(m.tool_calls) && m.tool_calls.length
-				? ` [called ${m.tool_calls.map((c) => (c as { name?: string }).name).join(', ')}]`
-				: '';
+			const calls =
+				Array.isArray(m.tool_calls) && m.tool_calls.length
+					? ` [called ${m.tool_calls.map((c) => (c as { name?: string }).name).join(', ')}]`
+					: '';
 			return `${kind}: ${text.slice(0, 1500)}${calls}`;
 		})
 		.join('\n\n');

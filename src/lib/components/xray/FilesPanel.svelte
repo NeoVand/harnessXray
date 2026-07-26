@@ -6,6 +6,7 @@
 	import FileTree from './FileTree.svelte';
 	import PageDeck from '../PageDeck.svelte';
 	import { assets, assetVersion, type Asset } from '$lib/storage/assets.svelte';
+	import { svgToDataUrl } from '$lib/paper/svg';
 
 	interface Props {
 		openPath?: string | null;
@@ -48,8 +49,11 @@
 	const active = $derived(selected && paths.includes(selected) ? selected : (paths[0] ?? null));
 	const isImage = $derived(!!active && /\.(png|jpe?g|webp)$/i.test(active));
 	const isPdf = $derived(!!active && /\.pdf$/i.test(active));
+	const isSvg = $derived(!!active && /\.svg$/i.test(active));
 	const asset = $derived(active ? binaries.find((f) => f.path === active) : undefined);
 	const content = $derived(active ? (session.files[active] ?? '') : '');
+	/** Agent-written SVG is text in the files channel; sanitise, then show. */
+	const svgUrl = $derived(isSvg ? (asset?.dataUrl ?? (content ? svgToDataUrl(content) : '')) : '');
 
 	/**
 	 * Page previews for the selected PDF.
@@ -134,6 +138,18 @@
 							<HugeiconsIcon icon={ICON.file} size={14} strokeWidth={1.5} />
 							Read it · {asset ? (asset.bytes / 1024 / 1024).toFixed(1) : '?'} MB
 						</button>
+					{/if}
+				{:else if isSvg}
+					{#if svgUrl}
+						<!-- Same two fences as the reader: sanitised markup in an <img>.
+						     White ground, because posters are authored against light. -->
+						<button class="block w-full" onclick={() => active && onread?.(active)}>
+							<img src={svgUrl} alt={active} class="hx-rule w-full rounded border bg-white" />
+						</button>
+					{:else}
+						<p class="text-xs text-muted-foreground">
+							This SVG could not be rendered safely — open it to read the source.
+						</p>
 					{/if}
 				{:else if isImage}
 					{#if asset}

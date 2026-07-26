@@ -23,7 +23,8 @@
 	</p>
 	<pre class="code" class:wrap>{source}</pre>
 {:else}
-	<pre class="code" class:wrap>{#each tokens as t, i (i)}<span class={t.kind}>{t.text}</span>{/each}</pre>
+	<pre class="code" class:wrap>{#each tokens as t, i (i)}<span class={t.kind}>{t.text}</span
+			>{/each}</pre>
 {/if}
 
 <style>

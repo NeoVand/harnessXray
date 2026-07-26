@@ -5,7 +5,8 @@ import adapter from '@sveltejs/adapter-static';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { fileURLToPath } from 'node:url';
 
-const shim = (name: string) => fileURLToPath(new URL(`./src/lib/shims/${name}.ts`, import.meta.url));
+const shim = (name: string) =>
+	fileURLToPath(new URL(`./src/lib/shims/${name}.ts`, import.meta.url));
 
 export default defineConfig({
 	plugins: [

@@ -1,4 +1,5 @@
 import { browser } from '$app/environment';
+import { idb } from './idb';
 
 /**
  * Factory reset.
@@ -15,6 +16,20 @@ import { browser } from '$app/environment';
  * repeat.
  */
 
+/**
+ * Latched the instant a reset begins and never released — the reload that
+ * finishes the reset rebuilds every module fresh.
+ *
+ * It exists because reloading *is* leaving the page: `location.reload()`
+ * fires the same `pagehide` as any navigation, and the exit-time flush wired
+ * up in hooks.client.ts does exactly what it was built to do — write the live
+ * session back to storage. Without the latch that flush lands *after* the
+ * wipe, faithfully resurrecting the conversation that was just erased. Every
+ * exit-time writer (the session's persist, the debounced checkpoint and store
+ * saves) checks this first.
+ */
+export const resetInProgress = { value: false };
+
 export interface ResetOptions {
 	/** Also forget the OpenAI key. Off by default. */
 	includeKey?: boolean;
@@ -30,10 +45,12 @@ const KEEP_KEYS = new Set(['hx:openai-key', 'hx:openai-key-persist']);
 export async function factoryReset(opts: ResetOptions = {}): Promise<ResetReport> {
 	if (!browser) return { localStorageKeys: 0, databases: [] };
 
+	// From here on, nothing may write. The reload that ends this reset fires
+	// `pagehide`, and the flush there would write the erased state straight back.
+	resetInProgress.value = true;
+
 	// ── localStorage ────────────────────────────────────────────────────────
-	const doomed = Object.keys(localStorage).filter(
-		(k) => opts.includeKey || !KEEP_KEYS.has(k)
-	);
+	const doomed = Object.keys(localStorage).filter((k) => opts.includeKey || !KEEP_KEYS.has(k));
 	for (const k of doomed) localStorage.removeItem(k);
 
 	// Pane sizes are stored by paneforge under its own keys; clearing them is
@@ -41,6 +58,11 @@ export async function factoryReset(opts: ResetOptions = {}): Promise<ResetReport
 	sessionStorage.clear();
 
 	// ── IndexedDB ───────────────────────────────────────────────────────────
+	// Our own held connection would leave every deleteDatabase below *blocked*
+	// — scheduled for whenever the page closes — rather than done. Close it
+	// first so the erase happens now, not in a race with the next page load.
+	idb.close();
+
 	const databases: string[] = [];
 	try {
 		// `databases()` is not in older Safari; fall back to the one name we own.

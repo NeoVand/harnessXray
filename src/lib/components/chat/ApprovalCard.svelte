@@ -95,16 +95,47 @@
 					<HugeiconsIcon icon={toolMeta(a.name).icon} size={12} strokeWidth={1.5} />
 					{a.name}
 				</p>
-				{#if a.description}
+				{#if a.description && !a.description.startsWith('Tool execution requires approval')}
+					<!-- Only genuinely custom descriptions. The middleware's default is
+					     the entire args object re-serialised as prose, which the pretty
+					     rendering below already shows properly. -->
 					<p class="mt-1 text-xs text-muted-foreground">{a.description}</p>
+				{/if}
+				{#if a.name === 'present_outline' && !editing}
+					<!-- An outline is the one payload worth reading in full — it IS the
+					     decision. Render it as the document skeleton it proposes to be,
+					     not as JSON. -->
+					{@const outline = a.args as {
+						title?: string;
+						sections?: { heading: string; covers: string }[];
+					}}
+					<div class="hx-rule mt-2 rounded border bg-background/60 px-3 py-2">
+						{#if outline.title}
+							<p class="text-xs font-semibold">{outline.title}</p>
+						{/if}
+						<ol class="mt-1.5 space-y-1">
+							{#each outline.sections ?? [] as s, si (si)}
+								<li class="flex gap-2 text-xs">
+									<span class="hx-num shrink-0 text-muted-foreground">{si + 1}.</span>
+									<span>
+										<span class="font-medium">{s.heading}</span>
+										<span class="text-muted-foreground"> — {s.covers}</span>
+									</span>
+								</li>
+							{/each}
+						</ol>
+					</div>
 				{/if}
 				{#if !editing}
 					<!-- Collapsed by default: a fetch_paper or generate_image call can
 					     carry hundreds of characters of arguments, and an approval that
-					     fills the screen is one people stop reading. -->
+					     fills the screen is one people stop reading. The outline already
+					     rendered itself above, so it skips the one-line summary — but
+					     the literal JSON stays one click away for both. -->
 					<button
 						class="hx-eyebrow mt-1 flex items-center gap-1 transition-colors hover:text-foreground"
 						onclick={() => (showArgs = !showArgs)}
+						title="The literal arguments, as the model wrote them"
 					>
 						<span
 							class="inline-block transition-transform"
@@ -112,11 +143,11 @@
 						>
 							<HugeiconsIcon icon={ICON.expand} size={11} strokeWidth={1.5} />
 						</span>
-						{showArgs ? 'hide' : 'arguments'}
+						{showArgs ? 'hide json' : 'json'}
 					</button>
 					{#if showArgs}
 						<div class="mt-1"><JsonCode source={JSON.stringify(a.args)} /></div>
-					{:else}
+					{:else if a.name !== 'present_outline'}
 						<p class="mt-0.5 truncate font-mono text-[10px] text-muted-foreground">
 							{argSummary(a.args)}
 						</p>
@@ -188,15 +219,6 @@
 					</button>
 				{/if}
 			{/if}
-
-			<span class="hx-eyebrow ml-auto opacity-50">
-				{allowed.join(' · ')}
-			</span>
 		</div>
-
-		<p class="mt-2.5 text-[10px] leading-relaxed text-muted-foreground/70">
-			The graph is stopped inside a node. Its state is checkpointed, so this survives a reload — the
-			stream has already ended, and answering starts a new one.
-		</p>
 	</div>
 {/if}

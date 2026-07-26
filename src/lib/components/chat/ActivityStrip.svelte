@@ -38,7 +38,8 @@
 			<span class="shrink-0 translate-y-[2px]" style:color={toolColor(current.name)}>
 				<HugeiconsIcon icon={toolMeta(current.name).icon} size={13} strokeWidth={1.5} />
 			</span>
-			<span class="font-mono text-[11px]" style:color={toolColor(current.name)}>{current.name}</span>
+			<span class="font-mono text-[11px]" style:color={toolColor(current.name)}>{current.name}</span
+			>
 			<span class="min-w-0 flex-1 truncate font-mono text-[10px] text-muted-foreground">
 				{preview(current)}
 			</span>

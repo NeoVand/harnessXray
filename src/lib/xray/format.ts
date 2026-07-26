@@ -24,7 +24,8 @@ export const KIND_ICON: Record<EventKind, IconValue> = {
 	compaction: ICON.compact,
 	rewind: ICON.branch,
 	upload: ICON.upload,
-	skills_loaded: ICON.skill
+	skills_loaded: ICON.skill,
+	figure_extracted: ICON.image
 };
 
 /**
@@ -119,6 +120,8 @@ export function summarise(e: XrayEvent): string {
 			return `${e.path} · ${e.chars.toLocaleString()} chars`;
 		case 'skills_loaded':
 			return e.names.length ? e.names.join(', ') : 'no skills loaded';
+		case 'figure_extracted':
+			return `${e.path} · from arXiv:${e.arxivId}`;
 	}
 }
 

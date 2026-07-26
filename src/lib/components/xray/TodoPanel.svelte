@@ -21,8 +21,8 @@
 <div class="px-3 py-3">
 	{#if session.todos.length === 0}
 		<p class="text-xs text-muted-foreground">
-			No plan yet. The agent writes one with <span class="font-mono">write_todos</span> — a tool the
-			harness provides, not one we wrote.
+			No plan yet. The agent writes one with <span class="font-mono">write_todos</span> — a tool the harness
+			provides, not one we wrote.
 		</p>
 	{:else}
 		<p class="hx-eyebrow mb-3">{done} of {session.todos.length} complete</p>
@@ -43,8 +43,8 @@
 		</ul>
 
 		<p class="mt-5 text-[10px] leading-relaxed text-muted-foreground/70">
-			This channel is last-write-wins: a partial <span class="font-mono">write_todos</span> replaces
-			the whole list rather than merging into it.
+			This channel is last-write-wins: a partial <span class="font-mono">write_todos</span> replaces the
+			whole list rather than merging into it.
 		</p>
 	{/if}
 </div>

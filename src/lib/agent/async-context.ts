@@ -62,7 +62,5 @@ let installed = false;
 export function installBrowserAsyncContext(): void {
 	if (!browser || installed) return;
 	installed = true;
-	AsyncLocalStorageProviderSingleton.initializeGlobalInstance(
-		new SyncAsyncLocalStorage() as never
-	);
+	AsyncLocalStorageProviderSingleton.initializeGlobalInstance(new SyncAsyncLocalStorage() as never);
 }

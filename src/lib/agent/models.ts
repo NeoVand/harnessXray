@@ -1,6 +1,7 @@
 import { ChatOpenAI } from '@langchain/openai';
 import { keys } from '$lib/state/keys.svelte';
 import { createInstrumentedFetch } from '$lib/xray/wire';
+import { replay, replayTransport } from '$lib/xray/replay.svelte';
 import type { EventBus } from '$lib/xray/bus.svelte';
 import type { Scope } from '$lib/xray/events';
 
@@ -28,6 +29,14 @@ export const MODELS = [
 export type ModelId = (typeof MODELS)[number]['id'];
 
 export const RATES_VERIFIED = '2026-07';
+
+/**
+ * gpt-image-2 output, USD per 1M tokens. Verified 2026-07 (PLAN D7). Only the
+ * output rate was verified; image *input* tokens are counted in the Run panel
+ * but not priced, which errs a few hundredths of a cent low rather than
+ * inventing a rate.
+ */
+export const IMAGE_OUT_RATE = 30;
 
 /**
  * How many tokens fit in one request.
@@ -93,10 +102,12 @@ export function makeModel(bus: EventBus, opts: ModelOptions = {}) {
 		// actually send, instead of a translated approximation.
 		useResponsesApi: true,
 		...(temperature !== undefined ? { temperature } : {}),
-		apiKey: keys.require(),
+		// In replay there is no network, so there is nothing a key would protect;
+		// the SDK just needs a string to put in a header nobody will read.
+		apiKey: replay.active ? 'sk-replay-fixture' : keys.require(),
 		configuration: {
 			dangerouslyAllowBrowser: true,
-			fetch: createInstrumentedFetch(bus, scope)
+			fetch: createInstrumentedFetch(bus, scope, replay.active ? replayTransport : undefined)
 		}
 	});
 }

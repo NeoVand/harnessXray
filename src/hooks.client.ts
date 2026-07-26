@@ -22,6 +22,10 @@ void assets.warm();
 //
 // `pagehide` rather than `beforeunload`: the latter does not fire on mobile or
 // on bfcache navigations, which is exactly when a tab is most likely to vanish.
+//
+// The one navigation this must NOT save on is the reload that ends a factory
+// reset — flushing there wrote the freshly erased conversation straight back,
+// which is why every writer under flushState checks `resetInProgress`.
 if (typeof window !== 'undefined') {
 	const flush = () => void session.flushState();
 	window.addEventListener('pagehide', flush);

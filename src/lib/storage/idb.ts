@@ -30,7 +30,10 @@ function open(): Promise<IDBDatabase> {
 	return dbPromise;
 }
 
-async function tx<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest<T>): Promise<T> {
+async function tx<T>(
+	mode: IDBTransactionMode,
+	fn: (s: IDBObjectStore) => IDBRequest<T>
+): Promise<T> {
 	const db = await open();
 	return new Promise((resolve, reject) => {
 		const t = db.transaction(STORE, mode);
@@ -44,7 +47,22 @@ export const idb = {
 	get: <T>(key: string) => tx<T>('readonly', (s) => s.get(key) as IDBRequest<T>),
 	set: (key: string, value: unknown) =>
 		tx('readwrite', (s) => s.put(value, key) as IDBRequest<IDBValidKey>),
-	del: (key: string) => tx('readwrite', (s) => s.delete(key) as unknown as IDBRequest<undefined>)
+	del: (key: string) => tx('readwrite', (s) => s.delete(key) as unknown as IDBRequest<undefined>),
+
+	/**
+	 * Close the held connection.
+	 *
+	 * `deleteDatabase` is *blocked* for as long as any connection is open, and
+	 * this module keeps one for the life of the page — so a factory reset that
+	 * skips this can only schedule the erase, leaving it to race the next page
+	 * load. Anything that runs after close() re-opens (and re-creates the
+	 * database) transparently, which is why every exit-time writer also checks
+	 * `resetInProgress` — see reset.ts.
+	 */
+	close: () => {
+		void dbPromise?.then((db) => db.close()).catch(() => {});
+		dbPromise = null;
+	}
 };
 
 /**

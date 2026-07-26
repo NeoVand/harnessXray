@@ -12,15 +12,7 @@
  */
 
 export type DisplayKind =
-	| 'user'
-	| 'model'
-	| 'tool'
-	| 'state'
-	| 'fs'
-	| 'memory'
-	| 'subagent'
-	| 'interrupt'
-	| 'error';
+	'user' | 'model' | 'tool' | 'state' | 'fs' | 'memory' | 'subagent' | 'interrupt' | 'error';
 
 export type Scope = 'main' | `sub:${string}`;
 
@@ -43,6 +35,15 @@ export interface EventBase {
 	toolCallId?: string;
 	nodeName?: string;
 	label?: string;
+	/**
+	 * Which subagent produced this, when it is known.
+	 *
+	 * `scope` says *that* an event came from a subgraph — this says which one in
+	 * human terms ("paper-reader"), recovered by pairing new namespaces with the
+	 * `task` calls that spawned them. Absent on main-lane events, and absent when
+	 * the pairing could not be made honestly.
+	 */
+	lane?: string;
 }
 
 /* ── wire plane ─────────────────────────────────────────────────────────── */
@@ -55,6 +56,15 @@ export interface HttpRequest extends EventBase {
 	headers: Record<string, string>;
 	body: unknown;
 	bytes: number;
+	/**
+	 * FNV-1a over the exact outgoing body string, stamped at capture.
+	 *
+	 * This is the replay key: a recorded exchange is matched to a live request
+	 * by hash first, sequence second. Hashed here — not derived later from the
+	 * parsed `body` — because re-stringifying does not always reproduce the
+	 * bytes that were actually sent.
+	 */
+	bodyHash?: string;
 }
 
 export interface SseFrame extends EventBase {
@@ -268,6 +278,23 @@ export interface SkillsLoaded extends EventBase {
 	fullChars: number;
 }
 
+/**
+ * A real figure lifted out of a paper's HTML edition.
+ *
+ * Not generated — extracted. The bytes came from arXiv, the caption from the
+ * paper's own <figcaption>, and both are kept in the asset store so a review
+ * can carry the actual figure with attribution instead of a description of it.
+ */
+export interface FigureExtracted extends EventBase {
+	kind: 'figure_extracted';
+	arxivId: string;
+	path: string;
+	caption: string;
+	/** Thumbnail data-URL; the full image lives in the asset store. */
+	preview: string;
+	bytes: number;
+}
+
 export type XrayEvent =
 	| HttpRequest
 	| SseFrame
@@ -290,7 +317,8 @@ export type XrayEvent =
 	| Compaction
 	| Rewind
 	| Upload
-	| SkillsLoaded;
+	| SkillsLoaded
+	| FigureExtracted;
 
 export type EventKind = XrayEvent['kind'];
 
@@ -320,7 +348,8 @@ export const DISPLAY_OF: Record<EventKind, DisplayKind> = {
 	// A fork is the graph's own bookkeeping about which run is live.
 	rewind: 'state',
 	upload: 'fs',
-	skills_loaded: 'state'
+	skills_loaded: 'state',
+	figure_extracted: 'fs'
 };
 
 /** Short mono label shown in the timeline gutter. */
@@ -346,5 +375,55 @@ export const KIND_LABEL: Record<EventKind, string> = {
 	compaction: 'compact',
 	rewind: 'rewind',
 	upload: 'upload',
-	skills_loaded: 'skills'
+	skills_loaded: 'skills',
+	figure_extracted: 'figure'
+};
+
+/**
+ * One honest sentence per capture kind.
+ *
+ * Two consumers: the timeline shows these as tooltips on the kind label, and
+ * the explain sidecar prepends them to its prompt so the model starts from the
+ * app's own definition rather than inventing one. Definitions, not marketing —
+ * each line should survive being read by someone who can also see the bytes.
+ */
+/**
+ * Tooltip for a tool row that is really a skill being opened.
+ *
+ * The row's kind stays `tool_start` — reaching for a skill IS a read_file,
+ * that is the design — but the moment deserves its own sentence, because it
+ * is the second half of progressive disclosure: the point where one line of
+ * prompt becomes the whole instruction file.
+ */
+export const SKILL_READ_HELP =
+	'The agent opened a skill — an ordinary read_file of its SKILL.md. Until now the skill cost one line of prompt; its full instructions enter context here.';
+
+export const KIND_HELP: Record<EventKind, string> = {
+	http_request: 'The literal JSON body handed to the provider — every byte the model will see.',
+	http_sse_frame: 'One raw server-sent frame, exactly as it came off the wire.',
+	http_response: 'The reply envelope: status, headers, and the usage the provider billed.',
+	http_error: 'The fetch itself failed — offline, or a bad key rejected with no CORS header.',
+	run_start: 'One graph invocation begins: your message enters the state.',
+	run_end: 'The invocation returned — finished, paused for approval, or errored.',
+	note: 'The lab annotating its own log; the agent did not do this.',
+	tool_start: 'The model asked for a tool; the harness is about to execute it.',
+	tool_end: 'The tool returned. Its result is now part of every later request.',
+	todo_update:
+		'The agent rewrote its plan. write_todos is last-write-wins, so this is the whole list.',
+	fs_write: 'A write to the virtual filesystem — a state channel, checkpointed with the run.',
+	image_start: 'An image generation started; billed the moment it completes.',
+	image_partial: 'A progressive frame of the image still being generated.',
+	image_done: 'The finished image, saved to the asset store and referenced by path.',
+	paper_fetched: 'A paper’s full text entered the run; the PDF itself was kept for you.',
+	interrupt: 'The graph paused for a human decision. The stream ended; the state is checkpointed.',
+	resume: 'A second invocation carrying your decision — same thread, so everything comes back.',
+	node: 'One graph node committed its state update.',
+	compaction:
+		'Older messages were folded into a summary for the model. The originals are archived.',
+	rewind:
+		'The thread forked from an earlier checkpoint; the turns after it became an orphan branch.',
+	upload: 'A file you handed the agent, written into its filesystem as text.',
+	skills_loaded:
+		'The library’s names and descriptions entered the prompt. Bodies load only when read.',
+	figure_extracted: 'A real figure lifted from the paper’s HTML edition into the asset store.'
 };

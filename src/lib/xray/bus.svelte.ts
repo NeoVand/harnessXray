@@ -171,9 +171,13 @@ export class EventBus {
 	 * first. Everything semantic — tools, files, interrupts, images — is kept.
 	 */
 	snapshot(maxFrames = 400): XrayEvent[] {
-		const frames: XrayEvent[] = this.events.filter((e) => e.kind === 'http_sse_frame');
-		const drop = new Set<XrayEvent>(frames.slice(0, Math.max(0, frames.length - maxFrames)));
-		return this.events.filter((e) => !drop.has(e));
+		const frames = this.events.reduce((n, e) => n + (e.kind === 'http_sse_frame' ? 1 : 0), 0);
+		let toDrop = Math.max(0, frames - maxFrames);
+		return this.events.filter((e) => {
+			if (e.kind !== 'http_sse_frame' || toDrop === 0) return true;
+			toDrop--;
+			return false;
+		});
 	}
 
 	/** All frames belonging to one HTTP exchange, in order. */
@@ -186,7 +190,9 @@ export class EventBus {
 	}
 
 	scopes(): Scope[] {
-		return [...new Set(this.events.map((e) => e.scope))];
+		const out: Scope[] = [];
+		for (const e of this.events) if (!out.includes(e.scope)) out.push(e.scope);
+		return out;
 	}
 }
 

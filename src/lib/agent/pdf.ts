@@ -44,8 +44,11 @@ function pageLines(items: TextItem[]): string[] {
 		if (best > COLUMN_GAP) candidates.push(at);
 	}
 
-	const twoColumn = candidates.length >= 3 && candidates.length >= ordered.length * MIN_ROWS_AGREEING;
-	const split = twoColumn ? candidates.sort((a, b) => a - b)[Math.floor(candidates.length / 2)] : Infinity;
+	const twoColumn =
+		candidates.length >= 3 && candidates.length >= ordered.length * MIN_ROWS_AGREEING;
+	const split = twoColumn
+		? candidates.sort((a, b) => a - b)[Math.floor(candidates.length / 2)]
+		: Infinity;
 
 	const emit = (row: TextItem[]) =>
 		[...row]
@@ -76,7 +79,8 @@ function reflow(lines: string[]): string {
 		const prev = out[out.length - 1];
 		const continues =
 			prev && !/[.!?]["']?$/.test(prev) && /^[a-z(]/.test(line) && !/^[-•]/.test(line);
-		if (continues) out[out.length - 1] = `${prev.replace(/-$/, '')}${prev.endsWith('-') ? '' : ' '}${line}`;
+		if (continues)
+			out[out.length - 1] = `${prev.replace(/-$/, '')}${prev.endsWith('-') ? '' : ' '}${line}`;
 		else out.push(line);
 	}
 	return out.join('\n');
@@ -119,11 +123,7 @@ export async function pagesOf(path: string): Promise<string[]> {
 	}
 }
 
-export async function renderPdfPages(
-	data: ArrayBuffer,
-	count = 4,
-	width = 240
-): Promise<string[]> {
+export async function renderPdfPages(data: ArrayBuffer, count = 4, width = 240): Promise<string[]> {
 	const pdfjs = await import('pdfjs-dist');
 	const workerUrl = (await import('pdfjs-dist/build/pdf.worker.min.mjs?url')).default;
 	pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { session } from '$lib/agent/session.svelte';
 	import { keys } from '$lib/state/keys.svelte';
+	import { replay } from '$lib/xray/replay.svelte';
 	import { ingest } from '$lib/agent/uploads';
 	import { skills } from '$lib/agent/skills.svelte';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
@@ -71,6 +72,20 @@
 	}
 
 	let dragging = $state(false);
+
+	/**
+	 * The next line of the fixture's script, when replaying.
+	 *
+	 * A fixture records the user's messages along with the wire. Offering the
+	 * next one as a single click keeps the replayed run on the recorded path —
+	 * where every request matches its recording by hash — while still leaving
+	 * the composer free for going off-script.
+	 */
+	const nextScripted = $derived.by(() => {
+		if (!replay.active || session.busy) return '';
+		const sent = session.messages.filter((m) => m.role === 'user').length;
+		return replay.fixture?.script[sent] ?? '';
+	});
 </script>
 
 <div
@@ -125,6 +140,26 @@
 						{/if}
 					</div>
 				{/if}
+			</div>
+			<span class="size-7 shrink-0" aria-hidden="true"></span>
+		</div>
+	{/if}
+
+	{#if nextScripted}
+		<div class="flex gap-1.5 pb-2">
+			<span class="size-7 shrink-0" aria-hidden="true"></span>
+			<div class="mx-auto w-full max-w-[68ch] min-w-0 flex-1">
+				<button
+					class="hx-rule flex w-full items-center gap-2 rounded-md border px-2.5 py-1.5 text-left
+					       text-xs transition-colors hover:bg-muted"
+					style:border-color="color-mix(in oklab, var(--hx-interrupt) 40%, transparent)"
+					onclick={() => session.send(nextScripted)}
+					title="Send the next message exactly as it was recorded"
+				>
+					<HugeiconsIcon icon={ICON.run} size={13} strokeWidth={1.5} />
+					<span class="hx-eyebrow shrink-0" style:color="var(--hx-interrupt)">script</span>
+					<span class="truncate">{nextScripted}</span>
+				</button>
 			</div>
 			<span class="size-7 shrink-0" aria-hidden="true"></span>
 		</div>
@@ -190,7 +225,11 @@
 				onkeydown={onKeydown}
 				rows="1"
 				disabled={session.busy}
-				placeholder={keys.present ? 'Ask the agent something…' : 'Add a key in settings to begin…'}
+				placeholder={replay.active
+					? 'Replaying — follow the script above, or type to go off it…'
+					: keys.present
+						? 'Ask the agent something…'
+						: 'Add a key in settings to begin…'}
 				class="hx-bare max-h-[180px] min-h-[24px] w-full resize-none border-0 bg-transparent p-0 text-sm
 					       leading-relaxed placeholder:text-muted-foreground/60 focus:border-0 focus:ring-0
 					       focus:outline-none disabled:opacity-50"></textarea>

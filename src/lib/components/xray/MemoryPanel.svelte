@@ -6,9 +6,7 @@
 
 	let selected = $state<string | null>(null);
 
-	const active = $derived(
-		session.memories.find((m) => m.key === selected) ?? session.memories[0]
-	);
+	const active = $derived(session.memories.find((m) => m.key === selected) ?? session.memories[0]);
 
 	/** Store values are file records, not raw strings. */
 	function textOf(value: unknown): string {
@@ -53,7 +51,7 @@
 					class:bg-muted={m.key === active?.key}
 					onclick={() => (selected = m.key)}
 				>
-					<span class="translate-y-[2px] shrink-0" style:color="var(--hx-memory)">
+					<span class="shrink-0 translate-y-[2px]" style:color="var(--hx-memory)">
 						<HugeiconsIcon icon={ICON.memory} size={11} strokeWidth={1.5} />
 					</span>
 					<span class="min-w-0 flex-1 truncate font-mono text-[11px]">{m.key}</span>
@@ -66,8 +64,9 @@
 				{#if active.key.endsWith('.md')}
 					<Markdown source={textOf(active.value)} />
 				{:else}
-					<pre class="font-mono text-[11px] leading-relaxed whitespace-pre-wrap
-					            [overflow-wrap:anywhere] text-foreground/85">{textOf(active.value)}</pre>
+					<pre
+						class="font-mono text-[11px] leading-relaxed [overflow-wrap:anywhere]
+					            whitespace-pre-wrap text-foreground/85">{textOf(active.value)}</pre>
 				{/if}
 			</div>
 		{/if}

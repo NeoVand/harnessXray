@@ -4,7 +4,8 @@
 	import { ICON } from '$lib/icons';
 	import { assets } from '$lib/storage/assets.svelte';
 	import { session } from '$lib/agent/session.svelte';
-	import { downloadMarkdown, printToPdf } from '$lib/paper/download';
+	import { downloadMarkdown, downloadText, printToPdf } from '$lib/paper/download';
+	import { svgToDataUrl } from '$lib/paper/svg';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import PdfView from './PdfView.svelte';
 	import { fileType } from '$lib/xray/filetype';
@@ -35,9 +36,12 @@
 
 	const isImage = $derived(!!path && /\.(png|jpe?g|webp)$/i.test(path));
 	const isPdf = $derived(!!path && /\.pdf$/i.test(path));
+	const isSvg = $derived(!!path && /\.svg$/i.test(path));
 	const asset = $derived(path ? assets.peek(path) : undefined);
 	const text = $derived(path ? (session.files[path] ?? '') : '');
 	const kind = $derived(fileType(path ?? ''));
+	/** An agent-written SVG is text in the files channel; sanitise, then show. */
+	const svgUrl = $derived(isSvg ? (asset?.dataUrl ?? (text ? svgToDataUrl(text) : '')) : '');
 
 	let showSource = $state(false);
 
@@ -68,12 +72,12 @@
 			</span>
 			<span class="min-w-0 flex-1 truncate font-mono text-xs">{path}</span>
 
-			{#if !isImage && !isPdf && path.endsWith('.md')}
+			{#if !isImage && !isPdf && (path.endsWith('.md') || (isSvg && text))}
 				<button
 					class="hx-eyebrow transition-colors hover:text-foreground"
 					class:text-foreground={showSource}
 					onclick={() => (showSource = !showSource)}
-					title="Toggle raw markdown"
+					title="Toggle the raw source"
 				>
 					{showSource ? 'rendered' : 'source'}
 				</button>
@@ -87,12 +91,18 @@
 						save
 					</DropdownMenu.Trigger>
 					<DropdownMenu.Content align="end" class="min-w-40">
-						<DropdownMenu.Item onSelect={() => path && downloadMarkdown(path, text)}>
-							<span class="font-mono text-xs">Markdown (.md)</span>
-						</DropdownMenu.Item>
-						<DropdownMenu.Item onSelect={asPdf}>
-							<span class="font-mono text-xs">PDF</span>
-						</DropdownMenu.Item>
+						{#if isSvg}
+							<DropdownMenu.Item onSelect={() => path && downloadText(path, text, 'image/svg+xml')}>
+								<span class="font-mono text-xs">SVG (.svg)</span>
+							</DropdownMenu.Item>
+						{:else}
+							<DropdownMenu.Item onSelect={() => path && downloadMarkdown(path, text)}>
+								<span class="font-mono text-xs">Markdown (.md)</span>
+							</DropdownMenu.Item>
+							<DropdownMenu.Item onSelect={asPdf}>
+								<span class="font-mono text-xs">PDF</span>
+							</DropdownMenu.Item>
+						{/if}
 					</DropdownMenu.Content>
 				</DropdownMenu.Root>
 			{/if}
@@ -108,7 +118,22 @@
 		</header>
 
 		<div class="min-h-0 flex-1 overflow-y-auto">
-			{#if isImage}
+			{#if isSvg && !showSource}
+				{#if svgUrl}
+					<!-- Through an <img>, never inline — sanitised or not, an agent's
+					     markup gets no scripting context at all. White ground: posters
+					     are usually authored against light, and a dark page under a
+					     transparent SVG makes its text vanish. -->
+					<div class="p-6">
+						<img src={svgUrl} alt={path} class="hx-rule w-full rounded border bg-white" />
+					</div>
+				{:else}
+					<p class="p-6 text-xs text-muted-foreground">
+						This SVG could not be rendered safely — flip to
+						<span class="font-mono">source</span> to read it as text.
+					</p>
+				{/if}
+			{:else if isImage}
 				{#if asset}
 					<div class="p-6">
 						<img src={asset.dataUrl} alt={path} class="hx-rule w-full rounded border" />

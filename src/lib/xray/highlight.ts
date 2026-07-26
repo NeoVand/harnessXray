@@ -8,14 +8,7 @@
  * instead of injecting HTML into a pane that displays untrusted model output.
  */
 
-export type TokenKind =
-	| 'key'
-	| 'string'
-	| 'number'
-	| 'boolean'
-	| 'null'
-	| 'punct'
-	| 'plain';
+export type TokenKind = 'key' | 'string' | 'number' | 'boolean' | 'null' | 'punct' | 'plain';
 
 export interface Token {
 	kind: TokenKind;
@@ -70,7 +63,11 @@ export function prettyJson(source: string): string {
 export function sseEventName(raw: string): string | null {
 	const line = raw.split('\n').find((l) => l.startsWith('event:'));
 	if (line) return line.slice(6).trim();
-	const data = raw.split('\n').find((l) => l.startsWith('data:'))?.slice(5).trim();
+	const data = raw
+		.split('\n')
+		.find((l) => l.startsWith('data:'))
+		?.slice(5)
+		.trim();
 	if (!data || data === '[DONE]') return data === '[DONE]' ? 'done' : null;
 	try {
 		return (JSON.parse(data) as { type?: string }).type ?? null;
