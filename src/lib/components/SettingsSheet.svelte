@@ -53,11 +53,14 @@
 
 <Sheet.Root bind:open>
 	<Sheet.Content side="right" class="w-full sm:max-w-md">
-		<Sheet.Header class="px-5 pt-5">
+		<!-- A hairline bar, like every other panel. The stock sheet header is
+		     `p-6` around a single word, which reads as a title page. -->
+		<Sheet.Header class="hx-rule flex h-10 shrink-0 flex-row items-center gap-2 border-b px-4 py-0">
+			<HugeiconsIcon icon={ICON.settings} size={14} strokeWidth={1.5} />
 			<Sheet.Title class="text-sm font-semibold">Settings</Sheet.Title>
 		</Sheet.Header>
 
-		<div class="space-y-8 overflow-y-auto px-5 py-6">
+		<div class="space-y-7 overflow-y-auto px-4 py-5">
 			<!-- Connection -->
 			<section>
 				<p class="hx-eyebrow mb-3 flex items-center gap-1.5">
@@ -65,9 +68,9 @@
 					connection
 				</p>
 				{#if keys.fromEnv}
-					<p class="mb-3 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+					<p class="mb-2 flex items-center gap-1.5 text-[11px] text-muted-foreground">
 						<HugeiconsIcon icon={ICON.code} size={12} strokeWidth={1.5} />
-						Loaded from <span class="font-mono">.env</span> — development only, never bundled.
+						from <span class="font-mono">.env</span>
 					</p>
 				{/if}
 
@@ -82,8 +85,8 @@
 						placeholder="sk-…"
 						autocomplete="off"
 						spellcheck="false"
-						class="hx-rule min-w-0 flex-1 rounded-md border bg-transparent px-2.5 py-1.5
-						       font-mono text-xs focus:border-ring focus:outline-none"
+						class="hx-rule hx-field min-w-0 flex-1 rounded-md border bg-transparent px-2.5
+						       py-1.5 font-mono text-xs"
 					/>
 					<button
 						class="px-1 text-muted-foreground transition-colors hover:text-foreground"
@@ -131,30 +134,23 @@
 					{/if}
 				</div>
 
-				<label class="mt-4 flex items-start gap-2.5 text-[11px] text-muted-foreground">
-					<Checkbox
-						checked={keys.persist}
-						onCheckedChange={(v) => keys.setPersist(v === true)}
-						class="mt-0.5"
-					/>
-					<span>
-						Remember on this device.
-						<span class="block text-muted-foreground/70">
-							Off by default — the key lives in this tab only and is gone when you close it.
-						</span>
-					</span>
+				<label class="mt-3 flex items-center gap-2.5 text-[11px] text-muted-foreground">
+					<Checkbox checked={keys.persist} onCheckedChange={(v) => keys.setPersist(v === true)} />
+					Remember on this device
 				</label>
 
-				<p class="mt-4 text-[11px] leading-relaxed text-muted-foreground/80">
-					This app has no server, so the key is sent from this page directly to
-					api.openai.com and never anywhere else. It is redacted everywhere in the X-ray. Use a
-					dedicated project key with a spend cap.
+				<!-- The one line here that changes what a person does. Everything
+				     else this used to say is in the README. -->
+				<p class="mt-3 text-[11px] text-muted-foreground/70">
+					No server — sent only to api.openai.com, redacted in the X-ray.
 				</p>
 			</section>
 
 			<!-- Model -->
 			<section>
-				<p class="hx-eyebrow mb-3 flex items-center gap-1.5"><HugeiconsIcon icon={ICON.model} size={12} strokeWidth={1.5} />model</p>
+				<p class="hx-eyebrow mb-3 flex items-center gap-1.5">
+					<HugeiconsIcon icon={ICON.model} size={12} strokeWidth={1.5} />model
+				</p>
 				<div class="space-y-px">
 					{#each MODELS as m (m.id)}
 						<button
@@ -203,10 +199,6 @@
 						</label>
 					{/each}
 				</div>
-				<p class="mt-2 text-[11px] leading-relaxed text-muted-foreground/80">
-					A gated tool calls interrupt() before running, which stops the graph mid-node. Changing
-					this rebuilds the agent.
-				</p>
 			</section>
 
 			<!-- Storage -->
@@ -226,11 +218,6 @@
 						<dd class="hx-num">{usage}</dd>
 					</div>
 				</dl>
-
-				<p class="mb-3 text-[11px] leading-relaxed text-muted-foreground/80">
-					Chats, checkpoints, long-term memory, generated figures, cached PDFs and searches all
-					live in this browser. A reset removes every one of them.
-				</p>
 
 				{#if !confirmReset}
 					<button

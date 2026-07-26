@@ -8,12 +8,8 @@
 	import { ICON } from '$lib/icons';
 	import { assets, assetVersion } from '$lib/storage/assets.svelte';
 
-	let {
-		onopensettings,
-		onread,
-		/** Bumped from outside to jump to the latest message. */
-		jump = 0
-	}: { onopensettings: () => void; onread?: (path: string) => void; jump?: number } = $props();
+	let { onopensettings, onread }: { onopensettings: () => void; onread?: (path: string) => void } =
+		$props();
 
 	let viewport = $state<HTMLElement | null>(null);
 	let pinned = $state(true);
@@ -23,12 +19,6 @@
 		void session.messages.length;
 		void session.messages.at(-1)?.text;
 		if (pinned && viewport) viewport.scrollTop = viewport.scrollHeight;
-	});
-
-	$effect(() => {
-		if (!jump || !viewport) return;
-		pinned = true;
-		viewport.scrollTo({ top: viewport.scrollHeight, behavior: 'smooth' });
 	});
 
 	// Attachment thumbnails come from the asset store, which fills in
@@ -70,10 +60,9 @@
 	<!--
 		The scroller is full width; the *column* is what is 68ch.
 
-		Constraining the whole thing to a column made the shaded turn a bubble,
-		which is the one thing it should not read as. Keeping the wrapper wide and
-		re-centring inside each turn lets the shade run edge to edge while the text
-		stays on measure.
+		Each turn re-establishes the column itself rather than inheriting one
+		wrapper, which is what lets a turn decide how far its own decoration
+		reaches while its text stays on measure.
 	-->
 	<div class="w-full py-3">
 		{#if session.messages.length === 0}
@@ -122,12 +111,13 @@
 		{/if}
 
 		<!--
-			Who said what, told twice over: by the label, and by the ground.
+			Who said what, told three ways: side, label, and ground.
 
-			The shade is a band across the whole pane rather than a box around the
-			words — a box reads as a chat bubble, which is a different and much
-			chattier idea than "this stretch of the transcript is yours". The label
-			stays; it names the speaker, which the shade only implies.
+			Side does most of the work — your turns sit right, the agent's left —
+			because it survives skimming in a way a 10px caption does not. The tint
+			wraps only your words and hugs them; the agent's replies stay on the
+			page, because they are the document and shading both sides would just
+			be stripes.
 		-->
 		{#each session.messages as m (m.id)}
 			{#if m.role === 'notice'}
@@ -156,58 +146,19 @@
 					</p>
 				</div>
 			{:else if m.role === 'user'}
-				<article class="turn-you group pt-3 pb-4">
-					<div class="mx-auto w-full max-w-[68ch] px-6">
-						<p class="hx-eyebrow mb-1 flex items-center gap-1.5 leading-none">
-							<HugeiconsIcon icon={ICON.message} size={11} strokeWidth={1.5} />
-							you
-							<!--
-								Icons, not sentences.
+				<!--
+					Your turns hang off the right, the agent's off the left.
 
-								Rewinding is one idea, so it gets one glyph, and the same glyph
-								in both states: it opens the editor, and it commits. The
-								explanation lives in the tooltip, where it costs nothing until
-								you want it — a permanent caption reading "everything after this
-								is rewound" said the same thing on every turn forever.
-							-->
-							{#if !session.busy}
-								<span class="ml-auto flex items-center gap-0.5">
-									{#if editing === m.id}
-										<button
-											class="grid size-6 place-items-center rounded-[3px] transition-colors
-											       hover:bg-background hover:text-foreground"
-											onclick={() => (editing = null)}
-											title="Cancel (Esc)"
-											aria-label="Cancel editing"
-										>
-											<HugeiconsIcon icon={ICON.close} size={13} strokeWidth={1.5} />
-										</button>
-										<button
-											class="grid size-6 place-items-center rounded-[3px] transition-colors
-											       hover:bg-background"
-											style:color="var(--hx-interrupt)"
-											onclick={() => resend(m.id)}
-											title="Re-run from here — everything after this turn is rewound (↵)"
-											aria-label="Re-run from here"
-										>
-											<HugeiconsIcon icon={ICON.rewind} size={13} strokeWidth={1.5} />
-										</button>
-									{:else}
-										<button
-											class="grid size-6 place-items-center rounded-[3px] opacity-0 transition-all
-											       group-hover:opacity-100 hover:bg-background hover:text-foreground"
-											onclick={() => {
-												editing = m.id;
-												draft = m.text;
-											}}
-											title="Edit this message and re-run from here"
-											aria-label="Edit and re-run from here"
-										>
-											<HugeiconsIcon icon={ICON.rewind} size={13} strokeWidth={1.5} />
-										</button>
-									{/if}
-								</span>
-							{/if}
+					Side is the fastest cue there is — faster than a label, and it
+					survives skimming, which is the point when a transcript is mostly
+					long agent prose. The bubble hugs its text, so a short question
+					stays a small object on that side rather than a full-width bar.
+				-->
+				<article class="group pt-3 pb-4">
+					<div class="mx-auto flex w-full max-w-[68ch] flex-col items-end px-6">
+						<p class="hx-eyebrow mb-1 flex items-center gap-1.5 leading-none">
+							you
+							<HugeiconsIcon icon={ICON.message} size={11} strokeWidth={1.5} />
 						</p>
 
 						{#if editing === m.id}
@@ -220,11 +171,16 @@
 									}
 									if (e.key === 'Escape') editing = null;
 								}}
-								class="hx-rule w-full resize-none rounded-[3px] border bg-background p-2 text-sm
-								       leading-relaxed focus:ring-0 focus:outline-none"
+								class="hx-rule hx-field w-full resize-none rounded-lg border bg-background p-2.5
+								       text-sm leading-relaxed"
 								rows="3"></textarea>
 						{:else if m.text}
-							<p class="text-sm leading-relaxed whitespace-pre-wrap">{m.text}</p>
+							<p
+								class="turn-you w-fit max-w-full rounded-lg px-3 py-2 text-sm
+							          leading-relaxed whitespace-pre-wrap"
+							>
+								{m.text}
+							</p>
 						{/if}
 
 						{#if m.attachments?.length}{@const _ = assetVersion.n}
@@ -272,6 +228,54 @@
 								{/each}
 							</div>
 						{/if}
+
+						<!--
+							Under the bubble, not beside the label.
+
+							Rewinding acts on the message, so it belongs against the message
+							rather than in the caption above it. One glyph in both states —
+							it opens the editor and it commits — with the explanation in the
+							tooltip, where it costs nothing until wanted.
+						-->
+						{#if !session.busy}
+							<span class="mt-1 flex items-center gap-0.5">
+								{#if editing === m.id}
+									<button
+										class="grid size-6 place-items-center rounded-[3px] text-muted-foreground
+										       transition-colors hover:bg-muted hover:text-foreground"
+										onclick={() => (editing = null)}
+										title="Cancel (Esc)"
+										aria-label="Cancel editing"
+									>
+										<HugeiconsIcon icon={ICON.close} size={13} strokeWidth={1.5} />
+									</button>
+									<button
+										class="grid size-6 place-items-center rounded-[3px] transition-colors
+										       hover:bg-muted"
+										style:color="var(--hx-interrupt)"
+										onclick={() => resend(m.id)}
+										title="Re-run from here — everything after this turn is rewound (↵)"
+										aria-label="Re-run from here"
+									>
+										<HugeiconsIcon icon={ICON.rewind} size={13} strokeWidth={1.5} />
+									</button>
+								{:else}
+									<button
+										class="grid size-6 place-items-center rounded-[3px] text-muted-foreground
+										       opacity-0 transition-all group-hover:opacity-100 hover:bg-muted
+										       hover:text-foreground focus-visible:opacity-100"
+										onclick={() => {
+											editing = m.id;
+											draft = m.text;
+										}}
+										title="Edit this message and re-run from here"
+										aria-label="Edit and re-run from here"
+									>
+										<HugeiconsIcon icon={ICON.rewind} size={13} strokeWidth={1.5} />
+									</button>
+								{/if}
+							</span>
+						{/if}
 					</div>
 				</article>
 			{:else}
@@ -314,22 +318,18 @@
 
 <style>
 	/*
-		Barely a colour — a step of ground, not a bubble.
+		Barely a colour.
 
-		Mixed from `--muted` so it tracks the theme in both schemes rather than
-		being two hardcoded greys, and kept low enough that it reads as a surface
-		rather than as a highlighted block. Dark needs a touch more: the same
-		proportion that separates on white disappears on near-black.
-
-		Hairlines top and bottom rather than a radius: the band is a stratum in the
-		transcript, and cards separate by edge here, not by box.
+		Mixed from `--muted` so it tracks the theme rather than being two hardcoded
+		greys. Dark gets *less* of it, not more: on a near-black background the
+		same proportion that reads as a whisper on white reads as a raised panel,
+		and the point is to separate the turn, not to announce it.
 	*/
 	.turn-you {
-		background: color-mix(in oklab, var(--muted) 62%, transparent);
-		border-block: 1px solid color-mix(in oklab, var(--border) 55%, transparent);
+		background: color-mix(in oklab, var(--muted) 55%, transparent);
 	}
 	:global(.dark) .turn-you {
-		background: color-mix(in oklab, var(--muted) 78%, transparent);
+		background: color-mix(in oklab, var(--muted) 42%, transparent);
 	}
 
 	.caret {

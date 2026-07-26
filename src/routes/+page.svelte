@@ -9,6 +9,8 @@
 	import DocumentViewer from '$lib/components/DocumentViewer.svelte';
 	import HelpSheet from '$lib/components/HelpSheet.svelte';
 	import SkillsSheet from '$lib/components/SkillsSheet.svelte';
+	import AboutSheet from '$lib/components/AboutSheet.svelte';
+	import { REPO_URL } from '$lib/meta';
 	import ContextPanel from '$lib/components/xray/ContextPanel.svelte';
 	import ContextDonut from '$lib/components/xray/ContextDonut.svelte';
 	import FilterMenu from '$lib/components/xray/FilterMenu.svelte';
@@ -19,8 +21,6 @@
 	import { INPUT_LIMIT, COMPACT_AT } from '$lib/agent/models';
 	import { compact } from '$lib/xray/usage';
 	import { session } from '$lib/agent/session.svelte';
-	import { skills } from '$lib/agent/skills.svelte';
-	import { keys } from '$lib/state/keys.svelte';
 	import { HugeiconsIcon } from '@hugeicons/svelte';
 	import { ICON } from '$lib/icons';
 
@@ -31,7 +31,11 @@
 	let readPath = $state<string | null>(null);
 	let helpOpen = $state(false);
 	let skillsOpen = $state(false);
-	let dark = $state(false);
+	let aboutOpen = $state(false);
+	/** Read back from the class the pre-paint script already set. */
+	let dark = $state(
+		typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
+	);
 
 	/** The left column of the X-ray: what happened, or what is in the window. */
 	let lens = $state<'timeline' | 'context'>('timeline');
@@ -86,9 +90,6 @@
 		{ key: 'messages', label: 'messages', color: 'var(--hx-user)' }
 	];
 
-	/** Bumped to send the conversation to its latest message. */
-	let jumpChat = $state(0);
-
 	// The last model call is the live context — what the next request will be
 	// built on top of. Read from the wire like everything else here.
 	const lastShot = $derived.by(() => {
@@ -116,6 +117,12 @@
 	function toggleTheme() {
 		dark = !dark;
 		document.documentElement.classList.toggle('dark', dark);
+		// Remembered, so the pre-paint script in app.html can honour it next time.
+		try {
+			localStorage.setItem('hx:theme', dark ? 'dark' : 'light');
+		} catch {
+			/* private mode; the choice lasts this session */
+		}
 	}
 
 	function onKeydown(e: KeyboardEvent) {
@@ -156,8 +163,14 @@
 <div class="flex h-dvh flex-col overflow-hidden">
 	<!-- Header: one hairline, no card. -->
 	<header class="hx-rule flex h-10 shrink-0 items-center gap-2 border-b px-3">
-		<HugeiconsIcon icon={ICON.agent} size={15} strokeWidth={1.5} />
-		<span class="text-[12px] font-semibold tracking-tight">harnessXray</span>
+		<button
+			class="flex items-center gap-2 transition-opacity hover:opacity-70"
+			onclick={() => (aboutOpen = true)}
+			title="About harnessXray"
+		>
+			<HugeiconsIcon icon={ICON.agent} size={18} strokeWidth={1.5} />
+			<span class="hx-wordmark text-[15px]">harness<em>Xray</em></span>
+		</button>
 
 		<span class="ml-1 flex items-center gap-1.5">
 			<span
@@ -169,14 +182,6 @@
 		</span>
 
 		<div class="ml-auto flex items-center gap-3">
-			<button
-				class="hx-num text-[11px] text-muted-foreground transition-colors hover:text-foreground"
-				onclick={() => (settingsOpen = true)}
-				title="Settings (⌘,)"
-			>
-				{keys.present ? `···${keys.tail}` : '—'}
-			</button>
-
 			<button
 				class="text-muted-foreground transition-colors hover:text-foreground"
 				onclick={session.newThread.bind(session)}
@@ -214,6 +219,17 @@
 			>
 				<HugeiconsIcon icon={dark ? ICON.light : ICON.dark} size={15} strokeWidth={1.5} />
 			</button>
+
+			<a
+				href={REPO_URL}
+				target="_blank"
+				rel="noreferrer noopener"
+				class="text-muted-foreground transition-colors hover:text-foreground"
+				title="Source on GitHub"
+				aria-label="Source on GitHub"
+			>
+				<HugeiconsIcon icon={ICON.github} size={15} strokeWidth={1.5} />
+			</a>
 
 			<button
 				class="text-muted-foreground transition-colors hover:text-foreground"
@@ -286,7 +302,6 @@
 					<Conversation
 						onopensettings={() => (settingsOpen = true)}
 						onread={(p) => (readPath = p)}
-						jump={jumpChat}
 					/>
 					<Composer onopenskills={() => (skillsOpen = true)} />
 				</div>
@@ -341,9 +356,17 @@
 											{/if}
 
 											{#if lens === 'timeline'}
-												<FilterMenu options={kindOptions} bind:hidden={hiddenKinds} label="event kinds" />
+												<FilterMenu
+													options={kindOptions}
+													bind:hidden={hiddenKinds}
+													label="event kinds"
+												/>
 											{:else}
-												<FilterMenu options={GROUP_OPTIONS} bind:hidden={hiddenGroups} label="sections" />
+												<FilterMenu
+													options={GROUP_OPTIONS}
+													bind:hidden={hiddenGroups}
+													label="sections"
+												/>
 											{/if}
 
 											{#if lastShot}
@@ -396,72 +419,13 @@
 			</Resizable.Pane>
 		</Resizable.PaneGroup>
 	</div>
-
-	<!-- Status rail -->
-	<footer
-		class="hx-rule flex h-7 shrink-0 items-center gap-4 border-t px-4 text-[10px] text-muted-foreground"
-	>
-		<!-- Every reading here is a way in to the panel that explains it. -->
-		<button
-			class="flex items-center gap-1.5 transition-colors hover:text-foreground"
-			onclick={() => (lens = 'timeline')}
-			title="Show the timeline"
-		>
-			<HugeiconsIcon icon={ICON.wire} size={12} strokeWidth={1.5} />
-			<span class="hx-num">{bus.version >= 0 ? bus.length : 0} events</span>
-		</button>
-
-		<button
-			class="flex items-center gap-1.5 transition-colors hover:text-foreground"
-			onclick={() => jumpChat++}
-			title="Jump to the latest message"
-		>
-			<HugeiconsIcon icon={ICON.message} size={12} strokeWidth={1.5} />
-			<span class="hx-num">{session.messages.length} messages</span>
-		</button>
-
-		<!-- The context gauge lives here rather than a keyboard hint, because it
-		     is the one number that changes constantly and costs money. -->
-		<button
-			class="flex items-center gap-1.5 transition-colors hover:text-foreground"
-			onclick={() => (lens = 'context')}
-			title="{lastShot
-				? `${lastShot.tokens.toLocaleString()} of ${INPUT_LIMIT.toLocaleString()} input tokens`
-				: 'nothing sent yet'} — the harness compacts past {Math.round(COMPACT_AT * 100)}%"
-		>
-			<ContextDonut used={contextUsed} warn={COMPACT_AT} />
-			<span class="hx-num">
-				{#if lastShot}
-					{(contextUsed * 100).toFixed(contextUsed < 0.1 ? 1 : 0)}% context
-				{:else}
-					context idle
-				{/if}
-			</span>
-		</button>
-
-		{#if session.compacting}
-			<span class="hx-eyebrow" style:color="var(--hx-memory)">compacting…</span>
-		{/if}
-
-		<button
-			class="ml-auto flex items-center gap-1.5 transition-colors hover:text-foreground"
-			onclick={() => (skillsOpen = true)}
-			title="Manage skills"
-		>
-			<HugeiconsIcon icon={ICON.skill} size={12} strokeWidth={1.5} />
-			<span class="hx-num">{skills.active.length} skills</span>
-		</button>
-	</footer>
 </div>
 
 <SettingsSheet bind:open={settingsOpen} />
 <HelpSheet bind:open={helpOpen} />
 <SkillsSheet bind:open={skillsOpen} />
-<DocumentViewer
-	path={readPath}
-	onclose={() => (readPath = null)}
-	onopen={(p) => (readPath = p)}
-/>
+<AboutSheet bind:open={aboutOpen} />
+<DocumentViewer path={readPath} onclose={() => (readPath = null)} onopen={(p) => (readPath = p)} />
 
 <style>
 	:global(html) {

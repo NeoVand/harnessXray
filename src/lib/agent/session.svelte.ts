@@ -10,6 +10,7 @@ import { SYSTEM_PROMPT } from './prompt';
 import { skills, SKILLS_ROOT, skillPath } from './skills.svelte';
 import { compactRequest, compactThread } from './compaction';
 import { manifest, type Attachment } from './uploads';
+import { assets, setAssetScope } from '$lib/storage/assets.svelte';
 import type { Todo, ToolStart as ToolStartEvent } from '$lib/xray/events';
 import type { IdbStore, IdbCheckpointSaver } from './persistence';
 import {
@@ -163,7 +164,11 @@ class Session {
 	#checkpointer: IdbCheckpointSaver | undefined = undefined;
 
 	constructor() {
-		if (browser) this.#loadThreads();
+		if (browser) {
+			this.#loadThreads();
+			// Binaries are per-thread; point the store at whichever we restored.
+			setAssetScope(this.threadId);
+		}
 	}
 
 	get busy() {
@@ -263,12 +268,16 @@ class Session {
 	openThread(id: string) {
 		if (this.busy) return;
 		this.threadId = id;
+		setAssetScope(id);
 		this.#agent = null; // a thread is a checkpoint scope; don't carry state across
 		this.messages = [];
 		this.todos = [];
 		this.files = {};
 		this.#n = 0;
 		this.pending = null;
+		// Anything staged in the composer belongs to the conversation you staged
+		// it for, not to the next one.
+		this.attachments = [];
 		// A cleared timeline should report the skill set again — it is the first
 		// thing that happens in a run, and it is not "unchanged" to a blank log.
 		this.#skillsSeen = '';
@@ -280,12 +289,16 @@ class Session {
 	newThread() {
 		if (this.busy) return;
 		this.threadId = `t${Date.now().toString(36)}`;
+		setAssetScope(this.threadId);
 		this.#agent = null;
 		this.messages = [];
 		this.todos = [];
 		this.files = {};
 		this.#n = 0;
 		this.pending = null;
+		// Anything staged in the composer belongs to the conversation you staged
+		// it for, not to the next one.
+		this.attachments = [];
 		this.error = '';
 		this.status = 'idle';
 		this.#skillsSeen = '';
@@ -312,6 +325,9 @@ class Session {
 			localStorage.setItem(THREADS_KEY, JSON.stringify(this.threads));
 			localStorage.removeItem(`hx:thread:${id}`);
 			void idb.del(`events:${id}`);
+			// Its figures and PDFs go too, or the disk grows forever while the
+			// history shrinks.
+			void assets.dropThread(id);
 		}
 		if (id === this.threadId) this.newThread();
 	}

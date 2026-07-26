@@ -44,6 +44,8 @@ import {
 	FlashIcon,
 	FolderOpenIcon,
 	GitBranchIcon,
+	Github01Icon,
+	Linkedin01Icon,
 	Key01Icon,
 	Layers01Icon,
 	Message01Icon,
@@ -97,6 +99,8 @@ export const ICON = {
 	context: PieChartIcon,
 	compact: ArrowShrink02Icon,
 	filter: FilterIcon,
+	github: Github01Icon,
+	linkedin: Linkedin01Icon,
 	/**
 	 * Take the conversation back to this point and run it again.
 	 *
