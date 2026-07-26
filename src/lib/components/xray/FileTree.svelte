@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { HugeiconsIcon } from '@hugeicons/svelte';
 	import { ICON } from '$lib/icons';
+	import { fileType } from '$lib/xray/filetype';
 
 	/**
 	 * A real tree, not a list of full paths.
@@ -94,21 +95,15 @@
 			{/if}
 		{:else}
 			{@const entry = child.leaf}
+			{@const kind = fileType(child.path)}
 			<button
 				class="flex w-full items-center gap-1.5 py-[3px] pr-2 text-left transition-colors hover:bg-muted/60"
 				class:bg-muted={child.path === active}
 				style:padding-left="{depth * 12 + 8}px"
 				onclick={() => onselect(child.path)}
 			>
-				<span
-					class="shrink-0"
-					style:color={entry?.kind === 'image' ? 'var(--hx-tool)' : 'var(--hx-fs)'}
-				>
-					<HugeiconsIcon
-						icon={entry?.kind === 'image' ? ICON.sparkle : ICON.file}
-						size={11}
-						strokeWidth={1.5}
-					/>
+				<span class="shrink-0" style:color={kind.color} title={kind.label}>
+					<HugeiconsIcon icon={kind.icon} size={11} strokeWidth={1.5} />
 				</span>
 				<span class="min-w-0 flex-1 truncate font-mono text-[11px]">{child.name}</span>
 				{#if entry}

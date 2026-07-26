@@ -7,6 +7,7 @@
 	import { downloadMarkdown, printToPdf } from '$lib/paper/download';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import PdfView from './PdfView.svelte';
+	import { fileType } from '$lib/xray/filetype';
 
 	let body = $state<HTMLElement | null>(null);
 
@@ -19,11 +20,11 @@
 	/**
 	 * The reading surface.
 	 *
-	 * The inspector pane is for dissecting things; a finished article wants a
-	 * column of comfortable measure and room to breathe. This is a full overlay
-	 * rather than another pane, because reading and inspecting are different
-	 * modes — trying to do both in a 400px column is what made the file view feel
-	 * cramped and scroll oddly against the tree.
+	 * Reading and inspecting are different modes, so this replaces the
+	 * instruments rather than sharing a 400px column with them — that is what
+	 * made the old in-tree preview feel cramped. But it is *not* a modal: the
+	 * conversation stays live beside it, because the thing you most want to do
+	 * with a paper you are reading is ask about it.
 	 */
 	interface Props {
 		path: string | null;
@@ -36,9 +37,9 @@
 	const isPdf = $derived(!!path && /\.pdf$/i.test(path));
 	const asset = $derived(path ? assets.peek(path) : undefined);
 	const text = $derived(path ? (session.files[path] ?? '') : '');
+	const kind = $derived(fileType(path ?? ''));
 
 	let showSource = $state(false);
-
 
 	function onKey(e: KeyboardEvent) {
 		if (e.key === 'Escape' && path) {
@@ -51,30 +52,19 @@
 <svelte:window onkeydown={onKey} />
 
 {#if path}
-	<!-- Scrim. Click-through to close is expected of an overlay. -->
-	<div
-		class="fixed inset-0 z-40 bg-background/70 backdrop-blur-[2px]"
-		onclick={onclose}
-		role="presentation"
-	></div>
+	<!--
+		Docked, not floating.
 
-	<div
-		class="hx-rule fixed inset-x-0 top-8 bottom-8 z-50 mx-auto flex max-w-[min(920px,92vw)]
-		       flex-col overflow-hidden rounded-lg border bg-background shadow-2xl"
-		role="dialog"
-		aria-label={path}
-		aria-modal="true"
-	>
+		A modal over the whole app made reading and chatting mutually exclusive —
+		you had to dismiss the paper to ask about it, which is exactly backwards
+		for a tool whose point is discussing what you are reading. It takes the
+		X-ray's half of the screen instead; the conversation stays live beside it,
+		and closing gives the timeline and inspector back.
+	-->
+	<div class="flex h-full min-h-0 flex-col bg-background" aria-label={path}>
 		<header class="hx-rule flex shrink-0 items-center gap-3 border-b px-4 py-2.5">
-			<span
-				class="shrink-0"
-				style:color={isImage ? 'var(--hx-tool)' : isPdf ? 'var(--hx-memory)' : 'var(--hx-fs)'}
-			>
-				<HugeiconsIcon
-					icon={isImage ? ICON.sparkle : isPdf ? ICON.file : ICON.file}
-					size={14}
-					strokeWidth={1.5}
-				/>
+			<span class="shrink-0" style:color={kind.color} title={kind.label}>
+				<HugeiconsIcon icon={kind.icon} size={14} strokeWidth={1.5} />
 			</span>
 			<span class="min-w-0 flex-1 truncate font-mono text-xs">{path}</span>
 
@@ -141,11 +131,12 @@
 					</p>
 				{/if}
 			{:else if showSource}
-				<pre class="p-6 font-mono text-[11px] leading-relaxed whitespace-pre-wrap
-				            [overflow-wrap:anywhere] text-foreground/85">{text}</pre>
+				<pre
+					class="p-6 font-mono text-[11px] leading-relaxed [overflow-wrap:anywhere]
+				            whitespace-pre-wrap text-foreground/85">{text}</pre>
 			{:else}
 				<!-- Comfortable measure, generous leading: a document, not a panel. -->
-				<article bind:this={body} class="mx-auto max-w-[68ch] px-8 py-10 doc">
+				<article bind:this={body} class="doc mx-auto max-w-[68ch] px-8 py-10">
 					<Markdown source={text} {onopen} />
 				</article>
 			{/if}

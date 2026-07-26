@@ -1,5 +1,11 @@
 <script lang="ts">
-	import { skills, composeSkill, readFrontmatter, validateName, type Skill } from '$lib/agent/skills.svelte';
+	import {
+		skills,
+		composeSkill,
+		readFrontmatter,
+		validateName,
+		type Skill
+	} from '$lib/agent/skills.svelte';
 	import { makeModel } from '$lib/agent/models';
 	import { session } from '$lib/agent/session.svelte';
 	import { bus } from '$lib/xray/bus.svelte';
@@ -151,9 +157,11 @@
 		{#if view === 'list'}
 			<div class="min-h-0 flex-1 overflow-y-auto">
 				<p class="px-4 pt-4 pb-3 text-xs leading-relaxed text-muted-foreground">
-					A skill is one markdown file at <code class="font-mono">/skills/&lt;name&gt;/SKILL.md</code>
-					in the agent's own filesystem. Only the name and description go into the prompt; the
-					instructions are read on demand, with the same
+					A skill is one markdown file at <code class="font-mono"
+						>/skills/&lt;name&gt;/SKILL.md</code
+					>
+					in the agent's own filesystem. Only the name and description go into the prompt; the instructions
+					are read on demand, with the same
 					<code class="font-mono">read_file</code> it uses for anything else.
 				</p>
 
@@ -169,7 +177,7 @@
 							onkeydown={(e) => e.key === 'Enter' && generate()}
 							disabled={generating}
 							placeholder="what should it know how to do?"
-							class="min-w-0 flex-1 border-0 bg-transparent p-0 text-xs
+							class="hx-bare min-w-0 flex-1 border-0 bg-transparent p-0 text-xs
 							       placeholder:text-muted-foreground/60 focus:ring-0 focus:outline-none"
 						/>
 						<button
@@ -235,12 +243,14 @@
 					</div>
 				{/each}
 
-				<p class="hx-rule mt-4 border-t px-4 py-3 text-[11px] leading-relaxed text-muted-foreground">
+				<p
+					class="hx-rule mt-4 border-t px-4 py-3 text-[11px] leading-relaxed text-muted-foreground"
+				>
 					These {skills.active.length} skills cost about
 					<span class="hx-num text-foreground">{Math.round(listedChars / 4).toLocaleString()}</span>
-					tokens in every request — names and descriptions only. Pasting the files in instead would
-					cost <span class="hx-num">{Math.round(fullChars / 4).toLocaleString()}</span>. That gap is
-					the whole idea: the library can grow without the context growing with it.
+					tokens in every request — names and descriptions only. Pasting the files in instead would cost
+					<span class="hx-num">{Math.round(fullChars / 4).toLocaleString()}</span>. That gap is the
+					whole idea: the library can grow without the context growing with it.
 				</p>
 			</div>
 		{:else}
@@ -264,9 +274,8 @@
 				<textarea
 					bind:value={draft}
 					spellcheck="false"
-					class="min-h-0 flex-1 resize-none border-0 bg-transparent px-4 py-3 font-mono
-					       text-[11px] leading-relaxed focus:ring-0 focus:outline-none"
-				></textarea>
+					class="hx-bare min-h-0 flex-1 resize-none border-0 bg-transparent px-4 py-3 font-mono
+					       text-[11px] leading-relaxed focus:ring-0 focus:outline-none"></textarea>
 			</div>
 		{/if}
 	</div>

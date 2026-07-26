@@ -150,6 +150,17 @@
 
 	/* Focus ring. Literal alpha for the same reason as the scrollbar above. */
 	--hx-focus: oklch(0.5 0.062 195 / 0.55);
+
+	/* File types — a separate family from the event palette above, on purpose.
+	   --hx-* is a legend (ochre means a tool ran); reusing it for file types
+	   would assert something untrue about a PDF. These are free to use the
+	   conventional associations a reader already has. */
+	--hx-file-doc: oklch(0.5 0.05 250);
+	--hx-file-pdf: oklch(0.53 0.13 27);
+	--hx-file-image: oklch(0.53 0.075 300);
+	--hx-file-data: oklch(0.5 0.07 150);
+	--hx-file-code: oklch(0.52 0.07 80);
+	--hx-file-plain: oklch(0.52 0.012 260);
 }
 
 .dark {
@@ -180,6 +191,102 @@
 	--hx-scroll-hover: oklch(1 0 0 / 0.24);
 	--hx-scroll-active: oklch(1 0 0 / 0.34);
 	--hx-focus: oklch(0.72 0.075 195 / 0.6);
+
+	--hx-file-doc: oklch(0.72 0.055 250);
+	--hx-file-pdf: oklch(0.71 0.13 27);
+	--hx-file-image: oklch(0.72 0.08 300);
+	--hx-file-data: oklch(0.72 0.08 150);
+	--hx-file-code: oklch(0.74 0.08 80);
+	--hx-file-plain: oklch(0.68 0.012 260);
+}
+
+/* ── Themes ──────────────────────────────────────────────────────────────
+   Only the *surfaces* change per theme, never the event palette.
+
+   The nine --hx-* accents are a legend: ochre means a tool, clay means memory,
+   everywhere in the app and in the anatomy diagram. Re-hueing them per theme
+   would break the one association the whole X-ray depends on. So a theme is a
+   background, a foreground, and the two greys between them — the accents above
+   are inherited, with only the ones that would go muddy nudged.
+
+   `.dark` stays the carrier for scheme-level rules (Tailwind's `dark:`
+   variants, a few :global(.dark) blocks); `[data-theme]` carries the tint.
+   ThemeState sets both. */
+
+:root[data-theme='rainy'] {
+	--background: oklch(0.19 0.017 245);
+	--foreground: oklch(0.9 0.008 240);
+	--card: oklch(0.225 0.019 245);
+	--popover: oklch(0.225 0.019 245);
+	--muted: oklch(0.272 0.021 245);
+	--muted-foreground: oklch(0.665 0.019 240);
+	--border: oklch(0.82 0.05 240 / 11%);
+}
+
+:root[data-theme='ocean'] {
+	--background: oklch(0.185 0.024 232);
+	--foreground: oklch(0.9 0.012 220);
+	--card: oklch(0.222 0.027 232);
+	--popover: oklch(0.222 0.027 232);
+	--muted: oklch(0.268 0.03 232);
+	--muted-foreground: oklch(0.665 0.024 224);
+	--border: oklch(0.8 0.06 225 / 12%);
+	/* The filesystem sage sits too close to this background; lift its hue away. */
+	--hx-fs: oklch(0.75 0.085 155);
+}
+
+:root[data-theme='forest'] {
+	--background: oklch(0.185 0.018 148);
+	--foreground: oklch(0.9 0.008 140);
+	--card: oklch(0.222 0.02 148);
+	--popover: oklch(0.222 0.02 148);
+	--muted: oklch(0.268 0.022 148);
+	--muted-foreground: oklch(0.665 0.018 140);
+	--border: oklch(0.82 0.05 145 / 12%);
+	/* Sage on moss is invisible — push the filesystem colour to a cooler green. */
+	--hx-fs: oklch(0.78 0.1 168);
+}
+
+:root[data-theme='cocoa'] {
+	--background: oklch(0.185 0.017 48);
+	--foreground: oklch(0.9 0.01 60);
+	--card: oklch(0.223 0.019 48);
+	--popover: oklch(0.223 0.019 48);
+	--muted: oklch(0.27 0.021 48);
+	--muted-foreground: oklch(0.668 0.02 55);
+	--border: oklch(0.84 0.05 55 / 12%);
+	/* Ochre would disappear into the brown; warm it forward instead. */
+	--hx-tool: oklch(0.81 0.1 82);
+}
+
+:root[data-theme='cloudy'] {
+	--background: oklch(0.965 0.004 230);
+	--foreground: oklch(0.2 0.012 240);
+	--card: oklch(0.995 0.002 230);
+	--popover: oklch(0.995 0.002 230);
+	--muted: oklch(0.935 0.006 230);
+	--muted-foreground: oklch(0.53 0.016 235);
+	--border: oklch(0.36 0.03 240 / 15%);
+}
+
+:root[data-theme='sunny'] {
+	--background: oklch(0.965 0.014 85);
+	--foreground: oklch(0.235 0.016 60);
+	--card: oklch(0.99 0.008 85);
+	--popover: oklch(0.99 0.008 85);
+	--muted: oklch(0.935 0.017 85);
+	--muted-foreground: oklch(0.53 0.022 68);
+	--border: oklch(0.4 0.04 60 / 16%);
+}
+
+:root[data-theme='meadow'] {
+	--background: oklch(0.963 0.012 140);
+	--foreground: oklch(0.215 0.014 150);
+	--card: oklch(0.991 0.006 140);
+	--popover: oklch(0.991 0.006 140);
+	--muted: oklch(0.933 0.016 140);
+	--muted-foreground: oklch(0.525 0.02 145);
+	--border: oklch(0.36 0.04 150 / 15%);
 }
 
 @theme inline {
@@ -350,6 +457,16 @@
 	outline: 2px solid var(--hx-focus);
 	outline-offset: 0;
 	border-color: var(--hx-focus);
+}
+
+/* And chromeless ones opt *out*.
+   The composer is a bare line of text on the page, not a box — ringing it on
+   focus draws an outline around nothing, and it is focused almost all the time
+   anyway, so the ring would be permanent furniture. Unlayered like the rule it
+   overrides, or it would lose to it. */
+.hx-bare:focus,
+.hx-bare:focus-visible {
+	outline: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
