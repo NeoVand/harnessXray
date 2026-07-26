@@ -7,8 +7,7 @@
 		type DisplayKind,
 		type XrayEvent
 	} from '$lib/xray/events';
-	import { KIND_COLOR, iconOf, stamp, summarise, detailOf } from '$lib/xray/format';
-	import JsonCode from './JsonCode.svelte';
+	import { KIND_COLOR, iconOf, stamp, summarise } from '$lib/xray/format';
 	import EventMedia from './EventMedia.svelte';
 	import { HugeiconsIcon } from '@hugeicons/svelte';
 	import { ICON } from '$lib/icons';
@@ -73,9 +72,6 @@
 		return out;
 	});
 
-	/** Expanded in place — selection drives the inspector, this is a peek. */
-	let expandedId = $state<string | null>(null);
-
 	let viewport = $state<HTMLElement | null>(null);
 	let pinned = $state(true);
 
@@ -122,66 +118,47 @@
 					<span class="hx-eyebrow text-muted-foreground/60">— its own context window</span>
 				</div>
 			{/if}
-			<!-- Two sibling controls, not nested ones: selecting drives the
-			     inspector, expanding peeks in place. A button inside a button is
-			     invalid HTML and unreachable by keyboard. -->
-			<div
-				class="flex w-full items-stretch border-b
-				       border-[color-mix(in_oklab,var(--border)_45%,transparent)] transition-colors
-				       hover:bg-muted/50"
+			<!-- One control, one meaning: selecting drives the inspector, and the
+			     inspector is where the payload lives. This row used to expand the
+			     same JSON in place — pure repetition, gone. -->
+			<button
+				class="grid w-full min-w-0 grid-cols-[3px_14px_1fr_auto] items-baseline gap-x-2 border-b
+				       border-[color-mix(in_oklab,var(--border)_45%,transparent)] px-3 py-[7px] text-left
+				       transition-colors hover:bg-muted/50"
 				class:bg-muted={active}
 				style:border-left={r.sub
 					? '2px solid color-mix(in oklab, var(--hx-subagent) 55%, transparent)'
 					: undefined}
 				style:margin-left={r.sub ? '12px' : undefined}
+				onclick={() => onselect(e.id)}
 			>
-				<button
-					class="grid min-w-0 flex-1 grid-cols-[3px_14px_1fr_auto] items-baseline gap-x-2
-					       py-[7px] pr-1 pl-3 text-left"
-					onclick={() => onselect(e.id)}
+				<span
+					class="h-full min-h-[14px] self-stretch rounded-full"
+					style:background={KIND_COLOR[e.displayKind as DisplayKind]}
+					style:opacity={active ? 1 : 0.55}
+				></span>
+
+				<span
+					class="translate-y-[2px]"
+					style:color={KIND_COLOR[e.displayKind as DisplayKind]}
+					style:opacity={active ? 1 : 0.75}
 				>
-					<span
-						class="h-full min-h-[14px] self-stretch rounded-full"
-						style:background={KIND_COLOR[e.displayKind as DisplayKind]}
-						style:opacity={active ? 1 : 0.55}
-					></span>
+					<HugeiconsIcon icon={iconOf(e)} size={13} strokeWidth={1.5} />
+				</span>
 
+				<span class="min-w-0">
 					<span
-						class="translate-y-[2px]"
-						style:color={KIND_COLOR[e.displayKind as DisplayKind]}
-						style:opacity={active ? 1 : 0.75}
+						class="hx-eyebrow"
+						title={skillRow ? SKILL_READ_HELP : KIND_HELP[e.kind]}
+						style:color={active ? KIND_COLOR[e.displayKind as DisplayKind] : undefined}
 					>
-						<HugeiconsIcon icon={iconOf(e)} size={13} strokeWidth={1.5} />
+						{skillRow ? 'skill' : KIND_LABEL[e.kind]}
 					</span>
+					<span class="block truncate text-xs text-foreground/85">{summarise(e)}</span>
+				</span>
 
-					<span class="min-w-0">
-						<span
-							class="hx-eyebrow"
-							title={skillRow ? SKILL_READ_HELP : KIND_HELP[e.kind]}
-							style:color={active ? KIND_COLOR[e.displayKind as DisplayKind] : undefined}
-						>
-							{skillRow ? 'skill' : KIND_LABEL[e.kind]}
-						</span>
-						<span class="block truncate text-xs text-foreground/85">{summarise(e)}</span>
-					</span>
-
-					<span class="hx-num text-[10px] text-muted-foreground/70">{stamp(e.t)}</span>
-				</button>
-
-				<button
-					class="shrink-0 px-2 text-muted-foreground/40 transition-colors hover:text-foreground"
-					onclick={() => (expandedId = expandedId === e.id ? null : e.id)}
-					aria-label={expandedId === e.id ? 'Collapse event' : 'Expand event'}
-					aria-expanded={expandedId === e.id}
-				>
-					<span
-						class="inline-block transition-transform"
-						style:transform={expandedId === e.id ? 'rotate(0deg)' : 'rotate(-90deg)'}
-					>
-						<HugeiconsIcon icon={ICON.expand} size={11} strokeWidth={1.5} />
-					</span>
-				</button>
-			</div>
+				<span class="hx-num text-[10px] text-muted-foreground/70">{stamp(e.t)}</span>
+			</button>
 
 			{#if e.kind === 'image_partial' || e.kind === 'image_done' || e.kind === 'paper_fetched' || e.kind === 'figure_extracted'}
 				<div
@@ -189,17 +166,6 @@
 					class:pl-8={e.kind !== 'paper_fetched'}
 				>
 					<EventMedia event={e} onopen={onopenasset} />
-				</div>
-			{/if}
-
-			{#if expandedId === e.id}
-				<!-- The detail the chat used to duplicate. Kept here, where the whole
-				     history lives, so the conversation can stay a conversation. -->
-				<div
-					class="border-b border-[color-mix(in_oklab,var(--border)_45%,transparent)] bg-muted/25
-					       px-3 py-2 pl-8"
-				>
-					<JsonCode source={JSON.stringify(detailOf(e))} />
 				</div>
 			{/if}
 		{/each}

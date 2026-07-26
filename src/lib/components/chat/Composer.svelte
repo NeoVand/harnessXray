@@ -4,6 +4,7 @@
 	import { replay } from '$lib/xray/replay.svelte';
 	import { ingest } from '$lib/agent/uploads';
 	import { skills } from '$lib/agent/skills.svelte';
+	import { tutor } from '$lib/lab/tutor.svelte';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { HugeiconsIcon } from '@hugeicons/svelte';
 	import { ICON } from '$lib/icons';
@@ -26,6 +27,16 @@
 
 	async function submit() {
 		const value = text.trim();
+		// Explain mode reroutes the words to the lab tutor — never the agent's
+		// thread. Attachments are agent-only, so a staged file keeps the normal
+		// path (the hint above the chips says so).
+		if (tutor.active && !session.attachments.length) {
+			if (!value || tutor.busy) return;
+			text = '';
+			queueMicrotask(grow);
+			await tutor.ask(value);
+			return;
+		}
 		if ((!value && !session.attachments.length) || session.busy) return;
 		text = '';
 		queueMicrotask(grow);
@@ -139,6 +150,13 @@
 							<span class="hx-eyebrow self-center">reading…</span>
 						{/if}
 					</div>
+					{#if tutor.active && session.attachments.length}
+						<!-- Files can only mean one thing here: the agent. Saying so keeps
+						     explain mode from silently swallowing an upload. -->
+						<p class="hx-eyebrow mb-2" style:color="var(--hx-accent, var(--hx-state))">
+							files go to the agent — this send runs the agent, not the lab
+						</p>
+					{/if}
 				{/if}
 			</div>
 			<span class="size-7 shrink-0" aria-hidden="true"></span>
@@ -160,6 +178,35 @@
 					<span class="hx-eyebrow shrink-0" style:color="var(--hx-interrupt)">script</span>
 					<span class="truncate">{nextScripted}</span>
 				</button>
+			</div>
+			<span class="size-7 shrink-0" aria-hidden="true"></span>
+		</div>
+	{/if}
+
+	{#if tutor.active && tutor.chips.length && !tutor.busy}
+		<!-- Click-worthy questions about THIS run, on the same column and spacer
+		     pattern as the scripted-replay row. A used chip greys out but stays:
+		     the row is a menu of the run's own puzzles, not a queue. -->
+		<div class="flex gap-1.5 pb-2">
+			<span class="size-7 shrink-0" aria-hidden="true"></span>
+			<div class="mx-auto w-full max-w-[68ch] min-w-0 flex-1">
+				<div class="flex flex-wrap items-center gap-1.5">
+					<span class="hx-eyebrow shrink-0" style:color="var(--hx-accent, var(--hx-state))">
+						lab
+					</span>
+					{#each tutor.chips as chip (chip)}
+						<button
+							class="hx-rule rounded-full border px-2.5 py-1 text-[11px] text-muted-foreground
+							       transition-colors hover:bg-muted hover:text-foreground
+							       disabled:pointer-events-none disabled:opacity-35"
+							disabled={tutor.used.includes(chip)}
+							onclick={() => tutor.ask(chip)}
+							title="Ask the lab tutor"
+						>
+							{chip}
+						</button>
+					{/each}
+				</div>
 			</div>
 			<span class="size-7 shrink-0" aria-hidden="true"></span>
 		</div>
@@ -191,10 +238,17 @@
 			<DropdownMenu.Trigger
 				class="grid size-7 shrink-0 place-items-center text-muted-foreground transition-colors
 					       hover:text-foreground"
-				title="Attach a file or manage skills"
+				title={tutor.active
+					? 'Explain mode is on — questions go to the lab, not the agent'
+					: 'Attach a file or manage skills'}
 				aria-label="Add"
 			>
-				<HugeiconsIcon icon={ICON.newChat} size={16} strokeWidth={1.5} />
+				<!-- The quiet mode lamp: the + takes the lab's colour while questions
+				     are being rerouted, so the composer never lies about who is
+				     listening. -->
+				<span style:color={tutor.active ? 'var(--hx-accent, var(--hx-state))' : undefined}>
+					<HugeiconsIcon icon={ICON.newChat} size={16} strokeWidth={1.5} />
+				</span>
 			</DropdownMenu.Trigger>
 			<DropdownMenu.Content align="start" class="min-w-36">
 				<DropdownMenu.Item onSelect={() => imagePicker?.click()}>
@@ -212,6 +266,17 @@
 						{skills.active.length}
 					</span>
 				</DropdownMenu.Item>
+				<DropdownMenu.Item onSelect={() => tutor.toggle()}>
+					<HugeiconsIcon icon={ICON.sparkle} size={13} strokeWidth={1.5} />
+					<span class="text-xs">Explain mode</span>
+					<span
+						class="hx-num ml-auto text-[10px]"
+						class:text-muted-foreground={!tutor.active}
+						style:color={tutor.active ? 'var(--hx-accent, var(--hx-state))' : undefined}
+					>
+						{tutor.active ? 'on' : 'off'}
+					</span>
+				</DropdownMenu.Item>
 			</DropdownMenu.Content>
 		</DropdownMenu.Root>
 
@@ -225,11 +290,13 @@
 				onkeydown={onKeydown}
 				rows="1"
 				disabled={session.busy}
-				placeholder={replay.active
-					? 'Replaying — follow the script above, or type to go off it…'
-					: keys.present
-						? 'Ask the agent something…'
-						: 'Add a key in settings to begin…'}
+				placeholder={tutor.active && !session.attachments.length
+					? 'Ask how this run worked…'
+					: replay.active
+						? 'Replaying — follow the script above, or type to go off it…'
+						: keys.present
+							? 'Ask the agent something…'
+							: 'Add a key in settings to begin…'}
 				class="hx-bare max-h-[180px] min-h-[24px] w-full resize-none border-0 bg-transparent p-0 text-sm
 					       leading-relaxed placeholder:text-muted-foreground/60 focus:border-0 focus:ring-0
 					       focus:outline-none disabled:opacity-50"></textarea>

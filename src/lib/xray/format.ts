@@ -52,9 +52,18 @@ export const KIND_COLOR: Record<DisplayKind, string> = {
 	error: 'var(--hx-error)'
 };
 
-/** Relative timestamp, monospace-stable: +1.284s */
+/**
+ * Relative timestamp, at the precision the magnitude deserves: `+8.3s`,
+ * `+42s`, `+3:44`. Milliseconds on a four-minute mark are noise — the exact
+ * value is always one click away in the detail pane, which prints the whole
+ * event. Still hx-num mono at every call site, so columns of these stay put.
+ */
 export function stamp(ms: number): string {
-	return `+${(ms / 1000).toFixed(3)}s`;
+	const s = ms / 1000;
+	if (s < 10) return `+${s.toFixed(1)}s`;
+	if (s < 90) return `+${Math.round(s)}s`;
+	const whole = Math.floor(s);
+	return `+${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`;
 }
 
 export function bytes(n: number): string {

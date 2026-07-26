@@ -3,7 +3,6 @@
 	import { bus } from '$lib/xray/bus.svelte';
 	import { shotStubs, shotAt, groupTotals, type PieceGroup } from '$lib/xray/context';
 	import { COMPACT_AT } from '$lib/agent/models';
-	import { session } from '$lib/agent/session.svelte';
 	import { compact } from '$lib/xray/usage';
 	import { bytes } from '$lib/xray/format';
 	import { HugeiconsIcon } from '@hugeicons/svelte';
@@ -28,8 +27,16 @@
 		/** Groups to leave out. Empty means everything. */
 		hidden = new SvelteSet<string>(),
 		/** Room for the frosted tab bar floating above us. */
-		topPad = '0px'
-	}: { hidden?: Set<string>; topPad?: string } = $props();
+		topPad = '0px',
+		/**
+		 * Two readings of the same call: cut into pieces, or the body whole. The
+		 * raw view exists because the pieces view is an *interpretation* — a
+		 * useful one, but you should always be able to fall back to the thing
+		 * itself and feel how long the request has actually become. The switch
+		 * lives in the tab bar above, so the reading arrives as a plain prop.
+		 */
+		view = 'pieces'
+	}: { hidden?: Set<string>; topPad?: string; view?: 'pieces' | 'raw' } = $props();
 
 	const stubs = $derived.by(() => {
 		void bus.version;
@@ -78,15 +85,6 @@
 		if (!open.delete(id)) open.add(id);
 	}
 
-	/**
-	 * Two readings of the same call: cut into pieces, or the body whole.
-	 *
-	 * The raw view exists because the pieces view is an *interpretation* — a
-	 * useful one, but you should always be able to fall back to the thing
-	 * itself and feel how long the request has actually become.
-	 */
-	let view = $state<'pieces' | 'raw'>('pieces');
-
 	const rawReq = $derived.by(() => {
 		void bus.version;
 		const e = currentId ? bus.byId(currentId) : undefined;
@@ -115,9 +113,13 @@
 
 	const pct = (n: number) => (shot && shot.tokens ? (n / shot.tokens) * 100 : 0);
 
-	/** Height of our own sticky header, so group headings can stack under it. */
+	/**
+	 * Height of the pager header, so group headings can stack under it. The
+	 * header only exists once there is more than one call to page through —
+	 * with it gone, the headings stick directly under the tab bar.
+	 */
 	const HEADER = 32;
-	const under = $derived(`calc(${topPad} + ${HEADER}px)`);
+	const under = $derived(stubs.length > 1 ? `calc(${topPad} + ${HEADER}px)` : topPad);
 </script>
 
 <!--
@@ -141,80 +143,38 @@
 	-->
 	<div style:height={topPad}></div>
 
-	<header
-		class="hx-rule hx-frost sticky z-20 flex items-center gap-3 border-b px-3"
-		style:top={topPad}
-		style:height="{HEADER}px"
-	>
-		{#if stubs.length > 1}
-			<!-- No title here: the tab immediately above already says `context`,
-			     and an icon repeating it was the third time in two inches. -->
-			<div class="flex items-center gap-1">
-				<button
-					class="px-1 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-25"
-					onclick={() => step(-1)}
-					disabled={index <= 0}
-					aria-label="Previous model call"
-				>
-					<span class="inline-block rotate-180"
-						><HugeiconsIcon icon={ICON.next} size={12} strokeWidth={1.5} /></span
-					>
-				</button>
-				<span class="hx-num text-[10px] text-muted-foreground">
-					{index < 0 ? stubs.length : index + 1}/{stubs.length}
-				</span>
-				<button
-					class="px-1 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-25"
-					onclick={() => step(1)}
-					disabled={index === stubs.length - 1 || index < 0}
-					aria-label="Next model call"
-				>
-					<HugeiconsIcon icon={ICON.next} size={12} strokeWidth={1.5} />
-				</button>
-				<span class="hx-eyebrow ml-1">model calls</span>
-			</div>
-		{/if}
-
-		<div class="ml-auto flex items-center gap-3">
-			{#if stubs.length}
-				<!-- The same request, two readings: interpreted, or verbatim. -->
-				<div class="flex items-center gap-1.5">
-					<button
-						class="hx-eyebrow transition-colors {view === 'pieces'
-							? 'text-foreground'
-							: 'text-muted-foreground hover:text-foreground'}"
-						onclick={() => (view = 'pieces')}
-						aria-pressed={view === 'pieces'}
-						title="The request cut into system prompt, schemas and messages"
-					>
-						pieces
-					</button>
-					<span class="text-[10px] text-muted-foreground/40">·</span>
-					<button
-						class="hx-eyebrow transition-colors {view === 'raw'
-							? 'text-foreground'
-							: 'text-muted-foreground hover:text-foreground'}"
-						onclick={() => (view = 'raw')}
-						aria-pressed={view === 'raw'}
-						title="The exact request body, whole — every byte the model saw"
-					>
-						raw
-					</button>
-				</div>
-			{/if}
-
+	{#if stubs.length > 1}
+		<!-- Only the pager lives here now — the pieces/raw switch and the compact
+		     action moved up to the tab bar, with every other control of this lens.
+		     No title either: the tab immediately above already says `context`. -->
+		<header
+			class="hx-rule hx-frost sticky z-20 flex items-center gap-1 border-b px-3"
+			style:top={topPad}
+			style:height="{HEADER}px"
+		>
 			<button
-				class="hx-eyebrow flex items-center gap-1 transition-colors hover:text-foreground
-				       disabled:opacity-30"
-				onclick={() => session.compact()}
-				disabled={session.busy || session.compacting || session.messages.length < 3}
-				title="Fold the earlier conversation into a summary"
+				class="px-1 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-25"
+				onclick={() => step(-1)}
+				disabled={index <= 0}
+				aria-label="Previous model call"
 			>
-				<HugeiconsIcon icon={ICON.compact} size={11} strokeWidth={1.5} />
-				{session.compacting ? 'folding…' : 'compact'}
+				<span class="inline-block rotate-180"
+					><HugeiconsIcon icon={ICON.next} size={12} strokeWidth={1.5} /></span
+				>
 			</button>
-		</div>
-	</header>
+			<span class="hx-num text-[10px] text-muted-foreground">
+				{index < 0 ? stubs.length : index + 1}/{stubs.length}
+			</span>
+			<button
+				class="px-1 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-25"
+				onclick={() => step(1)}
+				disabled={index === stubs.length - 1 || index < 0}
+				aria-label="Next model call"
+			>
+				<HugeiconsIcon icon={ICON.next} size={12} strokeWidth={1.5} />
+			</button>
+		</header>
+	{/if}
 
 	{#if !shot}
 		<p class="px-3 py-6 text-xs leading-relaxed text-muted-foreground">

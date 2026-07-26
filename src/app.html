@@ -20,23 +20,27 @@
 			// one place that cannot import it, because it has to run before any
 			// module does.
 			(function () {
-				var dark = { midnight: 1, rainy: 1, ocean: 1, forest: 1, cocoa: 1 };
+				var dark = { midnight: 1, rainy: 1 };
 				var meta = {
 					midnight: '#131316',
 					rainy: '#121820',
-					ocean: '#0d1620',
-					forest: '#101711',
-					cocoa: '#1a1310',
 					cloudy: '#eef1f3',
-					sunny: '#f5f1e8',
-					meadow: '#edf2ea'
+					sunny: '#f5f1e8'
+				};
+				// Stored ids this app no longer ships — the old two-state toggle and
+				// the retired themes — mapped the same way normalizeTheme() maps them.
+				var legacy = {
+					dark: 'midnight',
+					cocoa: 'midnight',
+					ocean: 'rainy',
+					forest: 'rainy',
+					light: 'cloudy',
+					meadow: 'cloudy'
 				};
 				var t = 'midnight';
 				try {
 					var s = localStorage.getItem('hx:theme');
-					// `dark`/`light` are what the old two-state toggle wrote.
-					if (s === 'light') s = 'cloudy';
-					else if (s === 'dark') s = 'midnight';
+					if (s && legacy[s]) s = legacy[s];
 					if (s && meta[s]) t = s;
 				} catch (e) {
 					/* private mode — the default is fine */

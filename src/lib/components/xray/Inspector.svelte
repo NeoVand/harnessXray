@@ -103,9 +103,12 @@
 	});
 </script>
 
-<Resizable.PaneGroup direction="vertical" autoSaveId="hx:inspector" class="h-full">
+<!-- v2, split 62/38: the same default as the timeline column beside us, so the
+     two bottom panels share a rule out of the box. A saved layout under the old
+     id would keep the misaligned split forever. -->
+<Resizable.PaneGroup direction="vertical" autoSaveId="hx:inspector-v2" class="h-full">
 	<!-- Documents -->
-	<Resizable.Pane defaultSize={66} minSize={30}>
+	<Resizable.Pane defaultSize={62} minSize={30}>
 		<div class="relative h-full min-h-0">
 			<header
 				class="hx-rule hx-frost absolute inset-x-0 top-0 z-20 flex h-9 items-center gap-3.5
@@ -113,9 +116,9 @@
 			>
 				{#each TOP_TABS as t (t.id)}
 					<button
-						class="hx-eyebrow relative flex h-full items-center gap-1.5 transition-colors
+						class="hx-eyebrow flex h-full items-center gap-1.5 transition-colors
 						       hover:text-foreground"
-						class:text-foreground={top === t.id}
+						style:color={top === t.id ? 'var(--hx-accent)' : undefined}
 						onclick={() => (top = t.id)}
 					>
 						<HugeiconsIcon icon={t.icon} size={12} strokeWidth={1.5} />
@@ -124,9 +127,6 @@
 							<span class="hx-num text-[9px] opacity-60">{counts.files}</span>
 						{:else if t.id === 'memory' && counts.memories}
 							<span class="hx-num text-[9px] opacity-60">{counts.memories}</span>
-						{/if}
-						{#if top === t.id}
-							<span class="absolute inset-x-0 bottom-0 h-px bg-foreground"></span>
 						{/if}
 					</button>
 				{/each}
@@ -222,7 +222,7 @@
 	<Resizable.Handle />
 
 	<!-- Dashboards -->
-	<Resizable.Pane defaultSize={34} minSize={12} collapsible collapsedSize={6}>
+	<Resizable.Pane defaultSize={38} minSize={12} collapsible collapsedSize={6}>
 		<div class="relative h-full min-h-0">
 			<header
 				class="hx-rule hx-frost absolute inset-x-0 top-0 z-20 flex h-8 items-center gap-3.5
@@ -230,9 +230,9 @@
 			>
 				{#each BOTTOM_TABS as t (t.id)}
 					<button
-						class="hx-eyebrow relative flex h-full items-center gap-1.5 transition-colors
+						class="hx-eyebrow flex h-full items-center gap-1.5 transition-colors
 						       hover:text-foreground"
-						class:text-foreground={bottom === t.id}
+						style:color={bottom === t.id ? 'var(--hx-accent)' : undefined}
 						onclick={() => (bottom = t.id)}
 					>
 						<HugeiconsIcon icon={t.icon} size={12} strokeWidth={1.5} />
@@ -241,9 +241,6 @@
 							<span class="hx-num text-[9px] opacity-60">{counts.todos}</span>
 						{:else if t.id === 'skills' && counts.skills}
 							<span class="hx-num text-[9px] opacity-60">{counts.skills}</span>
-						{/if}
-						{#if bottom === t.id}
-							<span class="absolute inset-x-0 bottom-0 h-px bg-foreground"></span>
 						{/if}
 					</button>
 				{/each}

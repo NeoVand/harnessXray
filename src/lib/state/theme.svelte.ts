@@ -17,8 +17,7 @@
  * every consumer.
  */
 
-export type ThemeId =
-	'cloudy' | 'sunny' | 'meadow' | 'midnight' | 'rainy' | 'forest' | 'cocoa' | 'ocean';
+export type ThemeId = 'midnight' | 'rainy' | 'cloudy' | 'sunny';
 
 export interface ThemeSpec {
 	id: ThemeId;
@@ -29,30 +28,29 @@ export interface ThemeSpec {
 }
 
 /**
- * Cycle order: light first, then dark, each group running warm to cool. A
- * cycle is a sequence you feel your way along, so neighbours should be
- * neighbours — jumping between a paper white and a near-black on every click
- * makes the control feel broken.
+ * Four themes, two per scheme. Cycle order keeps the darks together and the
+ * lights together — a cycle is a sequence you feel your way along, so
+ * neighbours should be neighbours, and only one click in the loop crosses the
+ * dark/light divide.
  */
 export const THEMES: ThemeSpec[] = [
 	{ id: 'midnight', label: 'Midnight', meta: '#131316', dark: true },
 	{ id: 'rainy', label: 'Rainy', meta: '#121820', dark: true },
-	{ id: 'ocean', label: 'Ocean', meta: '#0d1620', dark: true },
-	{ id: 'forest', label: 'Forest', meta: '#101711', dark: true },
-	{ id: 'cocoa', label: 'Cocoa', meta: '#1a1310', dark: true },
 	{ id: 'cloudy', label: 'Cloudy', meta: '#eef1f3', dark: false },
-	{ id: 'sunny', label: 'Sunny', meta: '#f5f1e8', dark: false },
-	{ id: 'meadow', label: 'Meadow', meta: '#edf2ea', dark: false }
+	{ id: 'sunny', label: 'Sunny', meta: '#f5f1e8', dark: false }
 ];
 
 const KEY = 'hx:theme';
 const browser = typeof window !== 'undefined';
 
 export function normalizeTheme(value: string | null | undefined): ThemeId {
-	// `dark`/`light` are what the old two-state toggle wrote. Map them rather
-	// than dropping anyone who used the app before this existed.
-	if (value === 'dark') return 'midnight';
-	if (value === 'light') return 'cloudy';
+	// Every id this app ever wrote still lands somewhere sensible: `dark`/`light`
+	// are the old two-state toggle, the rest are retired themes mapped to their
+	// nearest surviving temperature. Kept in sync with the boot script in
+	// app.html, which must make the same call before any module loads.
+	if (value === 'dark' || value === 'cocoa') return 'midnight';
+	if (value === 'ocean' || value === 'forest') return 'rainy';
+	if (value === 'light' || value === 'meadow') return 'cloudy';
 	return THEMES.some((t) => t.id === value) ? (value as ThemeId) : 'midnight';
 }
 

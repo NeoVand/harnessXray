@@ -8,7 +8,7 @@
 	import RunPanel from '$lib/components/xray/RunPanel.svelte';
 	import SettingsSheet from '$lib/components/SettingsSheet.svelte';
 	import DocumentViewer from '$lib/components/DocumentViewer.svelte';
-	import HelpSheet from '$lib/components/HelpSheet.svelte';
+	import BookViewer from '$lib/components/BookViewer.svelte';
 	import SkillsSheet from '$lib/components/SkillsSheet.svelte';
 	import AboutSheet from '$lib/components/AboutSheet.svelte';
 	import { REPO_URL } from '$lib/meta';
@@ -34,13 +34,19 @@
 	let historyOpen = $state(false);
 	let openPath = $state<string | null>(null);
 	let readPath = $state<string | null>(null);
-	let helpOpen = $state(false);
+	/** The open book chapter, or null when the X-ray has its pane. */
+	let bookPage = $state<string | null>(null);
 	let skillsOpen = $state(false);
 	let aboutOpen = $state(false);
 
 	/** The left column of the X-ray: what happened, or what is in the window. */
 	let lens = $state<'timeline' | 'context'>('timeline');
 	let showFrames = $state(false);
+
+	// The context panel's two readings. Owned here, not in the panel, because
+	// the switch lives in the tab bar — a component boundary above the thing
+	// it drives.
+	let contextView = $state<'pieces' | 'raw'>('pieces');
 
 	// Owned here so the inspector's tabs survive a document being opened and
 	// closed — that unmounts the whole component, and local state would snap
@@ -211,7 +217,7 @@
 
 			<button
 				class="text-muted-foreground transition-colors hover:text-foreground"
-				class:text-foreground={historyOpen}
+				style:color={historyOpen ? 'var(--hx-accent)' : undefined}
 				onclick={() => (historyOpen = !historyOpen)}
 				title="History"
 				aria-label="History"
@@ -221,10 +227,10 @@
 
 			<button
 				class="text-muted-foreground transition-colors hover:text-foreground"
-				class:text-foreground={helpOpen}
-				onclick={() => (helpOpen = true)}
-				title="What is a harness?"
-				aria-label="Help"
+				style:color={bookPage ? 'var(--hx-accent)' : undefined}
+				onclick={() => (bookPage = bookPage ? null : 'the-harness')}
+				title="The book — how this harness works"
+				aria-label="The book"
 			>
 				<HugeiconsIcon icon={ICON.help} size={15} strokeWidth={1.5} />
 			</button>
@@ -330,9 +336,11 @@
 
 			<Resizable.Handle />
 
-			<!-- The X-ray — or a document, when one is open. Reading replaces the
-			     instruments rather than covering the whole app, so the conversation
-			     stays live beside whatever you are reading. -->
+			<!-- The X-ray — or a document, or the book, when one is open. Reading
+			     replaces the instruments rather than covering the whole app, so the
+			     conversation stays live beside whatever you are reading. A document
+			     outranks the book: it was opened from the run, and the run is the
+			     class's subject. -->
 			<Resizable.Pane defaultSize={58} minSize={30}>
 				{#if readPath}
 					<DocumentViewer
@@ -340,6 +348,8 @@
 						onclose={() => (readPath = null)}
 						onopen={(p) => (readPath = p)}
 					/>
+				{:else if bookPage}
+					<BookViewer bind:page={bookPage} onclose={() => (bookPage = null)} />
 				{:else}
 					<Resizable.PaneGroup direction="horizontal" autoSaveId="hx:xray">
 						<Resizable.Pane defaultSize={34} minSize={22}>
@@ -347,7 +357,9 @@
 						     height it is just more rows you are not looking at. The run
 						     accounting lives underneath it, where it is visible while you
 						     scrub rather than hidden behind a tab. -->
-							<Resizable.PaneGroup direction="vertical" autoSaveId="hx:timeline">
+							<!-- v2: the default split must match the inspector's, and a saved
+						     layout under the old id would silently keep the misaligned one. -->
+							<Resizable.PaneGroup direction="vertical" autoSaveId="hx:timeline-v2">
 								<Resizable.Pane defaultSize={62} minSize={25}>
 									<!-- Two readings of the same run. The timeline is the record of
 								     what happened; the context is what the model could see when
@@ -357,18 +369,15 @@
 											class="hx-rule hx-frost absolute inset-x-0 top-0 z-20 flex h-9 items-center
 										       gap-3.5 border-b px-3"
 										>
-											{#each [{ id: 'timeline', label: 'timeline', icon: ICON.time }, { id: 'context', label: 'context', icon: ICON.context }] as const as t (t.id)}
+											{#each [{ id: 'timeline', label: 'events', icon: ICON.time }, { id: 'context', label: 'context', icon: ICON.context }] as const as t (t.id)}
 												<button
-													class="hx-eyebrow relative flex h-full items-center gap-1.5 transition-colors
+													class="hx-eyebrow flex h-full items-center gap-1.5 transition-colors
 												       hover:text-foreground"
-													class:text-foreground={lens === t.id}
+													style:color={lens === t.id ? 'var(--hx-accent)' : undefined}
 													onclick={() => (lens = t.id)}
 												>
 													<HugeiconsIcon icon={t.icon} size={12} strokeWidth={1.5} />
 													{t.label}
-													{#if lens === t.id}
-														<span class="absolute inset-x-0 bottom-0 h-px bg-foreground"></span>
-													{/if}
 												</button>
 											{/each}
 											<span class="ml-auto flex items-center gap-3 text-muted-foreground">
@@ -376,13 +385,53 @@
 													<button
 														class="hx-eyebrow flex items-center gap-1 transition-colors
 													       hover:text-foreground"
-														class:text-foreground={showFrames}
+														style:color={showFrames ? 'var(--hx-accent)' : undefined}
 														onclick={() => (showFrames = !showFrames)}
 														title="Raw SSE frames — every token exactly as it arrived"
 													>
 														<HugeiconsIcon icon={ICON.frame} size={11} strokeWidth={1.5} />
 														{frameCount}
 													</button>
+												{/if}
+
+												{#if lens === 'context'}
+													<!-- The panel's controls live up here with every other lens
+												     control, so the panel itself can be all content. -->
+													<span class="flex items-center gap-2">
+														<button
+															class="transition-colors hover:text-foreground"
+															style:color={contextView === 'pieces'
+																? 'var(--hx-accent)'
+																: undefined}
+															onclick={() => (contextView = 'pieces')}
+															aria-pressed={contextView === 'pieces'}
+															title="Pieces — the request cut into system prompt, schemas and messages"
+															aria-label="Pieces view"
+														>
+															<HugeiconsIcon icon={ICON.state} size={13} strokeWidth={1.5} />
+														</button>
+														<button
+															class="transition-colors hover:text-foreground"
+															style:color={contextView === 'raw' ? 'var(--hx-accent)' : undefined}
+															onclick={() => (contextView = 'raw')}
+															aria-pressed={contextView === 'raw'}
+															title="Raw — the exact request body, whole"
+															aria-label="Raw view"
+														>
+															<HugeiconsIcon icon={ICON.code} size={13} strokeWidth={1.5} />
+														</button>
+														<button
+															class="transition-colors hover:text-foreground disabled:opacity-30"
+															onclick={() => session.compact()}
+															disabled={session.busy ||
+																session.compacting ||
+																session.messages.length < 3}
+															title="Fold the earlier conversation into a summary"
+															aria-label="Compact the conversation"
+														>
+															<HugeiconsIcon icon={ICON.compact} size={13} strokeWidth={1.5} />
+														</button>
+													</span>
 												{/if}
 
 												{#if lens === 'timeline'}
@@ -425,7 +474,7 @@
 													}}
 												/>
 											{:else}
-												<ContextPanel hidden={hiddenGroups} topPad={TAB_H} />
+												<ContextPanel view={contextView} hidden={hiddenGroups} topPad={TAB_H} />
 											{/if}
 										</div>
 									</div>
@@ -456,7 +505,6 @@
 </div>
 
 <SettingsSheet bind:open={settingsOpen} />
-<HelpSheet bind:open={helpOpen} />
 <SkillsSheet bind:open={skillsOpen} />
 <AboutSheet bind:open={aboutOpen} />
 
