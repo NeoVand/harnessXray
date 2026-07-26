@@ -70,10 +70,9 @@
 	<!--
 		The scroller is full width; the *column* is what is 68ch.
 
-		Constraining the whole thing to a column made the shaded turn a bubble,
-		which is the one thing it should not read as. Keeping the wrapper wide and
-		re-centring inside each turn lets the shade run edge to edge while the text
-		stays on measure.
+		Each turn re-establishes the column itself rather than inheriting one
+		wrapper, which is what lets a turn decide how far its own decoration
+		reaches while its text stays on measure.
 	-->
 	<div class="w-full py-3">
 		{#if session.messages.length === 0}
@@ -124,10 +123,10 @@
 		<!--
 			Who said what, told twice over: by the label, and by the ground.
 
-			The shade is a band across the whole pane rather than a box around the
-			words — a box reads as a chat bubble, which is a different and much
-			chattier idea than "this stretch of the transcript is yours". The label
-			stays; it names the speaker, which the shade only implies.
+			The shade wraps the words only, and hugs them — the label sits outside
+			it, unshaded, so what is tinted is the utterance rather than the whole
+			row. The agent's replies stay on the page: they are the document, and
+			shading both sides would just be stripes.
 		-->
 		{#each session.messages as m (m.id)}
 			{#if m.role === 'notice'}
@@ -156,7 +155,7 @@
 					</p>
 				</div>
 			{:else if m.role === 'user'}
-				<article class="turn-you group pt-3 pb-4">
+				<article class="group pt-3 pb-4">
 					<div class="mx-auto w-full max-w-[68ch] px-6">
 						<p class="hx-eyebrow mb-1 flex items-center gap-1.5 leading-none">
 							<HugeiconsIcon icon={ICON.message} size={11} strokeWidth={1.5} />
@@ -224,7 +223,16 @@
 								       leading-relaxed focus:ring-0 focus:outline-none"
 								rows="3"></textarea>
 						{:else if m.text}
-							<p class="text-sm leading-relaxed whitespace-pre-wrap">{m.text}</p>
+							<!-- The shade wraps the words, not the row. Sized to its content
+							     so a one-line question is a small object rather than a full
+							     bar of colour, and left-aligned so the transcript still reads
+							     as one column rather than a back-and-forth. -->
+							<p
+								class="turn-you w-fit max-w-full rounded-lg px-3 py-2 text-sm
+							          leading-relaxed whitespace-pre-wrap"
+							>
+								{m.text}
+							</p>
 						{/if}
 
 						{#if m.attachments?.length}{@const _ = assetVersion.n}
@@ -314,22 +322,18 @@
 
 <style>
 	/*
-		Barely a colour — a step of ground, not a bubble.
+		Barely a colour.
 
-		Mixed from `--muted` so it tracks the theme in both schemes rather than
-		being two hardcoded greys, and kept low enough that it reads as a surface
-		rather than as a highlighted block. Dark needs a touch more: the same
-		proportion that separates on white disappears on near-black.
-
-		Hairlines top and bottom rather than a radius: the band is a stratum in the
-		transcript, and cards separate by edge here, not by box.
+		Mixed from `--muted` so it tracks the theme rather than being two hardcoded
+		greys. Dark gets *less* of it, not more: on a near-black background the
+		same proportion that reads as a whisper on white reads as a raised panel,
+		and the point is to separate the turn, not to announce it.
 	*/
 	.turn-you {
-		background: color-mix(in oklab, var(--muted) 62%, transparent);
-		border-block: 1px solid color-mix(in oklab, var(--border) 55%, transparent);
+		background: color-mix(in oklab, var(--muted) 55%, transparent);
 	}
 	:global(.dark) .turn-you {
-		background: color-mix(in oklab, var(--muted) 78%, transparent);
+		background: color-mix(in oklab, var(--muted) 42%, transparent);
 	}
 
 	.caret {

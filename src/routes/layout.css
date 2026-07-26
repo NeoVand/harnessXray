@@ -1,9 +1,9 @@
 @import 'tailwindcss';
-@import "tw-animate-css";
-@import "shadcn-svelte/tailwind.css";
-@import "@fontsource-variable/inter";
-@import "@fontsource-variable/jetbrains-mono";
-@import "katex/dist/katex.min.css";
+@import 'tw-animate-css';
+@import 'shadcn-svelte/tailwind.css';
+@import '@fontsource-variable/inter';
+@import '@fontsource-variable/jetbrains-mono';
+@import 'katex/dist/katex.min.css';
 
 @custom-variant dark (&:is(.dark *));
 @plugin '@tailwindcss/forms';
@@ -139,6 +139,14 @@
 	--hx-subagent: oklch(0.53 0.05 220);
 	--hx-interrupt: oklch(0.62 0.11 62); /* warm amber — the one colour allowed to shout */
 	--hx-error: oklch(0.53 0.15 27);
+
+	/* Scrollbar thumb, as literal alpha rather than a color-mix of --foreground.
+	   Tailwind rewrites color-mix into an @supports block whose *fallback* is the
+	   bare colour — which for a scrollbar means a solid black bar on any engine
+	   that takes the fallback path. Stating the alpha directly cannot degrade. */
+	--hx-scroll: oklch(0.141 0.005 285.8 / 0.15);
+	--hx-scroll-hover: oklch(0.141 0.005 285.8 / 0.3);
+	--hx-scroll-active: oklch(0.141 0.005 285.8 / 0.42);
 }
 
 .dark {
@@ -162,6 +170,12 @@
 	--hx-subagent: oklch(0.71 0.055 220);
 	--hx-interrupt: oklch(0.78 0.1 62);
 	--hx-error: oklch(0.68 0.14 27);
+
+	/* Lighter *and* fainter on dark: a pale thumb carries further than a dark
+	   one, so the same alpha would read as brighter than the light scheme's. */
+	--hx-scroll: oklch(1 0 0 / 0.12);
+	--hx-scroll-hover: oklch(1 0 0 / 0.24);
+	--hx-scroll-active: oklch(1 0 0 / 0.34);
 }
 
 @theme inline {
@@ -232,6 +246,51 @@
 		.hx-frost {
 			background: var(--background);
 		}
+	}
+}
+
+/* ── Scrollbars ──────────────────────────────────────────────────────────
+   Ten panels means ten scrollbars, and at the OS default they read as
+   structure — grey channels dividing the layout as loudly as the rules that
+   are actually meant to. So: no track at all, and a thumb that is a tint of
+   the foreground rather than a colour of its own, inset by a transparent
+   border so it floats in the gutter instead of filling it.
+
+   The hover rule is the point. Left unstyled, Chromium swaps in its own
+   heavier thumb the moment the pointer is over the scrollable area, which is
+   the jarring default this is here to prevent. Ours only warms slightly. */
+::-webkit-scrollbar {
+	width: 10px;
+	height: 10px;
+}
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+	background: transparent;
+}
+::-webkit-scrollbar-thumb {
+	background-color: var(--hx-scroll);
+	border: 3px solid transparent;
+	/* Clip to the content box so the transparent border becomes padding —
+	   this is what makes a 10px gutter hold a 4px thumb. */
+	background-clip: content-box;
+	border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+	background-color: var(--hx-scroll-hover);
+}
+::-webkit-scrollbar-thumb:active {
+	background-color: var(--hx-scroll-active);
+}
+
+/* Firefox has no pseudo-elements for this, only the two standard properties.
+   They are scoped to where the pseudo-elements are unsupported because
+   Chromium honours `scrollbar-color` *instead of* `::-webkit-scrollbar` when
+   both are set — declaring it globally would silently discard everything
+   above. */
+@supports not selector(::-webkit-scrollbar) {
+	* {
+		scrollbar-width: thin;
+		scrollbar-color: var(--hx-scroll-hover) transparent;
 	}
 }
 
