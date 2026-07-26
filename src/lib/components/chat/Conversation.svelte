@@ -121,12 +121,13 @@
 		{/if}
 
 		<!--
-			Who said what, told twice over: by the label, and by the ground.
+			Who said what, told three ways: side, label, and ground.
 
-			The shade wraps the words only, and hugs them — the label sits outside
-			it, unshaded, so what is tinted is the utterance rather than the whole
-			row. The agent's replies stay on the page: they are the document, and
-			shading both sides would just be stripes.
+			Side does most of the work — your turns sit right, the agent's left —
+			because it survives skimming in a way a 10px caption does not. The tint
+			wraps only your words and hugs them; the agent's replies stay on the
+			page, because they are the document and shading both sides would just
+			be stripes.
 		-->
 		{#each session.messages as m (m.id)}
 			{#if m.role === 'notice'}
@@ -155,58 +156,19 @@
 					</p>
 				</div>
 			{:else if m.role === 'user'}
-				<article class="group pt-3 pb-4">
-					<div class="mx-auto w-full max-w-[68ch] px-6">
-						<p class="hx-eyebrow mb-1 flex items-center gap-1.5 leading-none">
-							<HugeiconsIcon icon={ICON.message} size={11} strokeWidth={1.5} />
-							you
-							<!--
-								Icons, not sentences.
+				<!--
+					Your turns hang off the right, the agent's off the left.
 
-								Rewinding is one idea, so it gets one glyph, and the same glyph
-								in both states: it opens the editor, and it commits. The
-								explanation lives in the tooltip, where it costs nothing until
-								you want it — a permanent caption reading "everything after this
-								is rewound" said the same thing on every turn forever.
-							-->
-							{#if !session.busy}
-								<span class="ml-auto flex items-center gap-0.5">
-									{#if editing === m.id}
-										<button
-											class="grid size-6 place-items-center rounded-[3px] transition-colors
-											       hover:bg-background hover:text-foreground"
-											onclick={() => (editing = null)}
-											title="Cancel (Esc)"
-											aria-label="Cancel editing"
-										>
-											<HugeiconsIcon icon={ICON.close} size={13} strokeWidth={1.5} />
-										</button>
-										<button
-											class="grid size-6 place-items-center rounded-[3px] transition-colors
-											       hover:bg-background"
-											style:color="var(--hx-interrupt)"
-											onclick={() => resend(m.id)}
-											title="Re-run from here — everything after this turn is rewound (↵)"
-											aria-label="Re-run from here"
-										>
-											<HugeiconsIcon icon={ICON.rewind} size={13} strokeWidth={1.5} />
-										</button>
-									{:else}
-										<button
-											class="grid size-6 place-items-center rounded-[3px] opacity-0 transition-all
-											       group-hover:opacity-100 hover:bg-background hover:text-foreground"
-											onclick={() => {
-												editing = m.id;
-												draft = m.text;
-											}}
-											title="Edit this message and re-run from here"
-											aria-label="Edit and re-run from here"
-										>
-											<HugeiconsIcon icon={ICON.rewind} size={13} strokeWidth={1.5} />
-										</button>
-									{/if}
-								</span>
-							{/if}
+					Side is the fastest cue there is — faster than a label, and it
+					survives skimming, which is the point when a transcript is mostly
+					long agent prose. The bubble hugs its text, so a short question
+					stays a small object on that side rather than a full-width bar.
+				-->
+				<article class="group pt-3 pb-4">
+					<div class="mx-auto flex w-full max-w-[68ch] flex-col items-end px-6">
+						<p class="hx-eyebrow mb-1 flex items-center gap-1.5 leading-none">
+							you
+							<HugeiconsIcon icon={ICON.message} size={11} strokeWidth={1.5} />
 						</p>
 
 						{#if editing === m.id}
@@ -219,14 +181,10 @@
 									}
 									if (e.key === 'Escape') editing = null;
 								}}
-								class="hx-rule w-full resize-none rounded-[3px] border bg-background p-2 text-sm
-								       leading-relaxed focus:ring-0 focus:outline-none"
+								class="hx-rule hx-field w-full resize-none rounded-lg border bg-background p-2.5
+								       text-sm leading-relaxed"
 								rows="3"></textarea>
 						{:else if m.text}
-							<!-- The shade wraps the words, not the row. Sized to its content
-							     so a one-line question is a small object rather than a full
-							     bar of colour, and left-aligned so the transcript still reads
-							     as one column rather than a back-and-forth. -->
 							<p
 								class="turn-you w-fit max-w-full rounded-lg px-3 py-2 text-sm
 							          leading-relaxed whitespace-pre-wrap"
@@ -279,6 +237,54 @@
 									</button>
 								{/each}
 							</div>
+						{/if}
+
+						<!--
+							Under the bubble, not beside the label.
+
+							Rewinding acts on the message, so it belongs against the message
+							rather than in the caption above it. One glyph in both states —
+							it opens the editor and it commits — with the explanation in the
+							tooltip, where it costs nothing until wanted.
+						-->
+						{#if !session.busy}
+							<span class="mt-1 flex items-center gap-0.5">
+								{#if editing === m.id}
+									<button
+										class="grid size-6 place-items-center rounded-[3px] text-muted-foreground
+										       transition-colors hover:bg-muted hover:text-foreground"
+										onclick={() => (editing = null)}
+										title="Cancel (Esc)"
+										aria-label="Cancel editing"
+									>
+										<HugeiconsIcon icon={ICON.close} size={13} strokeWidth={1.5} />
+									</button>
+									<button
+										class="grid size-6 place-items-center rounded-[3px] transition-colors
+										       hover:bg-muted"
+										style:color="var(--hx-interrupt)"
+										onclick={() => resend(m.id)}
+										title="Re-run from here — everything after this turn is rewound (↵)"
+										aria-label="Re-run from here"
+									>
+										<HugeiconsIcon icon={ICON.rewind} size={13} strokeWidth={1.5} />
+									</button>
+								{:else}
+									<button
+										class="grid size-6 place-items-center rounded-[3px] text-muted-foreground
+										       opacity-0 transition-all group-hover:opacity-100 hover:bg-muted
+										       hover:text-foreground focus-visible:opacity-100"
+										onclick={() => {
+											editing = m.id;
+											draft = m.text;
+										}}
+										title="Edit this message and re-run from here"
+										aria-label="Edit and re-run from here"
+									>
+										<HugeiconsIcon icon={ICON.rewind} size={13} strokeWidth={1.5} />
+									</button>
+								{/if}
+							</span>
 						{/if}
 					</div>
 				</article>

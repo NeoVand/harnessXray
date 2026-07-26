@@ -130,8 +130,8 @@
 				bind:value={draft}
 				rows="6"
 				spellcheck="false"
-				class="hx-rule w-full rounded border bg-background p-2 font-mono text-[11px]
-				       leading-relaxed focus:outline-none"></textarea>
+				class="hx-rule hx-field w-full rounded border bg-background p-2 font-mono text-[11px]
+				       leading-relaxed"></textarea>
 			{#if invalid}
 				<p class="mt-1 text-[10px]" style:color="var(--hx-error)">{invalid}</p>
 			{/if}
@@ -141,8 +141,8 @@
 			<input
 				bind:value={rejectNote}
 				placeholder="Optional: tell the model why, if you reject…"
-				class="hx-rule mt-1 mb-2 w-full rounded border bg-transparent px-2 py-1 text-xs
-				       placeholder:text-muted-foreground/50 focus:outline-none"
+				class="hx-rule hx-field mt-1 mb-2 w-full rounded border bg-transparent px-2 py-1 text-xs
+				       placeholder:text-muted-foreground/50"
 			/>
 		{/if}
 

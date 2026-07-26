@@ -9,6 +9,8 @@
 	import DocumentViewer from '$lib/components/DocumentViewer.svelte';
 	import HelpSheet from '$lib/components/HelpSheet.svelte';
 	import SkillsSheet from '$lib/components/SkillsSheet.svelte';
+	import AboutSheet from '$lib/components/AboutSheet.svelte';
+	import { REPO_URL } from '$lib/meta';
 	import ContextPanel from '$lib/components/xray/ContextPanel.svelte';
 	import ContextDonut from '$lib/components/xray/ContextDonut.svelte';
 	import FilterMenu from '$lib/components/xray/FilterMenu.svelte';
@@ -31,6 +33,7 @@
 	let readPath = $state<string | null>(null);
 	let helpOpen = $state(false);
 	let skillsOpen = $state(false);
+	let aboutOpen = $state(false);
 	let dark = $state(false);
 
 	/** The left column of the X-ray: what happened, or what is in the window. */
@@ -156,8 +159,14 @@
 <div class="flex h-dvh flex-col overflow-hidden">
 	<!-- Header: one hairline, no card. -->
 	<header class="hx-rule flex h-10 shrink-0 items-center gap-2 border-b px-3">
-		<HugeiconsIcon icon={ICON.agent} size={15} strokeWidth={1.5} />
-		<span class="text-[12px] font-semibold tracking-tight">harnessXray</span>
+		<button
+			class="flex items-center gap-2 transition-opacity hover:opacity-70"
+			onclick={() => (aboutOpen = true)}
+			title="About harnessXray"
+		>
+			<HugeiconsIcon icon={ICON.agent} size={18} strokeWidth={1.5} />
+			<span class="hx-wordmark text-[15px]">harness<em>Xray</em></span>
+		</button>
 
 		<span class="ml-1 flex items-center gap-1.5">
 			<span
@@ -214,6 +223,17 @@
 			>
 				<HugeiconsIcon icon={dark ? ICON.light : ICON.dark} size={15} strokeWidth={1.5} />
 			</button>
+
+			<a
+				href={REPO_URL}
+				target="_blank"
+				rel="noreferrer noopener"
+				class="text-muted-foreground transition-colors hover:text-foreground"
+				title="Source on GitHub"
+				aria-label="Source on GitHub"
+			>
+				<HugeiconsIcon icon={ICON.github} size={15} strokeWidth={1.5} />
+			</a>
 
 			<button
 				class="text-muted-foreground transition-colors hover:text-foreground"
@@ -341,9 +361,17 @@
 											{/if}
 
 											{#if lens === 'timeline'}
-												<FilterMenu options={kindOptions} bind:hidden={hiddenKinds} label="event kinds" />
+												<FilterMenu
+													options={kindOptions}
+													bind:hidden={hiddenKinds}
+													label="event kinds"
+												/>
 											{:else}
-												<FilterMenu options={GROUP_OPTIONS} bind:hidden={hiddenGroups} label="sections" />
+												<FilterMenu
+													options={GROUP_OPTIONS}
+													bind:hidden={hiddenGroups}
+													label="sections"
+												/>
 											{/if}
 
 											{#if lastShot}
@@ -457,11 +485,8 @@
 <SettingsSheet bind:open={settingsOpen} />
 <HelpSheet bind:open={helpOpen} />
 <SkillsSheet bind:open={skillsOpen} />
-<DocumentViewer
-	path={readPath}
-	onclose={() => (readPath = null)}
-	onopen={(p) => (readPath = p)}
-/>
+<AboutSheet bind:open={aboutOpen} />
+<DocumentViewer path={readPath} onclose={() => (readPath = null)} onopen={(p) => (readPath = p)} />
 
 <style>
 	:global(html) {
