@@ -1,7 +1,3 @@
-<script lang="ts">
-	import HarnessDiagram from '../HarnessDiagram.svelte';
-</script>
-
 <img
 	class="plate"
 	src="/book/01-the-harness.jpg"
@@ -28,7 +24,14 @@
 	a measurement, not an illustration.
 </p>
 
-<HarnessDiagram />
+<img
+	class="plate"
+	src="/book/01-harness-schematic.jpg"
+	alt="Schematic of the loop: the context window — system prompt, skills, memory, files, plan, tools, messages — feeds the model; tool and subagent calls fan out and their results rejoin the context"
+	width="1536"
+	height="1024"
+	loading="lazy"
+/>
 
 <p class="live">
 	See it live: the events and context tabs to the left of this page — the loop as it actually ran,
