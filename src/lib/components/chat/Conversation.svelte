@@ -8,12 +8,8 @@
 	import { ICON } from '$lib/icons';
 	import { assets, assetVersion } from '$lib/storage/assets.svelte';
 
-	let {
-		onopensettings,
-		onread,
-		/** Bumped from outside to jump to the latest message. */
-		jump = 0
-	}: { onopensettings: () => void; onread?: (path: string) => void; jump?: number } = $props();
+	let { onopensettings, onread }: { onopensettings: () => void; onread?: (path: string) => void } =
+		$props();
 
 	let viewport = $state<HTMLElement | null>(null);
 	let pinned = $state(true);
@@ -23,12 +19,6 @@
 		void session.messages.length;
 		void session.messages.at(-1)?.text;
 		if (pinned && viewport) viewport.scrollTop = viewport.scrollHeight;
-	});
-
-	$effect(() => {
-		if (!jump || !viewport) return;
-		pinned = true;
-		viewport.scrollTo({ top: viewport.scrollHeight, behavior: 'smooth' });
 	});
 
 	// Attachment thumbnails come from the asset store, which fills in
