@@ -192,7 +192,7 @@
 				rows="1"
 				disabled={session.busy}
 				placeholder={keys.present ? 'Ask the agent something…' : 'Add a key in settings to begin…'}
-				class="max-h-[180px] min-h-[24px] w-full resize-none border-0 bg-transparent p-0 text-sm
+				class="hx-bare max-h-[180px] min-h-[24px] w-full resize-none border-0 bg-transparent p-0 text-sm
 					       leading-relaxed placeholder:text-muted-foreground/60 focus:border-0 focus:ring-0
 					       focus:outline-none disabled:opacity-50"></textarea>
 		</div>

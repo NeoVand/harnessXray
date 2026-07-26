@@ -5,6 +5,7 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="text-scale" content="scale" />
 		<link rel="icon" href="%sveltekit.assets%/favicon.svg" type="image/svg+xml" />
+		<meta name="theme-color" content="#131316" />
 		<title>harnessXray</title>
 		<meta
 			name="description"
@@ -14,15 +15,38 @@
 	</head>
 	<body data-sveltekit-preload-data="hover">
 		<script>
-			// Before first paint, or the app flashes light and then snaps to dark.
-			// Dark is the default here: this is an instrument you stare at, and the
-			// panels were tuned for it. An explicit choice overrides it.
-			try {
-				var t = localStorage.getItem('hx:theme');
-				if (t !== 'light') document.documentElement.classList.add('dark');
-			} catch (e) {
-				document.documentElement.classList.add('dark');
-			}
+			// Before first paint, or the app flashes one theme and snaps to another.
+			// Kept in sync with THEMES in src/lib/state/theme.svelte.ts — this is the
+			// one place that cannot import it, because it has to run before any
+			// module does.
+			(function () {
+				var dark = { midnight: 1, rainy: 1, ocean: 1, forest: 1, cocoa: 1 };
+				var meta = {
+					midnight: '#131316',
+					rainy: '#121820',
+					ocean: '#0d1620',
+					forest: '#101711',
+					cocoa: '#1a1310',
+					cloudy: '#eef1f3',
+					sunny: '#f5f1e8',
+					meadow: '#edf2ea'
+				};
+				var t = 'midnight';
+				try {
+					var s = localStorage.getItem('hx:theme');
+					// `dark`/`light` are what the old two-state toggle wrote.
+					if (s === 'light') s = 'cloudy';
+					else if (s === 'dark') s = 'midnight';
+					if (s && meta[s]) t = s;
+				} catch (e) {
+					/* private mode — the default is fine */
+				}
+				var root = document.documentElement;
+				root.dataset.theme = t;
+				if (dark[t]) root.classList.add('dark');
+				var tag = document.querySelector('meta[name="theme-color"]');
+				if (tag) tag.setAttribute('content', meta[t]);
+			})();
 		</script>
 		<div style="display: contents">%sveltekit.body%</div>
 	</body>

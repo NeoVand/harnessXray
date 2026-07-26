@@ -11,6 +11,8 @@
 	import SkillsSheet from '$lib/components/SkillsSheet.svelte';
 	import AboutSheet from '$lib/components/AboutSheet.svelte';
 	import { REPO_URL } from '$lib/meta';
+	import ThemeIcon from '$lib/components/ThemeIcon.svelte';
+	import { theme } from '$lib/state/theme.svelte';
 	import ContextPanel from '$lib/components/xray/ContextPanel.svelte';
 	import ContextDonut from '$lib/components/xray/ContextDonut.svelte';
 	import FilterMenu from '$lib/components/xray/FilterMenu.svelte';
@@ -32,10 +34,6 @@
 	let helpOpen = $state(false);
 	let skillsOpen = $state(false);
 	let aboutOpen = $state(false);
-	/** Read back from the class the pre-paint script already set. */
-	let dark = $state(
-		typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
-	);
 
 	/** The left column of the X-ray: what happened, or what is in the window. */
 	let lens = $state<'timeline' | 'context'>('timeline');
@@ -112,17 +110,6 @@
 	function select(id: string) {
 		following = false;
 		selectedId = id;
-	}
-
-	function toggleTheme() {
-		dark = !dark;
-		document.documentElement.classList.toggle('dark', dark);
-		// Remembered, so the pre-paint script in app.html can honour it next time.
-		try {
-			localStorage.setItem('hx:theme', dark ? 'dark' : 'light');
-		} catch {
-			/* private mode; the choice lasts this session */
-		}
 	}
 
 	function onKeydown(e: KeyboardEvent) {
@@ -211,13 +198,16 @@
 				<HugeiconsIcon icon={ICON.help} size={15} strokeWidth={1.5} />
 			</button>
 
+			<!-- One click, one theme. The glyph is the readout — it says where you
+			     are, and the tooltip names where the next click lands, so the cycle
+			     is never a guess. -->
 			<button
 				class="text-muted-foreground transition-colors hover:text-foreground"
-				onclick={toggleTheme}
-				title={dark ? 'Switch to light' : 'Switch to dark'}
-				aria-label={dark ? 'Switch to light theme' : 'Switch to dark theme'}
+				onclick={() => theme.cycle()}
+				title="{theme.spec.label} · next: {theme.next.label}"
+				aria-label="Theme: {theme.spec.label}. Switch to {theme.next.label}"
 			>
-				<HugeiconsIcon icon={dark ? ICON.light : ICON.dark} size={15} strokeWidth={1.5} />
+				<ThemeIcon id={theme.current} />
 			</button>
 
 			<a
@@ -309,113 +299,123 @@
 
 			<Resizable.Handle />
 
-			<!-- The X-ray -->
+			<!-- The X-ray — or a document, when one is open. Reading replaces the
+			     instruments rather than covering the whole app, so the conversation
+			     stays live beside whatever you are reading. -->
 			<Resizable.Pane defaultSize={58} minSize={30}>
-				<Resizable.PaneGroup direction="horizontal" autoSaveId="hx:xray">
-					<Resizable.Pane defaultSize={34} minSize={22}>
-						<!-- The timeline does not need the whole column: past a certain
+				{#if readPath}
+					<DocumentViewer
+						path={readPath}
+						onclose={() => (readPath = null)}
+						onopen={(p) => (readPath = p)}
+					/>
+				{:else}
+					<Resizable.PaneGroup direction="horizontal" autoSaveId="hx:xray">
+						<Resizable.Pane defaultSize={34} minSize={22}>
+							<!-- The timeline does not need the whole column: past a certain
 						     height it is just more rows you are not looking at. The run
 						     accounting lives underneath it, where it is visible while you
 						     scrub rather than hidden behind a tab. -->
-						<Resizable.PaneGroup direction="vertical" autoSaveId="hx:timeline">
-							<Resizable.Pane defaultSize={62} minSize={25}>
-								<!-- Two readings of the same run. The timeline is the record of
+							<Resizable.PaneGroup direction="vertical" autoSaveId="hx:timeline">
+								<Resizable.Pane defaultSize={62} minSize={25}>
+									<!-- Two readings of the same run. The timeline is the record of
 								     what happened; the context is what the model could see when
 								     it happened. Neither is derivable from the other. -->
-								<div class="relative h-full min-h-0">
-									<div
-										class="hx-rule hx-frost absolute inset-x-0 top-0 z-20 flex h-9 items-center
+									<div class="relative h-full min-h-0">
+										<div
+											class="hx-rule hx-frost absolute inset-x-0 top-0 z-20 flex h-9 items-center
 										       gap-3.5 border-b px-3"
-									>
-										{#each [{ id: 'timeline', label: 'timeline', icon: ICON.time }, { id: 'context', label: 'context', icon: ICON.context }] as const as t (t.id)}
-											<button
-												class="hx-eyebrow relative flex h-full items-center gap-1.5 transition-colors
-												       hover:text-foreground"
-												class:text-foreground={lens === t.id}
-												onclick={() => (lens = t.id)}
-											>
-												<HugeiconsIcon icon={t.icon} size={12} strokeWidth={1.5} />
-												{t.label}
-												{#if lens === t.id}
-													<span class="absolute inset-x-0 bottom-0 h-px bg-foreground"></span>
-												{/if}
-											</button>
-										{/each}
-										<span class="ml-auto flex items-center gap-3 text-muted-foreground">
-											{#if lens === 'timeline' && frameCount}
+										>
+											{#each [{ id: 'timeline', label: 'timeline', icon: ICON.time }, { id: 'context', label: 'context', icon: ICON.context }] as const as t (t.id)}
 												<button
-													class="hx-eyebrow flex items-center gap-1 transition-colors
-													       hover:text-foreground"
-													class:text-foreground={showFrames}
-													onclick={() => (showFrames = !showFrames)}
-													title="Raw SSE frames — every token exactly as it arrived"
+													class="hx-eyebrow relative flex h-full items-center gap-1.5 transition-colors
+												       hover:text-foreground"
+													class:text-foreground={lens === t.id}
+													onclick={() => (lens = t.id)}
 												>
-													<HugeiconsIcon icon={ICON.frame} size={11} strokeWidth={1.5} />
-													{frameCount}
+													<HugeiconsIcon icon={t.icon} size={12} strokeWidth={1.5} />
+													{t.label}
+													{#if lens === t.id}
+														<span class="absolute inset-x-0 bottom-0 h-px bg-foreground"></span>
+													{/if}
 												</button>
-											{/if}
+											{/each}
+											<span class="ml-auto flex items-center gap-3 text-muted-foreground">
+												{#if lens === 'timeline' && frameCount}
+													<button
+														class="hx-eyebrow flex items-center gap-1 transition-colors
+													       hover:text-foreground"
+														class:text-foreground={showFrames}
+														onclick={() => (showFrames = !showFrames)}
+														title="Raw SSE frames — every token exactly as it arrived"
+													>
+														<HugeiconsIcon icon={ICON.frame} size={11} strokeWidth={1.5} />
+														{frameCount}
+													</button>
+												{/if}
 
+												{#if lens === 'timeline'}
+													<FilterMenu
+														options={kindOptions}
+														bind:hidden={hiddenKinds}
+														label="event kinds"
+													/>
+												{:else}
+													<FilterMenu
+														options={GROUP_OPTIONS}
+														bind:hidden={hiddenGroups}
+														label="sections"
+													/>
+												{/if}
+
+												{#if lastShot}
+													<button
+														class="flex items-center gap-1.5 transition-colors hover:text-foreground"
+														onclick={() => (lens = 'context')}
+														title="context used"
+													>
+														<ContextDonut used={contextUsed} warn={COMPACT_AT} />
+														<span class="hx-num text-[10px]">{compact(lastShot.tokens)}</span>
+													</button>
+												{/if}
+											</span>
+										</div>
+										<div class="h-full">
 											{#if lens === 'timeline'}
-												<FilterMenu
-													options={kindOptions}
-													bind:hidden={hiddenKinds}
-													label="event kinds"
+												<EventTimeline
+													{selectedId}
+													{showFrames}
+													hidden={hiddenKinds}
+													topPad={TAB_H}
+													onselect={select}
+													onopenasset={(p) => {
+														openPath = p;
+														if (p.endsWith('.pdf')) readPath = p;
+													}}
 												/>
 											{:else}
-												<FilterMenu
-													options={GROUP_OPTIONS}
-													bind:hidden={hiddenGroups}
-													label="sections"
-												/>
+												<ContextPanel hidden={hiddenGroups} topPad={TAB_H} />
 											{/if}
-
-											{#if lastShot}
-												<button
-													class="flex items-center gap-1.5 transition-colors hover:text-foreground"
-													onclick={() => (lens = 'context')}
-													title="context used"
-												>
-													<ContextDonut used={contextUsed} warn={COMPACT_AT} />
-													<span class="hx-num text-[10px]">{compact(lastShot.tokens)}</span>
-												</button>
-											{/if}
-										</span>
+										</div>
 									</div>
-									<div class="h-full">
-										{#if lens === 'timeline'}
-											<EventTimeline
-												{selectedId}
-												{showFrames}
-												hidden={hiddenKinds}
-												topPad={TAB_H}
-												onselect={select}
-												onopenasset={(p) => {
-													openPath = p;
-													if (p.endsWith('.pdf')) readPath = p;
-												}}
-											/>
-										{:else}
-											<ContextPanel hidden={hiddenGroups} topPad={TAB_H} />
-										{/if}
-									</div>
-								</div>
-							</Resizable.Pane>
-							<Resizable.Handle />
-							<Resizable.Pane defaultSize={38} minSize={14} collapsible collapsedSize={8}>
-								<RunPanel />
-							</Resizable.Pane>
-						</Resizable.PaneGroup>
-					</Resizable.Pane>
-					<Resizable.Handle />
-					<Resizable.Pane defaultSize={62} minSize={30}>
-						<Inspector
-							{selectedId}
-							bind:openPath
-							onread={(p) => (readPath = p)}
-							onmanageskills={() => (skillsOpen = true)}
-						/>
-					</Resizable.Pane>
-				</Resizable.PaneGroup>
+								</Resizable.Pane>
+								<Resizable.Handle />
+								<Resizable.Pane defaultSize={38} minSize={14} collapsible collapsedSize={8}>
+									<RunPanel />
+								</Resizable.Pane>
+							</Resizable.PaneGroup>
+						</Resizable.Pane>
+						<Resizable.Handle />
+						<Resizable.Pane defaultSize={62} minSize={30}>
+							<Inspector
+								{selectedId}
+								bind:openPath
+								onread={(p) => (readPath = p)}
+								onmanageskills={() => (skillsOpen = true)}
+							/>
+						</Resizable.Pane>
+					</Resizable.PaneGroup>
+				{/if}
 			</Resizable.Pane>
 		</Resizable.PaneGroup>
 	</div>
@@ -425,7 +425,6 @@
 <HelpSheet bind:open={helpOpen} />
 <SkillsSheet bind:open={skillsOpen} />
 <AboutSheet bind:open={aboutOpen} />
-<DocumentViewer path={readPath} onclose={() => (readPath = null)} onopen={(p) => (readPath = p)} />
 
 <style>
 	:global(html) {

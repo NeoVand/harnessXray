@@ -28,7 +28,8 @@
 		const hit = new Set<string>();
 		for (const e of bus.events) {
 			if (e.kind !== 'tool_start' || e.name !== 'read_file') continue;
-			const path = (e.args as { file_path?: string; path?: string })?.file_path ??
+			const path =
+				(e.args as { file_path?: string; path?: string })?.file_path ??
 				(e.args as { path?: string })?.path;
 			const match = typeof path === 'string' && path.match(/^\/skills\/([^/]+)\/SKILL\.md$/);
 			if (match) hit.add(match[1]);
@@ -37,7 +38,9 @@
 	});
 
 	/** Whether the current thread's files actually contain each skill. */
-	const seeded = $derived(new Set(Object.keys(session.files).filter((p) => p.startsWith('/skills/'))));
+	const seeded = $derived(
+		new Set(Object.keys(session.files).filter((p) => p.startsWith('/skills/')))
+	);
 </script>
 
 <div class="px-3 py-3">
@@ -45,9 +48,11 @@
 		<span class="hx-eyebrow">in the prompt</span>
 		<span class="hx-num text-[11px]">~{est(listed).toLocaleString()} tokens</span>
 		<button
-			class="hx-eyebrow ml-auto transition-colors hover:text-foreground"
+			class="hx-eyebrow ml-auto flex items-center gap-1 transition-colors hover:text-foreground"
 			onclick={() => onmanage?.()}
+			title="Open the skill library"
 		>
+			<HugeiconsIcon icon={ICON.settings} size={11} strokeWidth={1.5} />
 			manage
 		</button>
 	</div>
