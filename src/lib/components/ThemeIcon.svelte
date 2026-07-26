@@ -1,15 +1,6 @@
 <script lang="ts">
 	import { HugeiconsIcon } from '@hugeicons/svelte';
-	import {
-		CloudIcon,
-		CloudRainIcon,
-		Coffee01Icon,
-		Leaf01Icon,
-		Moon02Icon,
-		Sun03Icon,
-		TreeIcon,
-		WaterfallDown01Icon
-	} from '@hugeicons/core-free-icons';
+	import { CloudIcon, CloudRainIcon, Moon02Icon, Sun03Icon } from '@hugeicons/core-free-icons';
 	import type { ThemeId } from '$lib/state/theme.svelte';
 
 	/**
@@ -30,12 +21,8 @@
 	const ICONS = {
 		midnight: Moon02Icon,
 		rainy: CloudRainIcon,
-		ocean: WaterfallDown01Icon,
-		forest: TreeIcon,
-		cocoa: Coffee01Icon,
 		cloudy: CloudIcon,
-		sunny: Sun03Icon,
-		meadow: Leaf01Icon
+		sunny: Sun03Icon
 	} as const;
 </script>
 

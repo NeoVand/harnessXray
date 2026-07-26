@@ -140,6 +140,13 @@
 	--hx-interrupt: oklch(0.62 0.11 62); /* warm amber — the one colour allowed to shout */
 	--hx-error: oklch(0.53 0.15 27);
 
+	/* The theme's own voice: wordmark, focus ring, active tab. One hue per
+	   theme, matched to its temperature; each [data-theme] block overrides it.
+	   The -soft cut is defined once — var() substitutes on the root element,
+	   where the per-theme accent also lands, so it tracks every override. */
+	--hx-accent: oklch(0.5 0.09 275);
+	--hx-accent-soft: color-mix(in oklab, var(--hx-accent) 35%, transparent);
+
 	/* Scrollbar thumb, as literal alpha rather than a color-mix of --foreground.
 	   Tailwind rewrites color-mix into an @supports block whose *fallback* is the
 	   bare colour — which for a scrollbar means a solid black bar on any engine
@@ -148,8 +155,10 @@
 	--hx-scroll-hover: oklch(0.141 0.005 285.8 / 0.3);
 	--hx-scroll-active: oklch(0.141 0.005 285.8 / 0.42);
 
-	/* Focus ring. Literal alpha for the same reason as the scrollbar above. */
-	--hx-focus: oklch(0.5 0.062 195 / 0.55);
+	/* Focus ring: the accent at ring strength. Unlike the scrollbar, a color-mix
+	   fallback here is the bare accent — a full-strength ring, loud but never
+	   broken — so following the theme is worth the indirection. */
+	--hx-focus: color-mix(in oklab, var(--hx-accent) 55%, transparent);
 
 	/* File types — a separate family from the event palette above, on purpose.
 	   --hx-* is a legend (ochre means a tool ran); reusing it for file types
@@ -185,12 +194,15 @@
 	--hx-interrupt: oklch(0.78 0.1 62);
 	--hx-error: oklch(0.68 0.14 27);
 
+	/* Midnight's accent — the phosphor teal the wordmark has always been. */
+	--hx-accent: oklch(0.74 0.09 195);
+
 	/* Lighter *and* fainter on dark: a pale thumb carries further than a dark
 	   one, so the same alpha would read as brighter than the light scheme's. */
 	--hx-scroll: oklch(1 0 0 / 0.12);
 	--hx-scroll-hover: oklch(1 0 0 / 0.24);
 	--hx-scroll-active: oklch(1 0 0 / 0.34);
-	--hx-focus: oklch(0.72 0.075 195 / 0.6);
+	--hx-focus: color-mix(in oklab, var(--hx-accent) 60%, transparent);
 
 	--hx-file-doc: oklch(0.72 0.055 250);
 	--hx-file-pdf: oklch(0.71 0.13 27);
@@ -201,17 +213,18 @@
 }
 
 /* ── Themes ──────────────────────────────────────────────────────────────
-   Only the *surfaces* change per theme, never the event palette.
-
-   The nine --hx-* accents are a legend: ochre means a tool, clay means memory,
-   everywhere in the app and in the anatomy diagram. Re-hueing them per theme
-   would break the one association the whole X-ray depends on. So a theme is a
-   background, a foreground, and the two greys between them — the accents above
-   are inherited, with only the ones that would go muddy nudged.
+   A theme is a temperature, and everything answers to it — surfaces, accent,
+   and the event palette itself. The nine --hx-* colours stay a legend: the
+   ochre *family* always means a tool, the teal family the model. What each
+   theme retunes is the weather those families sit in — cooler, greyer, warmer,
+   richer — so the timeline changes character with the chrome instead of
+   floating identically over four different rooms. The association survives
+   because the relations survive: hue families and their separations, not the
+   exact coordinates.
 
    `.dark` stays the carrier for scheme-level rules (Tailwind's `dark:`
    variants, a few :global(.dark) blocks); `[data-theme]` carries the tint.
-   ThemeState sets both. */
+   ThemeState sets both. Midnight is the bare `.dark` — it gets no block. */
 
 :root[data-theme='rainy'] {
 	--background: oklch(0.19 0.017 245);
@@ -221,42 +234,19 @@
 	--muted: oklch(0.272 0.021 245);
 	--muted-foreground: oklch(0.665 0.019 240);
 	--border: oklch(0.82 0.05 240 / 11%);
-}
+	--hx-accent: oklch(0.72 0.08 235); /* steel-blue — colder than midnight's teal */
 
-:root[data-theme='ocean'] {
-	--background: oklch(0.185 0.024 232);
-	--foreground: oklch(0.9 0.012 220);
-	--card: oklch(0.222 0.027 232);
-	--popover: oklch(0.222 0.027 232);
-	--muted: oklch(0.268 0.03 232);
-	--muted-foreground: oklch(0.665 0.024 224);
-	--border: oklch(0.8 0.06 225 / 12%);
-	/* The filesystem sage sits too close to this background; lift its hue away. */
-	--hx-fs: oklch(0.75 0.085 155);
-}
-
-:root[data-theme='forest'] {
-	--background: oklch(0.185 0.018 148);
-	--foreground: oklch(0.9 0.008 140);
-	--card: oklch(0.222 0.02 148);
-	--popover: oklch(0.222 0.02 148);
-	--muted: oklch(0.268 0.022 148);
-	--muted-foreground: oklch(0.665 0.018 140);
-	--border: oklch(0.82 0.05 145 / 12%);
-	/* Sage on moss is invisible — push the filesystem colour to a cooler green. */
-	--hx-fs: oklch(0.78 0.1 168);
-}
-
-:root[data-theme='cocoa'] {
-	--background: oklch(0.185 0.017 48);
-	--foreground: oklch(0.9 0.01 60);
-	--card: oklch(0.223 0.019 48);
-	--popover: oklch(0.223 0.019 48);
-	--muted: oklch(0.27 0.021 48);
-	--muted-foreground: oklch(0.668 0.02 55);
-	--border: oklch(0.84 0.05 55 / 12%);
-	/* Ochre would disappear into the brown; warm it forward instead. */
-	--hx-tool: oklch(0.81 0.1 82);
+	/* Everything seen through rain: hues pulled toward blue, the warm kinds
+	   greyed down, the reds and clays cooled. */
+	--hx-user: oklch(0.68 0.02 250);
+	--hx-model: oklch(0.73 0.08 210);
+	--hx-tool: oklch(0.74 0.07 78);
+	--hx-state: oklch(0.71 0.07 258);
+	--hx-fs: oklch(0.71 0.06 160);
+	--hx-memory: oklch(0.7 0.05 20);
+	--hx-subagent: oklch(0.72 0.06 232);
+	--hx-interrupt: oklch(0.78 0.09 68);
+	--hx-error: oklch(0.68 0.13 18);
 }
 
 :root[data-theme='cloudy'] {
@@ -267,6 +257,18 @@
 	--muted: oklch(0.935 0.006 230);
 	--muted-foreground: oklch(0.53 0.016 235);
 	--border: oklch(0.36 0.03 240 / 15%);
+	--hx-accent: oklch(0.5 0.09 275); /* slate-indigo — overcast, not cold */
+
+	/* Overcast light flattens saturation; the whole legend drifts indigo. */
+	--hx-user: oklch(0.52 0.02 270);
+	--hx-model: oklch(0.5 0.07 225);
+	--hx-tool: oklch(0.55 0.07 68);
+	--hx-state: oklch(0.51 0.075 268);
+	--hx-fs: oklch(0.51 0.05 155);
+	--hx-memory: oklch(0.53 0.045 15);
+	--hx-subagent: oklch(0.52 0.06 245);
+	--hx-interrupt: oklch(0.6 0.1 58);
+	--hx-error: oklch(0.52 0.14 22);
 }
 
 :root[data-theme='sunny'] {
@@ -277,16 +279,19 @@
 	--muted: oklch(0.935 0.017 85);
 	--muted-foreground: oklch(0.53 0.022 68);
 	--border: oklch(0.4 0.04 60 / 16%);
-}
+	--hx-accent: oklch(0.55 0.11 70); /* ochre — the warmth the theme is named for */
 
-:root[data-theme='meadow'] {
-	--background: oklch(0.963 0.012 140);
-	--foreground: oklch(0.215 0.014 150);
-	--card: oklch(0.991 0.006 140);
-	--popover: oklch(0.991 0.006 140);
-	--muted: oklch(0.933 0.016 140);
-	--muted-foreground: oklch(0.525 0.02 145);
-	--border: oklch(0.36 0.04 150 / 15%);
+	/* Full sun enriches the warm kinds; the cool ones stay put as counterpoint,
+	   or the legend would collapse into one golden blur. */
+	--hx-user: oklch(0.52 0.02 75);
+	--hx-model: oklch(0.5 0.07 185);
+	--hx-tool: oklch(0.55 0.1 72);
+	--hx-state: oklch(0.52 0.05 252);
+	--hx-fs: oklch(0.52 0.07 135);
+	--hx-memory: oklch(0.54 0.07 32);
+	--hx-subagent: oklch(0.53 0.045 228);
+	--hx-interrupt: oklch(0.61 0.12 62);
+	--hx-error: oklch(0.53 0.15 30);
 }
 
 @theme inline {
@@ -345,7 +350,7 @@
 	.hx-wordmark em {
 		font-style: normal;
 		font-weight: 400;
-		color: var(--hx-model);
+		color: var(--hx-accent);
 	}
 
 	/* Hairline: half-strength border. Cards separate by *edge*, not by box. */
