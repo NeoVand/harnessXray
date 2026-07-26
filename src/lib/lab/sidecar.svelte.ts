@@ -44,6 +44,14 @@ async function complete(prompt: string, maxTokens: number): Promise<string> {
 	return json.choices?.[0]?.message?.content?.trim() ?? '';
 }
 
+/**
+ * The explain-mode tutor speaks through this same pipe. Exporting the seam —
+ * rather than a second fetch elsewhere — keeps exactly one place lab traffic
+ * can originate, which is what makes "the microscope's light never lands on
+ * the slide" checkable.
+ */
+export { complete as labComplete };
+
 /** Can the sidecar run at all right now? Replay has no network to run on. */
 export function sidecarReady(): boolean {
 	return keys.present && !replay.active;

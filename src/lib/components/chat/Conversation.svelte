@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { session } from '$lib/agent/session.svelte';
+	import { tutor } from '$lib/lab/tutor.svelte';
 	import { money, compact } from '$lib/xray/usage';
 	import { loadBundledDemo } from '$lib/lab/demo';
 	import { replay } from '$lib/xray/replay.svelte';
@@ -23,6 +24,9 @@
 		// Re-run as text streams in, not only when a message is added.
 		void session.messages.length;
 		void session.messages.at(-1)?.text;
+		// Lab exchanges append below the agent's, so they pin the scroll too.
+		void tutor.transcript.length;
+		void tutor.transcript.at(-1)?.status;
 		if (pinned && viewport) viewport.scrollTop = viewport.scrollHeight;
 	});
 
@@ -329,6 +333,60 @@
 			{/if}
 		{/each}
 
+		<!--
+			The lab's own exchanges, after the conversation proper.
+
+			Page-lifetime only, by design: never persisted, never replayed to any
+			model, never in session.messages. The agent must not find tutoring
+			asides in its history, and a student reloading should get the run
+			back, not the scaffolding around it. The eyebrow on every reply says
+			who is speaking, because a second voice in the transcript that did
+			not announce itself would be indistinguishable from the specimen.
+		-->
+		{#each tutor.transcript as entry, i (i)}
+			{#if entry.role === 'you'}
+				<article class="pt-3 pb-1">
+					<div class="mx-auto flex w-full max-w-[68ch] flex-col items-end px-6">
+						<p
+							class="hx-eyebrow mb-1 flex items-center gap-1.5 leading-none"
+							style:color="var(--hx-accent, var(--hx-state))"
+						>
+							to the lab
+							<HugeiconsIcon icon={ICON.sparkle} size={11} strokeWidth={1.5} />
+						</p>
+						<p
+							class="turn-you w-fit max-w-full rounded-lg px-3 py-2 text-sm
+							       leading-relaxed whitespace-pre-wrap"
+						>
+							{entry.text}
+						</p>
+					</div>
+				</article>
+			{:else}
+				<article class="pt-2 pb-4">
+					<div class="mx-auto w-full max-w-[68ch] px-6">
+						<div class="lab-reply pl-3">
+							<p
+								class="hx-eyebrow mb-1 leading-none"
+								style:color="var(--hx-accent, var(--hx-state))"
+							>
+								lab — the app speaking, not the agent
+							</p>
+							{#if entry.status === 'thinking'}
+								<p class="text-xs text-muted-foreground">reading the run…</p>
+							{:else if entry.status === 'error'}
+								<p class="text-xs leading-relaxed" style:color="var(--hx-error)">
+									{entry.text}
+								</p>
+							{:else}
+								<Markdown source={entry.text} onopen={onread} />
+							{/if}
+						</div>
+					</div>
+				</article>
+			{/if}
+		{/each}
+
 		<div class="mx-auto w-full max-w-[68ch] px-6 pt-2">
 			<ApprovalCard />
 
@@ -402,6 +460,12 @@
 	}
 	:global(.dark) .turn-you {
 		background: color-mix(in oklab, var(--muted) 42%, transparent);
+	}
+
+	/* The lab's hairline: the accent at rule strength, so the second voice is
+	   edged rather than boxed. */
+	.lab-reply {
+		border-left: 1px solid color-mix(in oklab, var(--hx-accent, var(--hx-state)) 45%, transparent);
 	}
 
 	.caret {
