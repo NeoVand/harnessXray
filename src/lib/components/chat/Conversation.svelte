@@ -141,7 +141,7 @@
 				<!-- Something that happened *to* the conversation rather than in it.
 				     A rule with a label, so it reads as a seam in the transcript and
 				     is not mistaken for either party speaking. -->
-				<div class="mx-auto w-full max-w-[68ch] px-6 py-4">
+				<div class="mx-auto w-full max-w-[68ch] px-6 py-3">
 					<div class="flex items-center gap-2">
 						<span class="hx-rule h-px flex-1 border-t"></span>
 						<span class="hx-eyebrow flex items-center gap-1.5" style:color="var(--hx-memory)">
@@ -171,7 +171,7 @@
 					long agent prose. The bubble hugs its text, so a short question
 					stays a small object on that side rather than a full-width bar.
 				-->
-				<article class="group pt-3 pb-4">
+				<article class="group pt-2 pb-2">
 					<div class="mx-auto flex w-full max-w-[68ch] flex-col items-end px-6">
 						<p class="hx-eyebrow mb-1 flex items-center gap-1.5 leading-none">
 							you
@@ -251,15 +251,22 @@
 						{/if}
 
 						<!--
-							Under the bubble, not beside the label.
+							Under the bubble, not beside the label — and zero-height.
 
 							Rewinding acts on the message, so it belongs against the message
-							rather than in the caption above it. One glyph in both states —
-							it opens the editor and it commits — with the explanation in the
-							tooltip, where it costs nothing until wanted.
+							rather than in the caption above it. But a 24px control that is
+							invisible until hover must not hold a 24px blank line under every
+							bubble: the row is h-0 and the glyph overflows into the gap
+							between turns, which is exactly where it visually lives anyway.
+							While editing, the row takes real height again — Cancel and
+							Re-run are actual content then, not an affordance.
 						-->
 						{#if !session.busy}
-							<span class="mt-1 flex items-center gap-0.5">
+							<span
+								class="mt-1 flex items-start gap-0.5"
+								class:h-0={editing !== m.id}
+								class:overflow-visible={editing !== m.id}
+							>
 								{#if editing === m.id}
 									<button
 										class="grid size-6 place-items-center rounded-[3px] text-muted-foreground
@@ -300,7 +307,7 @@
 					</div>
 				</article>
 			{:else}
-				<article class="pt-3 pb-4">
+				<article class="pt-2 pb-2">
 					<div class="mx-auto w-full max-w-[68ch] px-6">
 						<p
 							class="hx-eyebrow mb-1 flex items-center gap-1.5 leading-none"
@@ -345,7 +352,7 @@
 		-->
 		{#each tutor.transcript as entry, i (i)}
 			{#if entry.role === 'you'}
-				<article class="pt-3 pb-1">
+				<article class="pt-2 pb-1">
 					<div class="mx-auto flex w-full max-w-[68ch] flex-col items-end px-6">
 						<p
 							class="hx-eyebrow mb-1 flex items-center gap-1.5 leading-none"
@@ -363,7 +370,7 @@
 					</div>
 				</article>
 			{:else}
-				<article class="pt-2 pb-4">
+				<article class="pt-2 pb-2">
 					<div class="mx-auto w-full max-w-[68ch] px-6">
 						<div class="lab-reply pl-3">
 							<p
