@@ -173,7 +173,10 @@
 				-->
 				<article class="group pt-2 pb-2">
 					<div class="mx-auto flex w-full max-w-[68ch] flex-col items-end px-6">
-						<p class="hx-eyebrow mb-1 flex items-center gap-1.5 leading-none">
+						<p
+							class="hx-eyebrow mb-1 flex items-center gap-1.5 leading-none"
+							style:color="var(--hx-accent)"
+						>
 							you
 							<HugeiconsIcon icon={ICON.message} size={11} strokeWidth={1.5} />
 						</p>
@@ -455,18 +458,31 @@
 
 <style>
 	/*
-		Barely a colour.
+		The user speaks in the theme's own ink.
 
-		Mixed from `--muted` so it tracks the theme rather than being two hardcoded
-		greys. Dark gets *less* of it, not more: on a near-black background the
-		same proportion that reads as a whisper on white reads as a raised panel,
-		and the point is to separate the turn, not to announce it.
+		Each speaker gets a colour identity: the agent's eyebrow is the model
+		teal, and your turns carry the theme accent — a wash behind the bubble
+		and a tint through the text itself, both mixed from --hx-accent so all
+		four themes colour the conversation differently. The proportions stay
+		low on purpose: enough to feel, never enough to fight the reading.
+		Dark keeps a lighter wash — on near-black the same amount that whispers
+		on white reads as a raised panel.
 	*/
 	.turn-you {
-		background: color-mix(in oklab, var(--muted) 55%, transparent);
+		background: color-mix(
+			in oklab,
+			var(--hx-accent) 9%,
+			color-mix(in oklab, var(--muted) 45%, transparent)
+		);
+		color: color-mix(in oklab, var(--hx-accent) 28%, var(--foreground));
 	}
 	:global(.dark) .turn-you {
-		background: color-mix(in oklab, var(--muted) 42%, transparent);
+		background: color-mix(
+			in oklab,
+			var(--hx-accent) 12%,
+			color-mix(in oklab, var(--muted) 28%, transparent)
+		);
+		color: color-mix(in oklab, var(--hx-accent) 32%, var(--foreground));
 	}
 
 	/* The lab's hairline: the accent at rule strength, so the second voice is
