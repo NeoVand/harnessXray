@@ -88,7 +88,11 @@
 
 		<div bind:this={scroller} class="min-h-0 flex-1 overflow-y-auto">
 			<article class="bk mx-auto max-w-[72ch] px-8 py-10">
-				<p class="hx-eyebrow mb-6">chapter {index + 1} · {chapter.label}</p>
+				<p class="hx-eyebrow mb-2" style:color="var(--hx-accent, var(--hx-model))">
+					chapter {index + 1} · {chapter.label}
+				</p>
+				<!-- The one loud element on the page. Everything under it defers. -->
+				<h1 class="bk-title">{chapter.title}</h1>
 				<Body />
 
 				<div class="hx-rule mt-12 flex items-center justify-between border-t pt-4">
@@ -121,10 +125,21 @@
 </div>
 
 <style>
-	/* Comfortable measure, generous leading: a book page, not a panel. */
+	/* A page presented, not read: the title carries the chapter, the figures
+	   carry the teaching, and the prose is a quiet caption track in the app's
+	   own type — smaller and dimmer than chat, never competing with a slide. */
 	.bk {
-		font-size: 0.95rem;
-		line-height: 1.8;
+		font-size: 0.855rem;
+		line-height: 1.75;
+		color: color-mix(in oklab, var(--foreground) 82%, var(--muted-foreground));
+	}
+	.bk-title {
+		font-size: 1.55rem;
+		font-weight: 650;
+		letter-spacing: -0.015em;
+		line-height: 1.25;
+		color: var(--foreground);
+		margin: 0 0 1.4em;
 	}
 	.bk :global(p) {
 		margin: 0 0 1.2em;
@@ -161,69 +176,31 @@
 		color: var(--muted-foreground);
 	}
 
-	/* ── the diagram vocabulary ─────────────────────────────────────────────
-	   Every chapter draws with the same five classes, defined once here, so
-	   the diagrams cannot drift apart in weight or ink. Neutral ink keys off
-	   the muted foreground (the hairline --border vanishes against tinted
-	   fills); anything that means something elsewhere is wrapped in a group
-	   carrying its --hx-* colour, and currentColor does the rest. */
-	.bk :global(svg.d) {
+	/* ── the plates ─────────────────────────────────────────────────────────
+	   Chapters 2–10 open on a generated editorial illustration (gpt-image-2,
+	   static/book/). Every plate is painted on midnight's own page colour
+	   (#131316) — the default theme — so in dark themes the artwork sits
+	   directly on the page, borderless, as if drawn there. Light themes get
+	   the hairline frame back, because there the plate really is a dark
+	   print tipped into a pale page. width/height attributes reserve the box
+	   before the bytes arrive. */
+	.bk :global(img.plate) {
 		display: block;
 		width: 100%;
 		height: auto;
 		margin: 0.4em 0 2.6em;
-		color: color-mix(in oklab, var(--muted-foreground) 40%, var(--foreground));
+		border: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
+		border-radius: 4px;
 	}
-	.bk :global(svg.d text) {
-		font-family: var(--font-mono);
-		font-size: 9.5px;
-		letter-spacing: 0.07em;
-		fill: currentColor;
-	}
-	.bk :global(svg.d .m) {
-		font-size: 8.5px;
-		letter-spacing: 0.03em;
-		fill: var(--muted-foreground);
-	}
-	.bk :global(svg.d .c) {
-		text-anchor: middle;
-	}
-	.bk :global(svg.d .e) {
-		text-anchor: end;
-	}
-	.bk :global(svg.d .b) {
-		fill: color-mix(in oklab, currentColor 7%, transparent);
-		stroke: color-mix(in oklab, currentColor 55%, transparent);
-		stroke-width: 1.5;
-		stroke-linejoin: round;
-	}
-	.bk :global(svg.d .g) {
-		fill: none;
-		stroke: color-mix(in oklab, currentColor 40%, transparent);
-		stroke-width: 1.5;
-		stroke-dasharray: 4 3;
-		stroke-linejoin: round;
-	}
-	.bk :global(svg.d .w) {
-		fill: none;
-		stroke: color-mix(in oklab, currentColor 55%, transparent);
-		stroke-width: 1.5;
-		stroke-linecap: round;
-		stroke-linejoin: round;
-	}
-	.bk :global(svg.d .wd) {
-		fill: none;
-		stroke: color-mix(in oklab, currentColor 45%, transparent);
-		stroke-width: 1.5;
-		stroke-dasharray: 4 3;
-		stroke-linecap: round;
-	}
-	.bk :global(svg.d .bar) {
-		fill: currentColor;
-		opacity: 0.75;
-	}
-	/* Dark needs more tint to register at all — same tuning HarnessDiagram uses. */
-	:global(.dark) .bk :global(svg.d .b) {
-		fill: color-mix(in oklab, currentColor 10%, transparent);
+	:global(.dark) .bk :global(img.plate) {
+		border-color: transparent;
+		border-radius: 0;
+		/* The plates are painted on midnight's #131316, but a generated black
+		   is never exact and JPEG wobbles it further. Lighten-blending makes
+		   the page win wherever the plate is darker, so the background melts
+		   into ANY dark theme pixel-perfectly and only the luminous artwork
+		   stays. Light themes keep normal rendering — there the plate is a
+		   framed print, not part of the page. */
+		mix-blend-mode: lighten;
 	}
 </style>

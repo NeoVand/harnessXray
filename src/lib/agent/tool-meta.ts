@@ -20,14 +20,14 @@ import type { IconValue } from '$lib/icons';
 /**
  * Per-tool identity.
  *
- * The agent's tool list is 10 entries long and only 2 of them are ours — so the
- * interesting question at a glance is never "was a tool called" but "*which*
- * tool, and did we write it or did the harness supply it". One glyph per tool
- * answers the first; `origin` answers the second.
+ * The agent's tool list has grown well past a dozen entries and roughly half
+ * are ours — so the interesting question at a glance is never "was a tool
+ * called" but "*which* tool, and did we write it or did the harness supply
+ * it". One glyph per tool answers the first; `origin` answers the second.
  *
- * Verified against the live wire payload rather than the docs: the request
- * carries search_papers, fetch_paper, write_todos, ls, read_file, write_file,
- * edit_file, glob, grep, task.
+ * The authoritative list is the live wire payload (Context tab → tool
+ * schemas), never this comment: entries below are looked up by name and an
+ * unknown name falls back to the generic wrench.
  */
 export interface ToolMeta {
 	icon: IconValue;
