@@ -186,16 +186,15 @@
 	{/if}
 
 	{#if tutor.active && tutor.chips.length && !tutor.busy}
-		<!-- Click-worthy questions about THIS run, on the same column and spacer
-		     pattern as the scripted-replay row. A used chip greys out but stays:
-		     the row is a menu of the run's own puzzles, not a queue. -->
+		<!-- Click-worthy questions about the instruments on screen, on the same
+		     column and spacer pattern as the scripted-replay row. No label — the
+		     glowing + is already the mode lamp, and an inline eyebrow shoved the
+		     first chip out of line with every wrapped row. A used chip greys out
+		     but stays: the row is a menu, not a queue. -->
 		<div class="flex gap-1.5 pb-2">
 			<span class="size-7 shrink-0" aria-hidden="true"></span>
 			<div class="mx-auto w-full max-w-[68ch] min-w-0 flex-1">
-				<div class="flex flex-wrap items-center gap-1.5">
-					<span class="hx-eyebrow shrink-0" style:color="var(--hx-accent, var(--hx-state))">
-						lab
-					</span>
+				<div class="flex flex-wrap gap-1.5">
 					{#each tutor.chips as chip (chip)}
 						<button
 							class="hx-rule rounded-full border px-2.5 py-1 text-[11px] text-muted-foreground
