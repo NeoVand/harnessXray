@@ -130,7 +130,7 @@
    Muted enough to sit under text without shouting, separated enough in hue to
    read as categories. Chroma stays ≤0.13 so nothing competes with the content. */
 :root {
-	--hx-user: oklch(0.52 0.015 260);
+	--hx-user: oklch(0.52 0.09 330); /* plum — you speaking, in every panel */
 	--hx-model: oklch(0.5 0.062 195); /* phosphor teal — the model speaking */
 	--hx-tool: oklch(0.56 0.085 72); /* ochre — work being done */
 	--hx-state: oklch(0.52 0.055 250); /* slate — the graph's own bookkeeping */
@@ -184,7 +184,7 @@
 	--muted-foreground: oklch(0.655 0.012 286);
 	--border: oklch(1 0 0 / 9%);
 
-	--hx-user: oklch(0.66 0.015 260);
+	--hx-user: oklch(0.73 0.09 330);
 	--hx-model: oklch(0.72 0.075 195);
 	--hx-tool: oklch(0.75 0.085 72);
 	--hx-state: oklch(0.7 0.06 250);
@@ -238,7 +238,7 @@
 
 	/* Everything seen through rain: hues pulled toward blue, the warm kinds
 	   greyed down, the reds and clays cooled. */
-	--hx-user: oklch(0.68 0.02 250);
+	--hx-user: oklch(0.73 0.08 320);
 	--hx-model: oklch(0.73 0.08 210);
 	--hx-tool: oklch(0.74 0.07 78);
 	--hx-state: oklch(0.71 0.07 258);
@@ -260,7 +260,7 @@
 	--hx-accent: oklch(0.5 0.09 275); /* slate-indigo — overcast, not cold */
 
 	/* Overcast light flattens saturation; the whole legend drifts indigo. */
-	--hx-user: oklch(0.52 0.02 270);
+	--hx-user: oklch(0.51 0.1 340);
 	--hx-model: oklch(0.5 0.07 225);
 	--hx-tool: oklch(0.55 0.07 68);
 	--hx-state: oklch(0.51 0.075 268);
@@ -283,7 +283,7 @@
 
 	/* Full sun enriches the warm kinds; the cool ones stay put as counterpoint,
 	   or the legend would collapse into one golden blur. */
-	--hx-user: oklch(0.52 0.02 75);
+	--hx-user: oklch(0.52 0.1 335);
 	--hx-model: oklch(0.5 0.07 185);
 	--hx-tool: oklch(0.55 0.1 72);
 	--hx-state: oklch(0.52 0.05 252);
