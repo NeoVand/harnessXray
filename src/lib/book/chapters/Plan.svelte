@@ -36,6 +36,6 @@
 />
 
 <p class="live">
-	See it live: the plan tab in the inspector, and the state-coloured todo rows on the events
+	See it live: the plan pane above the events, and the state-coloured todo rows on the events
 	timeline — one per revision, with what changed.
 </p>

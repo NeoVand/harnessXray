@@ -7,8 +7,11 @@
 		type DisplayKind,
 		type XrayEvent
 	} from '$lib/xray/events';
-	import { KIND_COLOR, iconOf, stamp, summarise } from '$lib/xray/format';
+	import { KIND_COLOR, iconOf, stamp, summarise, detailOf, bytes } from '$lib/xray/format';
 	import EventMedia from './EventMedia.svelte';
+	import JsonView from './JsonView.svelte';
+	import RawView from './RawView.svelte';
+	import { explanations, explain } from '$lib/lab/sidecar.svelte';
 	import { HugeiconsIcon } from '@hugeicons/svelte';
 	import { ICON } from '$lib/icons';
 
@@ -72,6 +75,39 @@
 		return out;
 	});
 
+	/**
+	 * The detail lives here now, under the row that names it.
+	 *
+	 * There used to be a detail tab across the app; clicking a row and reading
+	 * its payload two panes away split one act of attention in half. Expansion
+	 * is strictly click-driven — the follow-the-run selection never opens a
+	 * row, or a live run would be a zipper of payloads opening themselves.
+	 */
+	let expandedId = $state<string | null>(null);
+	/** The expanded row's second reading: the literal wire. Resets per row. */
+	let rawMode = $state(false);
+
+	function open(e: XrayEvent) {
+		onselect(e.id);
+		if (expandedId === e.id) {
+			expandedId = null;
+		} else {
+			expandedId = e.id;
+			rawMode = false;
+		}
+	}
+
+	/** Frames belonging to an expanded exchange, for raw mode and the count. */
+	function framesFor(e: XrayEvent): XrayEvent[] {
+		const httpId =
+			e.kind === 'http_request'
+				? e.id
+				: 'httpId' in e
+					? (e.httpId as string | undefined)
+					: undefined;
+		return httpId ? bus.framesOf(httpId) : [];
+	}
+
 	let viewport = $state<HTMLElement | null>(null);
 	let pinned = $state(true);
 
@@ -118,9 +154,6 @@
 					<span class="hx-eyebrow text-muted-foreground/60">— its own context window</span>
 				</div>
 			{/if}
-			<!-- One control, one meaning: selecting drives the inspector, and the
-			     inspector is where the payload lives. This row used to expand the
-			     same JSON in place — pure repetition, gone. -->
 			<!-- The lane indent is a margin, so width must give those 12px back —
 			     w-full plus the margin was a permanent horizontal scrollbar. -->
 			<button
@@ -133,7 +166,8 @@
 					? '2px solid color-mix(in oklab, var(--hx-subagent) 55%, transparent)'
 					: undefined}
 				style:margin-left={r.sub ? '12px' : undefined}
-				onclick={() => onselect(e.id)}
+				onclick={() => open(e)}
+				aria-expanded={expandedId === e.id}
 			>
 				<span
 					class="h-full min-h-[14px] self-stretch rounded-full"
@@ -169,6 +203,85 @@
 					class:pl-8={e.kind !== 'paper_fetched'}
 				>
 					<EventMedia event={e} onopen={onopenasset} />
+				</div>
+			{/if}
+
+			{#if expandedId === e.id}
+				{@const frames = framesFor(e)}
+				{@const ex = explanations.get(e.id)}
+				<!-- The payload, exactly where the click was. Two readings and the
+				     tutor ride along, same grammar as every other panel. -->
+				<div
+					class="border-b border-[color-mix(in_oklab,var(--border)_45%,transparent)] bg-muted/25"
+				>
+					<div class="flex items-center gap-2 px-3 pt-2 text-muted-foreground">
+						<button
+							class="transition-colors hover:text-foreground"
+							style:color={!rawMode ? 'var(--hx-accent)' : undefined}
+							onclick={() => (rawMode = false)}
+							aria-pressed={!rawMode}
+							title="Detail — the payload, decomposed"
+							aria-label="Detail view"
+						>
+							<HugeiconsIcon icon={ICON.state} size={12} strokeWidth={1.5} />
+						</button>
+						<button
+							class="transition-colors hover:text-foreground"
+							style:color={rawMode ? 'var(--hx-accent)' : undefined}
+							onclick={() => (rawMode = true)}
+							aria-pressed={rawMode}
+							title="Raw — the literal wire, frame by frame"
+							aria-label="Raw view"
+						>
+							<HugeiconsIcon icon={ICON.code} size={12} strokeWidth={1.5} />
+						</button>
+						{#if !rawMode}
+							<button
+								class="hx-eyebrow flex items-center gap-1 transition-colors hover:text-foreground"
+								onclick={() => explain(e)}
+								title="Have the lab explain this event — one small luna call, outside the agent"
+							>
+								<HugeiconsIcon icon={ICON.sparkle} size={11} strokeWidth={1.5} />
+								explain
+							</button>
+						{/if}
+						<span class="hx-num ml-auto text-[10px] text-muted-foreground/70">
+							{#if e.kind === 'http_request'}{bytes(e.bytes)}{/if}
+							{#if e.kind === 'http_response'}{Math.round(e.ms)}ms · {frames.length} frames{/if}
+						</span>
+					</div>
+
+					{#if rawMode}
+						<RawView event={e} {frames} />
+					{:else}
+						{#if ex}
+							<div class="hx-rule mx-3 mt-2 border-b pb-2">
+								<p class="hx-eyebrow mb-1 flex items-center gap-1.5" style:color="var(--hx-state)">
+									<HugeiconsIcon icon={ICON.sparkle} size={11} strokeWidth={1.5} />
+									{ex.status === 'thinking' ? 'explaining…' : 'explained'}
+									<span class="text-muted-foreground/60">— the lab, not the agent</span>
+								</p>
+								{#if ex.status === 'thinking'}
+									<p class="text-xs text-muted-foreground">Reading the payload…</p>
+								{:else}
+									<p
+										class="max-w-[64ch] text-xs leading-relaxed whitespace-pre-wrap"
+										class:text-muted-foreground={ex.status === 'error'}
+									>
+										{ex.text}
+									</p>
+								{/if}
+							</div>
+						{/if}
+						<div class="px-3 py-2">
+							<JsonView value={detailOf(e)} openTo={2} root />
+						</div>
+						{#if frames.length && e.kind !== 'http_response'}
+							<p class="hx-eyebrow px-3 pb-2 text-muted-foreground/60">
+								{frames.length} stream frames — raw walks them
+							</p>
+						{/if}
+					{/if}
 				</div>
 			{/if}
 		{/each}

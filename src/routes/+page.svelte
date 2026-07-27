@@ -4,6 +4,7 @@
 	import Conversation from '$lib/components/chat/Conversation.svelte';
 	import Composer from '$lib/components/chat/Composer.svelte';
 	import EventTimeline from '$lib/components/xray/EventTimeline.svelte';
+	import TodoPanel from '$lib/components/xray/TodoPanel.svelte';
 	import Inspector from '$lib/components/xray/Inspector.svelte';
 	import SettingsSheet from '$lib/components/SettingsSheet.svelte';
 	import DocumentViewer from '$lib/components/DocumentViewer.svelte';
@@ -45,14 +46,11 @@
 	// thing it drives.
 	let contextView = $state<'pieces' | 'raw'>('pieces');
 
-	// Owned here so the inspector's tabs survive a document being opened and
-	// closed — that unmounts the whole component, and local state would snap
-	// back to `detail` on every close.
-	let inspectorTop = $state<'detail' | 'files'>('detail');
-	let inspectorBottom = $state<'plan' | 'skills' | 'memory' | 'graph' | 'ledger'>('plan');
-
-	/** Height of the floating tab bar; panels leave this much room at the top. */
-	const TAB_H = '36px';
+	// Owned here so the inspector's dashboard tab survives a document being
+	// opened and closed — that unmounts the whole component, and local state
+	// would snap back on every close. Graph first: it is the fastest-moving
+	// panel, and the default view should be the one that is alive.
+	let inspectorBottom = $state<'graph' | 'skills' | 'memory' | 'ledger'>('graph');
 
 	const frameCount = $derived.by(() => {
 		void bus.version;
@@ -350,20 +348,43 @@
 				{:else}
 					<Resizable.PaneGroup direction="horizontal" autoSaveId="hx:xray">
 						<Resizable.Pane defaultSize={34} minSize={22}>
-							<!-- Two readings of the same run, both always on screen now: the
-						     events record on top, and beneath it what the model could see
-						     when they happened. Neither is derivable from the other, and
-						     tabbing between them hid exactly the correspondence a class
-						     is there to watch. The ledger moved to the inspector's
-						     dashboard row. -->
-							<!-- v2: the default split must match the inspector's, and a saved
-						     layout under the old id would silently keep the misaligned one. -->
-							<Resizable.PaneGroup direction="vertical" autoSaveId="hx:timeline-v2">
-								<Resizable.Pane defaultSize={62} minSize={25}>
+							<!-- The middle column is everything that changes rapidly, all
+						     visible at once: the plan ticking over, the event record, and
+						     the context the model will see next. Tabbing between any of
+						     them hid exactly the correspondence a class is there to
+						     watch. The ledger and the slower panels live in the
+						     inspector's dashboard row. -->
+							<!-- v3: the plan pane joined the stack; a saved layout under the
+						     old id would keep the two-pane split forever. -->
+							<Resizable.PaneGroup direction="vertical" autoSaveId="hx:middle-v3">
+								<Resizable.Pane defaultSize={16} minSize={8} collapsible collapsedSize={6}>
 									<div class="relative h-full min-h-0">
 										<div
 											class="hx-rule hx-frost absolute inset-x-0 top-0 z-20 flex h-9 items-center
 										       gap-3.5 border-b px-3"
+										>
+											<span
+												class="hx-eyebrow flex h-full items-center gap-1.5"
+												style:color="var(--hx-accent)"
+											>
+												<HugeiconsIcon icon={ICON.todo} size={12} strokeWidth={1.5} />
+												plan
+												{#if session.todos.length}
+													<span class="hx-num text-[9px] opacity-60">{session.todos.length}</span>
+												{/if}
+											</span>
+										</div>
+										<div class="h-full overflow-y-auto pt-9">
+											<TodoPanel />
+										</div>
+									</div>
+								</Resizable.Pane>
+								<Resizable.Handle />
+								<Resizable.Pane defaultSize={50} minSize={22}>
+									<div class="relative h-full min-h-0">
+										<div
+											class="hx-rule hx-frost absolute inset-x-0 top-0 z-20 flex h-8 items-center
+										       gap-3.5 border-y px-3"
 										>
 											<span
 												class="hx-eyebrow flex h-full items-center gap-1.5"
@@ -410,7 +431,7 @@
 												{selectedId}
 												{showFrames}
 												hidden={hiddenKinds}
-												topPad={TAB_H}
+												topPad="32px"
 												onselect={select}
 												onopenasset={(p) => {
 													openPath = p;
@@ -421,7 +442,7 @@
 									</div>
 								</Resizable.Pane>
 								<Resizable.Handle />
-								<Resizable.Pane defaultSize={38} minSize={14} collapsible collapsedSize={8}>
+								<Resizable.Pane defaultSize={34} minSize={14} collapsible collapsedSize={8}>
 									<div class="relative h-full min-h-0">
 										<header
 											class="hx-rule hx-frost absolute inset-x-0 top-0 z-20 flex h-8 items-center
@@ -486,9 +507,7 @@
 						<Resizable.Handle />
 						<Resizable.Pane defaultSize={62} minSize={30}>
 							<Inspector
-								{selectedId}
 								bind:openPath
-								bind:top={inspectorTop}
 								bind:bottom={inspectorBottom}
 								onread={(p) => (readPath = p)}
 								onjump={select}
