@@ -13,8 +13,16 @@
 	import { assets, assetVersion } from '$lib/storage/assets.svelte';
 	import { attachmentType } from '$lib/xray/filetype';
 
-	let { onopensettings, onread }: { onopensettings: () => void; onread?: (path: string) => void } =
-		$props();
+	interface Props {
+		onopensettings: () => void;
+		onread?: (path: string) => void;
+		/** Room for the frosted app header the scroller now runs beneath. */
+		topPad?: string;
+		/** Room for the frosted composer floating over the scroller's tail —
+		 * measured live by the page, since the composer grows with its text. */
+		bottomPad?: string;
+	}
+	let { onopensettings, onread, topPad = '0px', bottomPad = '0px' }: Props = $props();
 
 	let viewport = $state<HTMLElement | null>(null);
 	let pinned = $state(true);
@@ -24,9 +32,11 @@
 		// Re-run as text streams in, not only when a message is added.
 		void session.messages.length;
 		void session.messages.at(-1)?.text;
-		// Lab exchanges append below the agent's, so they pin the scroll too.
+		// Lab exchanges append below the agent's, so they pin the scroll too —
+		// text included, since the tutor's replies stream in like the agent's.
 		void tutor.transcript.length;
 		void tutor.transcript.at(-1)?.status;
+		void tutor.transcript.at(-1)?.text;
 		if (pinned && viewport) viewport.scrollTop = viewport.scrollHeight;
 	});
 
@@ -52,7 +62,13 @@
 	];
 </script>
 
-<div bind:this={viewport} onscroll={onScroll} class="min-h-0 flex-1 overflow-y-auto">
+<div
+	bind:this={viewport}
+	onscroll={onScroll}
+	class="min-h-0 flex-1 overflow-y-auto"
+	style:padding-top={topPad}
+	style:padding-bottom={bottomPad}
+>
 	<!--
 		The scroller is full width; the *column* is what is 68ch.
 
@@ -382,7 +398,7 @@
 							>
 								lab — the app speaking, not the agent
 							</p>
-							{#if entry.status === 'thinking'}
+							{#if entry.status === 'thinking' && !entry.text}
 								<p class="text-xs text-muted-foreground">reading the run…</p>
 							{:else if entry.status === 'error'}
 								<p class="text-xs leading-relaxed" style:color="var(--hx-error)">

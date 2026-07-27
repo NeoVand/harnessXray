@@ -25,19 +25,13 @@ export interface TutorEntry {
 	status: 'thinking' | 'done' | 'error';
 }
 
-/** What a student can always ask, whatever the run did. */
+/** What a student can always ask, before any run exists to point at. */
 const STATIC_CHIPS = [
 	'Walk me through this run',
-	'Why did it pause for approval?',
-	'What did the subagents do?',
-	'What did this cost and why?'
+	'How is the context window organized?',
+	'What do the dashed edges in the graph mean?',
+	'What did this run cost and why?'
 ] as const;
-
-const CHIPS_PROMPT = `You are the tutor built into harnessXray, a lab that runs a real Deep Agents (LangChain/LangGraph) harness in the browser and dissects it live. Below is the lab's digest of the run currently on screen.
-
-Write exactly 4 short questions a curious student might click to have THIS run explained — about a gate that fired, a subagent, a cost, a compaction, a loop, a file it wrote. Only ask about things the digest actually contains. One question per line. No numbering, no bullets, no quotes. Each under 8 words.
-
-%DIGEST%`;
 
 const TUTOR_PROMPT = `You are the tutor built into harnessXray, a lab that runs a real Deep Agents (LangChain/LangGraph) harness in the browser and dissects it live. The student flipped on Explain mode and is asking about the run they can see on screen right now. You are the app speaking, not the agent.
 
@@ -54,12 +48,22 @@ The student asks: %QUESTION%`;
 class Tutor {
 	active = $state(false);
 	transcript = $state<TutorEntry[]>([]);
-	chips = $state<string[]>([]);
 	/** Chips already asked, greyed out rather than removed. */
 	used = $state<string[]>([]);
 
-	/** Guards a slow chip generation landing after the mode was toggled again. */
-	#epoch = 0;
+	/**
+	 * Suggested questions, folded from the same event log the panels render.
+	 *
+	 * Deterministic on purpose. An earlier version asked the sidecar to write
+	 * these from the digest, and it wrote plausible quiz questions about the
+	 * run's *story* — different every toggle, anchored to nothing on screen.
+	 * But the chips' job is to teach the instruments, so they are built the way
+	 * the instruments are: a fold over the bus, naming the tool the run
+	 * actually leaned on, a middleware that actually ran, the panels the
+	 * answer will point at. Free, instant, stable — and they work in replay,
+	 * where the lab has no network by design.
+	 */
+	chips = $derived.by(() => this.#chipsFor());
 
 	/** A question is out; the composer holds further ones until it lands. */
 	get busy(): boolean {
@@ -68,7 +72,51 @@ class Tutor {
 
 	toggle() {
 		this.active = !this.active;
-		if (this.active) void this.#refreshChips();
+		if (this.active) this.used = [];
+	}
+
+	#chipsFor(): string[] {
+		void bus.version;
+		const events = bus.events;
+		if (!events.some((e) => e.kind === 'run_start')) return [...STATIC_CHIPS];
+
+		// One pass, everything the chips could want to name. Plain object and
+		// array on purpose: these live for the length of the fold, not the UI.
+		const calls: Record<string, number> = {};
+		const nodes: string[] = [];
+		let skill: string | undefined;
+		let lane: string | undefined;
+		let paused = false;
+		let compacted = false;
+		for (const e of events) {
+			if (e.kind === 'tool_start') {
+				calls[e.name] = (calls[e.name] ?? 0) + 1;
+				skill ??= e.skill;
+			} else if (e.kind === 'node') {
+				if (!nodes.includes(e.nodeName)) nodes.push(e.nodeName);
+			} else if (e.kind === 'interrupt') paused = true;
+			else if (e.kind === 'compaction') compacted = true;
+			lane ??= e.lane;
+		}
+
+		const chips = ['How is the context window organized?'];
+
+		const top = Object.entries(calls).sort((a, b) => b[1] - a[1])[0]?.[0];
+		if (top) chips.push(`Explain the ${top} tool calls`);
+
+		// A middleware hook beats a bare node: its name is the lesson.
+		const hook = nodes.find((n) => n.includes('.'))?.split('.')[0];
+		const node = nodes.find((n) => n !== 'model_request') ?? nodes[0];
+		if (hook) chips.push(`What does ${hook} do?`);
+		else if (node) chips.push(`What happens at the ${node} node?`);
+
+		chips.push('What do the dashed edges in the graph mean?');
+		if (paused) chips.push('Why did the run pause for approval?');
+		if (lane) chips.push(`Why does ${lane} get its own context?`);
+		if (skill) chips.push(`How did the ${skill} skill get loaded?`);
+		if (compacted) chips.push('What did the compaction fold away?');
+		chips.push('What did this run cost and why?');
+		return chips.slice(0, 6);
 	}
 
 	#digest(): string {
@@ -95,37 +143,6 @@ class Tutor {
 				: `you answered: ${e.text.slice(0, 500)}`
 		);
 		return `\nEarlier in this tutoring session:\n${lines.join('\n')}\n`;
-	}
-
-	async #refreshChips() {
-		const epoch = ++this.#epoch;
-		this.used = [];
-		// Static first, so there is something to click while the better set is
-		// being written — and something left if it never arrives.
-		this.chips = [...STATIC_CHIPS];
-		if (!sidecarReady()) return;
-		if (!bus.events.some((e) => e.kind === 'run_start')) return;
-		try {
-			const raw = await labComplete(
-				CHIPS_PROMPT.replace('%DIGEST%', () => this.#digest()),
-				500
-			);
-			const lines = raw
-				.split('\n')
-				.map((l) =>
-					l
-						.replace(/^["'\s\-*•\d.)]+/, '')
-						.replace(/["']+$/, '')
-						.trim()
-				)
-				.filter(Boolean)
-				.filter((l) => l.split(/\s+/).length <= 10)
-				.map((l) => l.slice(0, 80));
-			if (epoch !== this.#epoch || !this.active) return;
-			if (lines.length >= 4) this.chips = lines.slice(0, 4);
-		} catch {
-			/* the static set is already in place */
-		}
 	}
 
 	async ask(question: string) {
@@ -161,7 +178,11 @@ class Tutor {
 			.replace('%QUESTION%', () => q);
 
 		try {
-			const text = await labComplete(prompt, 1400);
+			// Streamed into the entry as it arrives; the bubble grows live, the
+			// same way the agent's do.
+			const text = await labComplete(prompt, 1400, (partial) => {
+				entry.text = partial;
+			});
 			entry.text = text || 'The model returned nothing. Ask again.';
 			entry.status = text ? 'done' : 'error';
 		} catch (e) {

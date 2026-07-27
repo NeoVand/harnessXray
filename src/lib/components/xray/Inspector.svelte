@@ -74,8 +74,10 @@
 				</span>
 			</header>
 
-			<div class="h-full overflow-hidden pt-9">
-				<FilesPanel bind:openPath {onread} />
+			<!-- No wrapper padding: the tree carries it inside its own scroller,
+			     so file rows slide under the frosted bar instead of clipping. -->
+			<div class="h-full overflow-hidden">
+				<FilesPanel bind:openPath {onread} topPad="36px" />
 			</div>
 		</div>
 	</Resizable.Pane>

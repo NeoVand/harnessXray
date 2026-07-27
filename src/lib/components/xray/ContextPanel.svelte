@@ -5,8 +5,6 @@
 	import { COMPACT_AT } from '$lib/agent/models';
 	import { compact } from '$lib/xray/usage';
 	import { bytes } from '$lib/xray/format';
-	import { HugeiconsIcon } from '@hugeicons/svelte';
-	import { ICON } from '$lib/icons';
 
 	/**
 	 * The context window, opened up.
@@ -35,16 +33,22 @@
 		 * itself and feel how long the request has actually become. The switch
 		 * lives in the tab bar above, so the reading arrives as a plain prop.
 		 */
-		view = 'pieces'
-	}: { hidden?: Set<string>; topPad?: string; view?: 'pieces' | 'raw' } = $props();
+		view = 'pieces',
+		/** Which model call is pinned; null follows the run. Bound by the page —
+		 * the pager that drives it lives up in the pane's bar with the panel's
+		 * other controls, so paging costs no row inside the panel. */
+		pinnedId = $bindable<string | null>(null)
+	}: {
+		hidden?: Set<string>;
+		topPad?: string;
+		view?: 'pieces' | 'raw';
+		pinnedId?: string | null;
+	} = $props();
 
 	const stubs = $derived.by(() => {
 		void bus.version;
 		return shotStubs(bus);
 	});
-
-	/** null means "follow the run". */
-	let pinnedId = $state<string | null>(null);
 
 	const currentId = $derived(pinnedId ?? stubs.at(-1)?.id ?? null);
 	const shot = $derived.by(() => {
@@ -52,7 +56,6 @@
 		return currentId ? shotAt(bus, currentId) : undefined;
 	});
 
-	const index = $derived(stubs.findIndex((s) => s.id === currentId));
 	const totals = $derived(shot ? groupTotals(shot) : { system: 0, tools: 0, messages: 0 });
 
 	const used = $derived(shot ? Math.min(1, shot.tokens / shot.limit) : 0);
@@ -93,12 +96,6 @@
 	/** Pretty-printed lazily — the pieces view never pays for the stringify. */
 	const rawText = $derived(view === 'raw' && rawReq ? JSON.stringify(rawReq.body, null, 2) : '');
 
-	function step(by: number) {
-		if (!stubs.length) return;
-		const at = Math.max(0, Math.min(stubs.length - 1, (index < 0 ? stubs.length - 1 : index) + by));
-		pinnedId = at === stubs.length - 1 ? null : stubs[at].id;
-	}
-
 	const GROUPS: { id: PieceGroup; label: string; note: string }[] = [
 		{ id: 'system', label: 'system prompt', note: 'one string, assembled from many' },
 		{ id: 'tools', label: 'tool schemas', note: 'every schema, every request' },
@@ -113,13 +110,9 @@
 
 	const pct = (n: number) => (shot && shot.tokens ? (n / shot.tokens) * 100 : 0);
 
-	/**
-	 * Height of the pager header, so group headings can stack under it. The
-	 * header only exists once there is more than one call to page through —
-	 * with it gone, the headings stick directly under the tab bar.
-	 */
-	const HEADER = 32;
-	const under = $derived(stubs.length > 1 ? `calc(${topPad} + ${HEADER}px)` : topPad);
+	/** The pager moved up into the pane's bar, so the group headings stick
+	 * directly under the tab bar in every case. */
+	const under = $derived(topPad);
 </script>
 
 <!--
@@ -142,39 +135,6 @@
 		position are the same number.
 	-->
 	<div style:height={topPad}></div>
-
-	{#if stubs.length > 1}
-		<!-- Only the pager lives here now — the pieces/raw switch and the compact
-		     action moved up to the tab bar, with every other control of this lens.
-		     No title either: the tab immediately above already says `context`. -->
-		<header
-			class="hx-rule hx-frost sticky z-20 flex items-center gap-1 border-b px-3"
-			style:top={topPad}
-			style:height="{HEADER}px"
-		>
-			<button
-				class="px-1 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-25"
-				onclick={() => step(-1)}
-				disabled={index <= 0}
-				aria-label="Previous model call"
-			>
-				<span class="inline-block rotate-180"
-					><HugeiconsIcon icon={ICON.next} size={12} strokeWidth={1.5} /></span
-				>
-			</button>
-			<span class="hx-num text-[10px] text-muted-foreground">
-				{index < 0 ? stubs.length : index + 1}/{stubs.length}
-			</span>
-			<button
-				class="px-1 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-25"
-				onclick={() => step(1)}
-				disabled={index === stubs.length - 1 || index < 0}
-				aria-label="Next model call"
-			>
-				<HugeiconsIcon icon={ICON.next} size={12} strokeWidth={1.5} />
-			</button>
-		</header>
-	{/if}
 
 	{#if !shot}
 		<p class="px-3 py-6 text-xs leading-relaxed text-muted-foreground">

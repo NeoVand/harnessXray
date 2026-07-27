@@ -23,7 +23,18 @@ import { detailOf } from '$lib/xray/format';
 const SIDECAR_MODEL = 'gpt-5.6-luna';
 const ENDPOINT = 'https://api.openai.com/v1/chat/completions';
 
-async function complete(prompt: string, maxTokens: number): Promise<string> {
+/**
+ * One completion. With `onDelta`, the request streams and the callback gets
+ * the *accumulated* text on every chunk — the tutor's answers land in the
+ * chat, and a reply that materialises in one drop reads as broken next to an
+ * agent whose every token arrives live. Without it, one buffered read: a
+ * title has no business flickering into place.
+ */
+async function complete(
+	prompt: string,
+	maxTokens: number,
+	onDelta?: (text: string) => void
+): Promise<string> {
 	const res = await fetch(ENDPOINT, {
 		method: 'POST',
 		headers: {
@@ -36,12 +47,48 @@ async function complete(prompt: string, maxTokens: number): Promise<string> {
 			// exactly the case the provider added 'none' for.
 			reasoning_effort: 'none',
 			max_completion_tokens: maxTokens,
-			messages: [{ role: 'user', content: prompt }]
+			messages: [{ role: 'user', content: prompt }],
+			...(onDelta ? { stream: true } : {})
 		})
 	});
 	if (!res.ok) throw new Error(`sidecar HTTP ${res.status}`);
-	const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-	return json.choices?.[0]?.message?.content?.trim() ?? '';
+
+	if (!onDelta || !res.body) {
+		const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+		return json.choices?.[0]?.message?.content?.trim() ?? '';
+	}
+
+	// The same SSE grammar the X-ray dissects all day: `data: {...}` lines in
+	// double-newline frames, closed by `data: [DONE]`.
+	const reader = res.body.getReader();
+	const decoder = new TextDecoder();
+	let buffer = '';
+	let out = '';
+	for (;;) {
+		const { done, value } = await reader.read();
+		if (done) break;
+		buffer += decoder.decode(value, { stream: true });
+		const frames = buffer.split('\n\n');
+		buffer = frames.pop() ?? '';
+		for (const frame of frames) {
+			for (const line of frame.split('\n')) {
+				if (!line.startsWith('data:')) continue;
+				const data = line.slice(5).trim();
+				if (!data || data === '[DONE]') continue;
+				try {
+					const parsed = JSON.parse(data) as { choices?: { delta?: { content?: string } }[] };
+					const delta = parsed.choices?.[0]?.delta?.content ?? '';
+					if (delta) {
+						out += delta;
+						onDelta(out);
+					}
+				} catch {
+					/* keepalives and malformed frames are not our problem */
+				}
+			}
+		}
+	}
+	return out.trim();
 }
 
 /**
@@ -124,7 +171,9 @@ export function explain(event: XrayEvent): void {
 		detail
 	);
 
-	void complete(prompt, 1200)
+	void complete(prompt, 1200, (partial) => {
+		explanations.set(event.id, { status: 'thinking', text: partial });
+	})
 		.then((text) => {
 			explanations.set(
 				event.id,

@@ -41,6 +41,10 @@
 
 	let showFrames = $state(false);
 
+	/** The composer's live height — it grows with text, chips and attachments,
+	 * and the conversation's bottom padding has to grow with it. */
+	let composerH = $state(64);
+
 	// The context panel's two readings. Owned here, not in the panel, because
 	// the switch lives in the pane's own bar — a component boundary above the
 	// thing it drives.
@@ -100,13 +104,27 @@
 		{ key: 'messages', label: 'messages', color: 'var(--hx-user)' }
 	];
 
-	// The last model call is the live context — what the next request will be
-	// built on top of. Read from the wire like everything else here.
-	const lastShot = $derived.by(() => {
+	// Every model call in the run, for the context pane's pager — and its last
+	// entry is the live context the next request builds on. Read from the wire
+	// like everything else here.
+	const ctxStubs = $derived.by(() => {
 		void bus.version;
-		return shotStubs(bus).at(-1);
+		return shotStubs(bus);
 	});
+	const lastShot = $derived(ctxStubs.at(-1));
 	const contextUsed = $derived(lastShot ? Math.min(1, lastShot.tokens / INPUT_LIMIT) : 0);
+
+	/** Which model call the context panel shows; null follows the run. */
+	let ctxPinned = $state<string | null>(null);
+	const ctxIndex = $derived(ctxStubs.findIndex((s) => s.id === (ctxPinned ?? lastShot?.id)));
+	function ctxStep(by: number) {
+		if (!ctxStubs.length) return;
+		const at = Math.max(
+			0,
+			Math.min(ctxStubs.length - 1, (ctxIndex < 0 ? ctxStubs.length - 1 : ctxIndex) + by)
+		);
+		ctxPinned = at === ctxStubs.length - 1 ? null : ctxStubs[at].id;
+	}
 
 	// Follow the run as it happens, but stop following the moment the user
 	// takes control by selecting something. Auto-advance that fights you is
@@ -159,9 +177,13 @@
 
 <svelte:window onkeydown={onKeydown} />
 
-<div class="flex h-dvh flex-col overflow-hidden">
-	<!-- Header: one hairline, no card. -->
-	<header class="hx-rule flex h-10 shrink-0 items-center gap-2 border-b px-3">
+<div class="relative h-dvh overflow-hidden">
+	<!-- One hairline, no card — and glass now: the header floats over the
+	     columns and the conversation scrolls beneath it. -->
+	<header
+		class="hx-rule hx-frost absolute inset-x-0 top-0 z-40 flex h-10 items-center gap-2 border-b
+		       px-3"
+	>
 		<button
 			class="flex items-center gap-2 transition-opacity hover:opacity-70"
 			onclick={() => (aboutOpen = true)}
@@ -264,13 +286,16 @@
 		</div>
 	</header>
 
-	<div class="min-h-0 flex-1">
+	<div class="h-full">
 		<Resizable.PaneGroup direction="horizontal" autoSaveId="hx:root">
-			<!-- The app -->
+			<!-- The app. The column is full-bleed: the transcript slides under
+			     the frosted header above and the frosted composer below, and the
+			     paddings — one fixed, one measured — keep the resting text clear
+			     of both. -->
 			<Resizable.Pane defaultSize={42} minSize={26}>
-				<div class="flex h-full min-h-0 flex-col">
+				<div class="relative flex h-full min-h-0 flex-col">
 					{#if historyOpen}
-						<div class="hx-rule flex max-h-[45%] shrink-0 flex-col border-b">
+						<div class="hx-rule mt-10 flex max-h-[45%] shrink-0 flex-col border-b">
 							<!-- Title and dismiss share a row: closing a panel should not mean
 							     hunting for the control that opened it. -->
 							<div class="flex shrink-0 items-center justify-between px-4 pt-3 pb-2">
@@ -324,8 +349,12 @@
 					<Conversation
 						onopensettings={() => (settingsOpen = true)}
 						onread={(p) => (readPath = p)}
+						topPad={historyOpen ? '12px' : '52px'}
+						bottomPad="{composerH + 8}px"
 					/>
-					<Composer onopenskills={() => (skillsOpen = true)} />
+					<div class="absolute inset-x-0 bottom-0 z-30" bind:clientHeight={composerH}>
+						<Composer onopenskills={() => (skillsOpen = true)} />
+					</div>
 				</div>
 			</Resizable.Pane>
 
@@ -337,185 +366,225 @@
 			     outranks the book: it was opened from the run, and the run is the
 			     class's subject. -->
 			<Resizable.Pane defaultSize={58} minSize={30}>
-				{#if readPath}
-					<DocumentViewer
-						path={readPath}
-						onclose={() => (readPath = null)}
-						onopen={(p) => (readPath = p)}
-					/>
-				{:else if bookPage}
-					<BookViewer bind:page={bookPage} onclose={() => (bookPage = null)} />
-				{:else}
-					<Resizable.PaneGroup direction="horizontal" autoSaveId="hx:xray">
-						<Resizable.Pane defaultSize={34} minSize={22}>
-							<!-- The middle column is everything that changes rapidly, all
+				<!-- The instruments keep their own chrome at their own tops, so this
+				     side simply starts below the header rather than under it. -->
+				<div class="h-full min-h-0 pt-10">
+					{#if readPath}
+						<DocumentViewer
+							path={readPath}
+							onclose={() => (readPath = null)}
+							onopen={(p) => (readPath = p)}
+						/>
+					{:else if bookPage}
+						<BookViewer bind:page={bookPage} onclose={() => (bookPage = null)} />
+					{:else}
+						<Resizable.PaneGroup direction="horizontal" autoSaveId="hx:xray">
+							<Resizable.Pane defaultSize={34} minSize={22}>
+								<!-- The middle column is everything that changes rapidly, all
 						     visible at once: the plan ticking over, the event record, and
 						     the context the model will see next. Tabbing between any of
 						     them hid exactly the correspondence a class is there to
 						     watch. The ledger and the slower panels live in the
 						     inspector's dashboard row. -->
-							<!-- v3: the plan pane joined the stack; a saved layout under the
+								<!-- v3: the plan pane joined the stack; a saved layout under the
 						     old id would keep the two-pane split forever. -->
-							<Resizable.PaneGroup direction="vertical" autoSaveId="hx:middle-v3">
-								<Resizable.Pane defaultSize={16} minSize={8} collapsible collapsedSize={6}>
-									<div class="relative h-full min-h-0">
-										<div
-											class="hx-rule hx-frost absolute inset-x-0 top-0 z-20 flex h-9 items-center
+								<Resizable.PaneGroup direction="vertical" autoSaveId="hx:middle-v3">
+									<Resizable.Pane defaultSize={16} minSize={8} collapsible collapsedSize={6}>
+										<div class="relative h-full min-h-0">
+											<div
+												class="hx-rule hx-frost absolute inset-x-0 top-0 z-20 flex h-9 items-center
 										       gap-3.5 border-b px-3"
-										>
-											<span
-												class="hx-eyebrow flex h-full items-center gap-1.5"
-												style:color="var(--hx-accent)"
 											>
-												<HugeiconsIcon icon={ICON.todo} size={12} strokeWidth={1.5} />
-												plan
-												{#if session.todos.length}
-													<span class="hx-num text-[9px] opacity-60">{session.todos.length}</span>
-												{/if}
-											</span>
+												<span
+													class="hx-eyebrow flex h-full items-center gap-1.5"
+													style:color="var(--hx-accent)"
+												>
+													<HugeiconsIcon icon={ICON.todo} size={12} strokeWidth={1.5} />
+													plan
+													{#if session.todos.length}
+														<span class="hx-num text-[9px] opacity-60">{session.todos.length}</span>
+													{/if}
+												</span>
+											</div>
+											<div class="h-full overflow-y-auto pt-9">
+												<TodoPanel />
+											</div>
 										</div>
-										<div class="h-full overflow-y-auto pt-9">
-											<TodoPanel />
-										</div>
-									</div>
-								</Resizable.Pane>
-								<Resizable.Handle />
-								<Resizable.Pane defaultSize={50} minSize={22}>
-									<div class="relative h-full min-h-0">
-										<div
-											class="hx-rule hx-frost absolute inset-x-0 top-0 z-20 flex h-8 items-center
+									</Resizable.Pane>
+									<Resizable.Handle />
+									<Resizable.Pane defaultSize={50} minSize={22}>
+										<div class="relative h-full min-h-0">
+											<div
+												class="hx-rule hx-frost absolute inset-x-0 top-0 z-20 flex h-8 items-center
 										       gap-3.5 border-y px-3"
-										>
-											<span
-												class="hx-eyebrow flex h-full items-center gap-1.5"
-												style:color="var(--hx-accent)"
 											>
-												<HugeiconsIcon icon={ICON.time} size={12} strokeWidth={1.5} />
-												events
-											</span>
-											<span class="ml-auto flex items-center gap-3 text-muted-foreground">
-												{#if frameCount}
-													<button
-														class="hx-eyebrow flex items-center gap-1 transition-colors
+												<span
+													class="hx-eyebrow flex h-full items-center gap-1.5"
+													style:color="var(--hx-accent)"
+												>
+													<HugeiconsIcon icon={ICON.time} size={12} strokeWidth={1.5} />
+													events
+												</span>
+												<span class="ml-auto flex items-center gap-3 text-muted-foreground">
+													{#if frameCount}
+														<button
+															class="hx-eyebrow flex items-center gap-1 transition-colors
 													       hover:text-foreground"
-														style:color={showFrames ? 'var(--hx-accent)' : undefined}
-														onclick={() => (showFrames = !showFrames)}
-														title="Raw SSE frames — every token exactly as it arrived"
-													>
-														<HugeiconsIcon icon={ICON.frame} size={11} strokeWidth={1.5} />
-														{frameCount}
-													</button>
-												{/if}
+															style:color={showFrames ? 'var(--hx-accent)' : undefined}
+															onclick={() => (showFrames = !showFrames)}
+															title="Raw SSE frames — every token exactly as it arrived"
+														>
+															<HugeiconsIcon icon={ICON.frame} size={11} strokeWidth={1.5} />
+															{frameCount}
+														</button>
+													{/if}
 
-												<FilterMenu
-													options={kindOptions}
-													hidden={hiddenKinds}
-													label="event kinds"
-												/>
+													<FilterMenu
+														options={kindOptions}
+														hidden={hiddenKinds}
+														label="event kinds"
+													/>
 
-												{#if lastShot}
-													<!-- A readout, not a control — the panel it used to open
+													{#if lastShot}
+														<!-- A readout, not a control — the panel it used to open
 												     is permanently below. -->
-													<span
-														class="flex items-center gap-1.5"
-														title="context used — decomposed in the panel below"
-													>
-														<ContextDonut used={contextUsed} warn={COMPACT_AT} />
-														<span class="hx-num text-[10px]">{compact(lastShot.tokens)}</span>
+														<span
+															class="flex items-center gap-1.5"
+															title="context used — decomposed in the panel below"
+														>
+															<ContextDonut used={contextUsed} warn={COMPACT_AT} />
+															<span class="hx-num text-[10px]">{compact(lastShot.tokens)}</span>
+														</span>
+													{/if}
+												</span>
+											</div>
+											<div class="h-full">
+												<EventTimeline
+													{selectedId}
+													{showFrames}
+													hidden={hiddenKinds}
+													topPad="32px"
+													onselect={select}
+													onopenasset={(p) => {
+														openPath = p;
+														if (p.endsWith('.pdf')) readPath = p;
+													}}
+												/>
+											</div>
+										</div>
+									</Resizable.Pane>
+									<Resizable.Handle />
+									<Resizable.Pane defaultSize={34} minSize={14} collapsible collapsedSize={8}>
+										<div class="relative h-full min-h-0">
+											<header
+												class="hx-rule hx-frost absolute inset-x-0 top-0 z-20 flex h-8 items-center
+										       gap-3.5 border-y px-3"
+											>
+												<span
+													class="hx-eyebrow flex h-full items-center gap-1.5"
+													style:color="var(--hx-accent)"
+												>
+													<HugeiconsIcon icon={ICON.context} size={12} strokeWidth={1.5} />
+													context
+												</span>
+												{#if ctxStubs.length > 1}
+													<!-- The pager, up here with the panel's other controls,
+												     so paging costs no row inside the panel. -->
+													<span class="flex items-center gap-0.5 text-muted-foreground">
+														<button
+															class="px-0.5 transition-colors hover:text-foreground
+														       disabled:opacity-25"
+															onclick={() => ctxStep(-1)}
+															disabled={ctxIndex <= 0}
+															aria-label="Previous model call"
+														>
+															<span class="inline-block rotate-180">
+																<HugeiconsIcon icon={ICON.next} size={11} strokeWidth={1.5} />
+															</span>
+														</button>
+														<span class="hx-num text-[10px]">
+															{ctxIndex < 0 ? ctxStubs.length : ctxIndex + 1}/{ctxStubs.length}
+														</span>
+														<button
+															class="px-0.5 transition-colors hover:text-foreground
+														       disabled:opacity-25"
+															onclick={() => ctxStep(1)}
+															disabled={ctxIndex === ctxStubs.length - 1 || ctxIndex < 0}
+															aria-label="Next model call"
+														>
+															<HugeiconsIcon icon={ICON.next} size={11} strokeWidth={1.5} />
+														</button>
 													</span>
 												{/if}
-											</span>
-										</div>
-										<div class="h-full">
-											<EventTimeline
-												{selectedId}
-												{showFrames}
-												hidden={hiddenKinds}
-												topPad="32px"
-												onselect={select}
-												onopenasset={(p) => {
-													openPath = p;
-													if (p.endsWith('.pdf')) readPath = p;
-												}}
-											/>
-										</div>
-									</div>
-								</Resizable.Pane>
-								<Resizable.Handle />
-								<Resizable.Pane defaultSize={34} minSize={14} collapsible collapsedSize={8}>
-									<div class="relative h-full min-h-0">
-										<header
-											class="hx-rule hx-frost absolute inset-x-0 top-0 z-20 flex h-8 items-center
-										       gap-3.5 border-y px-3"
-										>
-											<span
-												class="hx-eyebrow flex h-full items-center gap-1.5"
-												style:color="var(--hx-accent)"
-											>
-												<HugeiconsIcon icon={ICON.context} size={12} strokeWidth={1.5} />
-												context
-											</span>
-											<span class="ml-auto flex items-center gap-3 text-muted-foreground">
-												<span class="flex items-center gap-2">
-													<button
-														class="transition-colors hover:text-foreground"
-														style:color={contextView === 'pieces' ? 'var(--hx-accent)' : undefined}
-														onclick={() => (contextView = 'pieces')}
-														aria-pressed={contextView === 'pieces'}
-														title="Pieces — the request cut into system prompt, schemas and messages"
-														aria-label="Pieces view"
-													>
-														<HugeiconsIcon icon={ICON.state} size={13} strokeWidth={1.5} />
-													</button>
-													<button
-														class="transition-colors hover:text-foreground"
-														style:color={contextView === 'raw' ? 'var(--hx-accent)' : undefined}
-														onclick={() => (contextView = 'raw')}
-														aria-pressed={contextView === 'raw'}
-														title="Raw — the exact request body, whole"
-														aria-label="Raw view"
-													>
-														<HugeiconsIcon icon={ICON.code} size={13} strokeWidth={1.5} />
-													</button>
-													<button
-														class="transition-colors hover:text-foreground disabled:opacity-30"
-														onclick={() => session.compact()}
-														disabled={session.busy ||
-															session.compacting ||
-															session.messages.length < 3}
-														title="Fold the earlier conversation into a summary"
-														aria-label="Compact the conversation"
-													>
-														<HugeiconsIcon icon={ICON.compact} size={13} strokeWidth={1.5} />
-													</button>
-												</span>
+												<span class="ml-auto flex items-center gap-3 text-muted-foreground">
+													<span class="flex items-center gap-2">
+														<button
+															class="transition-colors hover:text-foreground"
+															style:color={contextView === 'pieces'
+																? 'var(--hx-accent)'
+																: undefined}
+															onclick={() => (contextView = 'pieces')}
+															aria-pressed={contextView === 'pieces'}
+															title="Pieces — the request cut into system prompt, schemas and messages"
+															aria-label="Pieces view"
+														>
+															<HugeiconsIcon icon={ICON.state} size={13} strokeWidth={1.5} />
+														</button>
+														<button
+															class="transition-colors hover:text-foreground"
+															style:color={contextView === 'raw' ? 'var(--hx-accent)' : undefined}
+															onclick={() => (contextView = 'raw')}
+															aria-pressed={contextView === 'raw'}
+															title="Raw — the exact request body, whole"
+															aria-label="Raw view"
+														>
+															<HugeiconsIcon icon={ICON.code} size={13} strokeWidth={1.5} />
+														</button>
+														<button
+															class="transition-colors hover:text-foreground disabled:opacity-30"
+															onclick={() => session.compact()}
+															disabled={session.busy ||
+																session.compacting ||
+																session.messages.length < 3}
+															title="Fold the earlier conversation into a summary"
+															aria-label="Compact the conversation"
+														>
+															<HugeiconsIcon icon={ICON.compact} size={13} strokeWidth={1.5} />
+														</button>
+													</span>
 
-												<FilterMenu
-													options={GROUP_OPTIONS}
+													<FilterMenu
+														options={GROUP_OPTIONS}
+														hidden={hiddenGroups}
+														label="sections"
+													/>
+												</span>
+											</header>
+											<div class="h-full">
+												<ContextPanel
+													view={contextView}
 													hidden={hiddenGroups}
-													label="sections"
+													topPad="32px"
+													bind:pinnedId={ctxPinned}
 												/>
-											</span>
-										</header>
-										<div class="h-full">
-											<ContextPanel view={contextView} hidden={hiddenGroups} topPad="32px" />
+											</div>
 										</div>
-									</div>
-								</Resizable.Pane>
-							</Resizable.PaneGroup>
-						</Resizable.Pane>
-						<Resizable.Handle />
-						<Resizable.Pane defaultSize={62} minSize={30}>
-							<Inspector
-								bind:openPath
-								bind:bottom={inspectorBottom}
-								onread={(p) => (readPath = p)}
-								onjump={select}
-								onmanageskills={() => (skillsOpen = true)}
-							/>
-						</Resizable.Pane>
-					</Resizable.PaneGroup>
-				{/if}
+									</Resizable.Pane>
+								</Resizable.PaneGroup>
+							</Resizable.Pane>
+							<Resizable.Handle />
+							<Resizable.Pane defaultSize={62} minSize={30}>
+								<Inspector
+									bind:openPath
+									bind:bottom={inspectorBottom}
+									onread={(p) => (readPath = p)}
+									onjump={select}
+									onmanageskills={() => (skillsOpen = true)}
+								/>
+							</Resizable.Pane>
+						</Resizable.PaneGroup>
+					{/if}
+				</div>
 			</Resizable.Pane>
 		</Resizable.PaneGroup>
 	</div>
