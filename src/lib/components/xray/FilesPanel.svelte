@@ -12,8 +12,11 @@
 		openPath?: string | null;
 		/** Hand a path to the full-screen reader. */
 		onread?: (path: string) => void;
+		/** Padding inside the tree's scroller, so rows slide under the frosted
+		 * bar above instead of clipping at it. */
+		topPad?: string;
 	}
-	let { openPath = $bindable<string | null>(null), onread }: Props = $props();
+	let { openPath = $bindable<string | null>(null), onread, topPad = '0px' }: Props = $props();
 
 	let selected = $state<string | null>(null);
 
@@ -90,12 +93,12 @@
 
 <div class="flex h-full min-h-0 flex-col">
 	{#if entries.length === 0}
-		<p class="px-3 py-3 text-xs text-muted-foreground">
+		<p class="px-3 py-3 text-xs text-muted-foreground" style:margin-top={topPad}>
 			The filesystem is empty. It is not a disk — it is a channel in the graph's state, which is why
 			it survives a reload and can be diffed like any other state.
 		</p>
 	{:else}
-		<div class="hx-rule max-h-[42%] shrink-0 overflow-y-auto border-b">
+		<div class="hx-rule max-h-[42%] shrink-0 overflow-y-auto border-b" style:padding-top={topPad}>
 			<FileTree {entries} {active} onselect={(p) => (selected = p)} />
 		</div>
 

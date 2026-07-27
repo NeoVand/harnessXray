@@ -99,8 +99,10 @@
 	});
 </script>
 
+<!-- Frosted, because the conversation now scrolls beneath it — the tail of
+     the transcript ghosting through the glass is the point. -->
 <div
-	class="hx-rule shrink-0 border-t bg-background px-2.5 py-2.5"
+	class="hx-rule hx-frost shrink-0 border-t px-2.5 py-2.5"
 	class:bg-muted={dragging}
 	ondragover={(e) => {
 		e.preventDefault();

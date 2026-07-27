@@ -13,8 +13,16 @@
 	import { assets, assetVersion } from '$lib/storage/assets.svelte';
 	import { attachmentType } from '$lib/xray/filetype';
 
-	let { onopensettings, onread }: { onopensettings: () => void; onread?: (path: string) => void } =
-		$props();
+	interface Props {
+		onopensettings: () => void;
+		onread?: (path: string) => void;
+		/** Room for the frosted app header the scroller now runs beneath. */
+		topPad?: string;
+		/** Room for the frosted composer floating over the scroller's tail —
+		 * measured live by the page, since the composer grows with its text. */
+		bottomPad?: string;
+	}
+	let { onopensettings, onread, topPad = '0px', bottomPad = '0px' }: Props = $props();
 
 	let viewport = $state<HTMLElement | null>(null);
 	let pinned = $state(true);
@@ -52,7 +60,13 @@
 	];
 </script>
 
-<div bind:this={viewport} onscroll={onScroll} class="min-h-0 flex-1 overflow-y-auto">
+<div
+	bind:this={viewport}
+	onscroll={onScroll}
+	class="min-h-0 flex-1 overflow-y-auto"
+	style:padding-top={topPad}
+	style:padding-bottom={bottomPad}
+>
 	<!--
 		The scroller is full width; the *column* is what is 68ch.
 
