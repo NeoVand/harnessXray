@@ -178,7 +178,11 @@ class Tutor {
 			.replace('%QUESTION%', () => q);
 
 		try {
-			const text = await labComplete(prompt, 1400);
+			// Streamed into the entry as it arrives; the bubble grows live, the
+			// same way the agent's do.
+			const text = await labComplete(prompt, 1400, (partial) => {
+				entry.text = partial;
+			});
 			entry.text = text || 'The model returned nothing. Ask again.';
 			entry.status = text ? 'done' : 'error';
 		} catch (e) {

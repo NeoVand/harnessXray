@@ -32,9 +32,11 @@
 		// Re-run as text streams in, not only when a message is added.
 		void session.messages.length;
 		void session.messages.at(-1)?.text;
-		// Lab exchanges append below the agent's, so they pin the scroll too.
+		// Lab exchanges append below the agent's, so they pin the scroll too —
+		// text included, since the tutor's replies stream in like the agent's.
 		void tutor.transcript.length;
 		void tutor.transcript.at(-1)?.status;
+		void tutor.transcript.at(-1)?.text;
 		if (pinned && viewport) viewport.scrollTop = viewport.scrollHeight;
 	});
 
@@ -396,7 +398,7 @@
 							>
 								lab — the app speaking, not the agent
 							</p>
-							{#if entry.status === 'thinking'}
+							{#if entry.status === 'thinking' && !entry.text}
 								<p class="text-xs text-muted-foreground">reading the run…</p>
 							{:else if entry.status === 'error'}
 								<p class="text-xs leading-relaxed" style:color="var(--hx-error)">

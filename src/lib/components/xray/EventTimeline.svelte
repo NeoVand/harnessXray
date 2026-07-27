@@ -268,7 +268,7 @@
 									{ex.status === 'thinking' ? 'explaining…' : 'explained'}
 									<span class="text-muted-foreground/60">— the lab, not the agent</span>
 								</p>
-								{#if ex.status === 'thinking'}
+								{#if ex.status === 'thinking' && !ex.text}
 									<p class="text-xs text-muted-foreground">Reading the payload…</p>
 								{:else}
 									<p
