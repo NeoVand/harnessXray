@@ -104,13 +104,27 @@
 		{ key: 'messages', label: 'messages', color: 'var(--hx-user)' }
 	];
 
-	// The last model call is the live context — what the next request will be
-	// built on top of. Read from the wire like everything else here.
-	const lastShot = $derived.by(() => {
+	// Every model call in the run, for the context pane's pager — and its last
+	// entry is the live context the next request builds on. Read from the wire
+	// like everything else here.
+	const ctxStubs = $derived.by(() => {
 		void bus.version;
-		return shotStubs(bus).at(-1);
+		return shotStubs(bus);
 	});
+	const lastShot = $derived(ctxStubs.at(-1));
 	const contextUsed = $derived(lastShot ? Math.min(1, lastShot.tokens / INPUT_LIMIT) : 0);
+
+	/** Which model call the context panel shows; null follows the run. */
+	let ctxPinned = $state<string | null>(null);
+	const ctxIndex = $derived(ctxStubs.findIndex((s) => s.id === (ctxPinned ?? lastShot?.id)));
+	function ctxStep(by: number) {
+		if (!ctxStubs.length) return;
+		const at = Math.max(
+			0,
+			Math.min(ctxStubs.length - 1, (ctxIndex < 0 ? ctxStubs.length - 1 : ctxIndex) + by)
+		);
+		ctxPinned = at === ctxStubs.length - 1 ? null : ctxStubs[at].id;
+	}
 
 	// Follow the run as it happens, but stop following the moment the user
 	// takes control by selecting something. Auto-advance that fights you is
@@ -473,6 +487,35 @@
 													<HugeiconsIcon icon={ICON.context} size={12} strokeWidth={1.5} />
 													context
 												</span>
+												{#if ctxStubs.length > 1}
+													<!-- The pager, up here with the panel's other controls,
+												     so paging costs no row inside the panel. -->
+													<span class="flex items-center gap-0.5 text-muted-foreground">
+														<button
+															class="px-0.5 transition-colors hover:text-foreground
+														       disabled:opacity-25"
+															onclick={() => ctxStep(-1)}
+															disabled={ctxIndex <= 0}
+															aria-label="Previous model call"
+														>
+															<span class="inline-block rotate-180">
+																<HugeiconsIcon icon={ICON.next} size={11} strokeWidth={1.5} />
+															</span>
+														</button>
+														<span class="hx-num text-[10px]">
+															{ctxIndex < 0 ? ctxStubs.length : ctxIndex + 1}/{ctxStubs.length}
+														</span>
+														<button
+															class="px-0.5 transition-colors hover:text-foreground
+														       disabled:opacity-25"
+															onclick={() => ctxStep(1)}
+															disabled={ctxIndex === ctxStubs.length - 1 || ctxIndex < 0}
+															aria-label="Next model call"
+														>
+															<HugeiconsIcon icon={ICON.next} size={11} strokeWidth={1.5} />
+														</button>
+													</span>
+												{/if}
 												<span class="ml-auto flex items-center gap-3 text-muted-foreground">
 													<span class="flex items-center gap-2">
 														<button
@@ -518,7 +561,12 @@
 												</span>
 											</header>
 											<div class="h-full">
-												<ContextPanel view={contextView} hidden={hiddenGroups} topPad="32px" />
+												<ContextPanel
+													view={contextView}
+													hidden={hiddenGroups}
+													topPad="32px"
+													bind:pinnedId={ctxPinned}
+												/>
 											</div>
 										</div>
 									</Resizable.Pane>
