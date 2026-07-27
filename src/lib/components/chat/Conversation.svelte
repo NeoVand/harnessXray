@@ -175,7 +175,7 @@
 					<div class="mx-auto flex w-full max-w-[68ch] flex-col items-end px-6">
 						<p
 							class="hx-eyebrow mb-1 flex items-center gap-1.5 leading-none"
-							style:color="var(--hx-accent)"
+							style:color="var(--hx-user)"
 						>
 							you
 							<HugeiconsIcon icon={ICON.message} size={11} strokeWidth={1.5} />
@@ -458,31 +458,32 @@
 
 <style>
 	/*
-		The user speaks in the theme's own ink.
+		The user speaks plum; the agent speaks teal.
 
-		Each speaker gets a colour identity: the agent's eyebrow is the model
-		teal, and your turns carry the theme accent — a wash behind the bubble
-		and a tint through the text itself, both mixed from --hx-accent so all
-		four themes colour the conversation differently. The proportions stay
-		low on purpose: enough to feel, never enough to fight the reading.
-		Dark keeps a lighter wash — on near-black the same amount that whispers
-		on white reads as a raised panel.
+		Each speaker gets a colour identity from the LEGEND, not the chrome:
+		the accent marks the app's own controls, and in most themes it sits on
+		the model's teal — borrowing it here made "you" and "agent" the same
+		colour. --hx-user is the user's colour everywhere (timeline rows, the
+		context messages band, and now the bubble): a wash behind it and a
+		tint through the text, retuned per theme in layout.css. Proportions
+		stay low — enough to feel, never enough to fight the reading — and
+		dark keeps a lighter wash, where the same amount reads as a panel.
 	*/
 	.turn-you {
 		background: color-mix(
 			in oklab,
-			var(--hx-accent) 9%,
+			var(--hx-user) 10%,
 			color-mix(in oklab, var(--muted) 45%, transparent)
 		);
-		color: color-mix(in oklab, var(--hx-accent) 28%, var(--foreground));
+		color: color-mix(in oklab, var(--hx-user) 30%, var(--foreground));
 	}
 	:global(.dark) .turn-you {
 		background: color-mix(
 			in oklab,
-			var(--hx-accent) 12%,
+			var(--hx-user) 13%,
 			color-mix(in oklab, var(--muted) 28%, transparent)
 		);
-		color: color-mix(in oklab, var(--hx-accent) 32%, var(--foreground));
+		color: color-mix(in oklab, var(--hx-user) 34%, var(--foreground));
 	}
 
 	/* The lab's hairline: the accent at rule strength, so the second voice is
