@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { session } from '$lib/agent/session.svelte';
 	import { bus } from '$lib/xray/bus.svelte';
+	import { toolMeta } from '$lib/agent/tool-meta';
 	import {
 		hookOf,
 		layoutDag,
@@ -75,7 +76,6 @@
 		const visits: Record<string, number> = {};
 		const lastEvent: Record<string, string> = {};
 		const lastT: Record<string, number> = {};
-		const lastChannels: Record<string, string[]> = {};
 		let lastName = '';
 		let any = false;
 		for (const e of bus.events) {
@@ -85,10 +85,9 @@
 			visits[name] = (visits[name] ?? 0) + 1;
 			lastEvent[name] = e.id;
 			lastT[name] = e.t;
-			if (e.channels.length) lastChannels[name] = e.channels;
 			lastName = name;
 		}
-		return { visits, lastEvent, lastT, lastChannels, any, active: session.busy ? lastName : '' };
+		return { visits, lastEvent, lastT, any, active: session.busy ? lastName : '' };
 	});
 
 	const KIND_COLOR: Record<NodeKind, string> = {
@@ -135,6 +134,16 @@
 		if (eventId) onjump?.(eventId);
 	}
 
+	/** Every plain node jumps — except tools, which discloses its box. */
+	function activate(id: string) {
+		if (tail(id) === 'tools') {
+			toolboxOpen = !toolboxOpen;
+			hover = null;
+		} else {
+			jump(id);
+		}
+	}
+
 	function toggle(id: string) {
 		expanded = expanded.includes(id) ? expanded.filter((g) => g !== id) : [...expanded, id];
 		hover = null;
@@ -161,43 +170,70 @@
 		return `${Math.floor(dt / 60_000)}m ${Math.round((dt % 60_000) / 1000)}s ago`;
 	}
 
+	/* Three lines, no more: name, species, count. The earlier card also listed
+	   channels, chain members and a usage hint — enough height that hovering a
+	   low node grew the scroll box, which moved the graph under the pointer.
+	   Anything deeper lives one click away in the timeline. */
 	const card = $derived.by(() => {
 		const h = hover;
 		if (!h) return null;
 		void tick;
 		const n = graph.nodes.find((x) => x.id === h.id);
 		if (!n) return null;
-		const subject = h.member ?? n.id;
 		const group = !h.member && n.members.length > 0;
 		const name = h.member ? tail(h.member) : group ? `middleware · ${phaseOf(n)}` : short(n.id);
 		const kind: NodeKind = h.member ? 'middleware' : n.kind;
-		const key = tail(subject);
+		const key = tail(h.member ?? n.id);
 		const visits = group
 			? n.members.reduce((s, m) => s + (activity.visits[tail(m)] ?? 0), 0)
 			: (activity.visits[key] ?? 0);
 		const t = group
 			? Math.max(...n.members.map((m) => activity.lastT[tail(m)] ?? -1))
 			: (activity.lastT[key] ?? -1);
-		const channels = group ? undefined : activity.lastChannels[key];
 		return {
 			node: n,
 			name,
 			color: KIND_COLOR[kind],
 			kindLabel: group ? `${n.members.length} middleware hooks` : KIND_LABEL[kind],
 			visits,
-			seen: t >= 0 ? ago(bus.now() - t) : '',
-			channels,
-			members: group
-				? n.members.map((m) => ({ id: m, name: memberName(m), visits: visitsOf(m) }))
-				: null,
-			hint: group
-				? expanded.includes(n.id)
-					? 'header collapses · a row jumps to its event'
-					: 'click to open the chain'
-				: visits > 0
-					? 'click — jump to its last event'
-					: 'no commits yet this session'
+			seen: t >= 0 ? ago(bus.now() - t) : ''
 		};
+	});
+
+	/* ── the toolbox ────────────────────────────────────────────────────────
+	   Clicking the tools node opens the one list the app never showed anywhere
+	   outside the book: what is actually in the box. Read off the LAST request
+	   on the wire — not off our own registry — because the wire is the only
+	   account the model itself sees. Call counts fold from tool_start events,
+	   and a row jumps to that tool's most recent call. */
+	let toolboxOpen = $state(false);
+	const toolsNode = $derived(graph.nodes.find((n) => tail(n.id) === 'tools' && !n.members.length));
+	const toolbox = $derived.by(() => {
+		void bus.version;
+		let names: string[] = [];
+		for (let i = bus.events.length - 1; i >= 0; i--) {
+			const e = bus.events[i];
+			if (e.kind === 'http_request' && e.url.includes('/responses')) {
+				const raw = (e.body as { tools?: unknown } | null)?.tools;
+				if (Array.isArray(raw)) {
+					names = raw
+						.map((t) => {
+							const o = t as { name?: string; function?: { name?: string } };
+							return o.name ?? o.function?.name ?? '';
+						})
+						.filter(Boolean);
+					break;
+				}
+			}
+		}
+		const calls: Record<string, { n: number; last: string }> = {};
+		for (const e of bus.events) {
+			if (e.kind !== 'tool_start') continue;
+			const c = (calls[e.name] ??= { n: 0, last: '' });
+			c.n++;
+			c.last = e.id;
+		}
+		return { names, calls };
 	});
 
 	/* ── fill the pane ──────────────────────────────────────────────────────
@@ -225,13 +261,22 @@
 	/** Where auto-margins actually put the svg, so the card lands beside it. */
 	const ox = $derived(Math.max(0, (paneW - svgW) / 2));
 	const oy = $derived(Math.max(0, (paneH - svgH) / 2));
+	/** The scroller's position, so overlays track content in the 1:1 case. */
+	let scrollY = $state(0);
 
+	/* Overlays live OUTSIDE the scroll box and are clamped to the pane, so a
+	   card on the lowest node can never grow the scrollable height — that grew
+	   a scrollbar, which shrank the pane, which rescaled the graph under the
+	   pointer. Hover must never move the thing being hovered. */
 	const CARD_W = 224;
-	function cardPos(n: LaidNode): { left: number; top: number } {
+	function cardPos(n: LaidNode, estH = 84): { left: number; top: number } {
 		const right = ox + (n.x + n.w + PAD) * scale + 8;
 		const left =
 			right + CARD_W <= paneW ? right : Math.max(4, ox + (n.x + PAD) * scale - CARD_W - 8);
-		const top = Math.max(0, Math.min(oy + (n.y + PAD) * scale, oy + svgH - 90));
+		const top = Math.max(
+			4,
+			Math.min(oy + (n.y + PAD) * scale - scrollY, Math.max(4, paneH - estH))
+		);
 		return { left, top };
 	}
 </script>
@@ -250,248 +295,254 @@
 		<!-- The measured box is the flexible middle: everything the eyebrow and
 		     legend do not need belongs to the drawing. Auto margins centre the
 		     svg when it is smaller than the box and yield to scrolling when an
-		     expanded chain makes it taller. -->
-		<div
-			class="relative min-h-0 flex-1 overflow-x-hidden overflow-y-auto"
-			bind:clientWidth={paneW}
-			bind:clientHeight={paneH}
-		>
-			<div class="flex min-h-full w-full">
-				<svg
-					width={svgW}
-					height={svgH}
-					viewBox="-{PAD} -{PAD} {viewW} {viewH}"
-					class="m-auto block"
-					role="img"
-					aria-label="Compiled graph topology"
-					onpointerleave={() => (hover = null)}
-				>
-					<defs>
-						<marker
-							id="hx-arrow"
-							viewBox="0 0 8 8"
-							refX="7"
-							refY="4"
-							markerWidth="5.5"
-							markerHeight="5.5"
-							orient="auto-start-reverse"
-						>
-							<path d="M 0 0 L 8 4 L 0 8 z" fill="var(--muted-foreground)" opacity="0.75" />
-						</marker>
-						<marker
-							id="hx-arrow-cond"
-							viewBox="0 0 8 8"
-							refX="7"
-							refY="4"
-							markerWidth="5.5"
-							markerHeight="5.5"
-							orient="auto-start-reverse"
-						>
-							<path d="M 0 0 L 8 4 L 0 8 z" fill="var(--hx-interrupt)" opacity="0.85" />
-						</marker>
-					</defs>
-
-					{#each graph.edges as e (`${e.from}->${e.to}`)}
-						<path
-							d={roundedPath(e.points, 6)}
-							fill="none"
-							stroke={e.conditional ? 'var(--hx-interrupt)' : 'var(--muted-foreground)'}
-							stroke-opacity={e.conditional ? 0.7 : e.back ? 0.55 : 0.5}
-							stroke-width="1.1"
-							stroke-dasharray={e.conditional ? '4 3' : undefined}
-							marker-end={e.conditional ? 'url(#hx-arrow-cond)' : 'url(#hx-arrow)'}
-						/>
-					{/each}
-
-					{#each graph.nodes as n (n.id)}
-						{@const color = KIND_COLOR[n.kind]}
-						{@const dim =
-							activity.any && !n.members.length && n.kind !== 'terminal' && visitsOf(n.id) === 0}
-						{#if n.kind === 'terminal'}
-							<g transform="translate({n.x}, {n.y})" opacity="0.65">
-								<rect
-									width={n.w}
-									height={n.h}
-									rx={n.h / 2}
-									fill="var(--muted)"
-									stroke="var(--border)"
-									stroke-width="1"
-								/>
-								<text
-									x={n.w / 2}
-									y={n.h / 2 + 2.8}
-									text-anchor="middle"
-									class="hx-g-pill"
-									fill="var(--muted-foreground)"
-								>
-									{short(n.id)}
-								</text>
-							</g>
-						{:else if n.members.length && !expanded.includes(n.id)}
-							<g
-								transform="translate({n.x}, {n.y})"
-								class="cursor-pointer"
-								class:hx-node-active={groupActive(n)}
-								role="button"
-								tabindex="0"
-								aria-label="{n.members.length} middleware hooks ({phaseOf(n)}) — open the chain"
-								onclick={() => toggle(n.id)}
-								onkeydown={(ev) => ev.key === 'Enter' && toggle(n.id)}
-								onpointerenter={() => (hover = { id: n.id })}
-								onfocus={() => (hover = { id: n.id })}
-								onblur={() => (hover = null)}
+		     expanded chain makes it taller. The overlays anchor to the OUTER
+		     box, past the scroller, so they can never feed back into it. -->
+		<div class="relative min-h-0 flex-1">
+			<div
+				class="h-full overflow-x-hidden overflow-y-auto"
+				bind:clientWidth={paneW}
+				bind:clientHeight={paneH}
+				onscroll={(e) => (scrollY = e.currentTarget.scrollTop)}
+			>
+				<div class="flex min-h-full w-full">
+					<svg
+						width={svgW}
+						height={svgH}
+						viewBox="-{PAD} -{PAD} {viewW} {viewH}"
+						class="m-auto block"
+						role="img"
+						aria-label="Compiled graph topology"
+						onpointerleave={() => (hover = null)}
+					>
+						<defs>
+							<marker
+								id="hx-arrow"
+								viewBox="0 0 8 8"
+								refX="7"
+								refY="4"
+								markerWidth="5.5"
+								markerHeight="5.5"
+								orient="auto-start-reverse"
 							>
-								<rect
-									width={n.w}
-									height={n.h}
-									rx="9"
-									fill="var(--background)"
-									stroke={groupActive(n) ? 'var(--hx-state)' : 'var(--border)'}
-									stroke-width="1.5"
-								/>
-								<text x="10" y={n.h / 2 + 2.5} class="hx-g-phase" fill="var(--muted-foreground)">
-									{phaseOf(n)}
-								</text>
-								{#each n.members as m, i (m)}
-									<circle
-										cx={n.w - 9 - (n.members.length - 1 - i) * 9}
-										cy={n.h / 2}
-										r="2"
-										fill="var(--hx-state)"
-										opacity={isActive(m) ? 1 : visitsOf(m) > 0 ? 0.85 : 0.3}
+								<path d="M 0 0 L 8 4 L 0 8 z" fill="var(--muted-foreground)" opacity="0.75" />
+							</marker>
+							<marker
+								id="hx-arrow-cond"
+								viewBox="0 0 8 8"
+								refX="7"
+								refY="4"
+								markerWidth="5.5"
+								markerHeight="5.5"
+								orient="auto-start-reverse"
+							>
+								<path d="M 0 0 L 8 4 L 0 8 z" fill="var(--hx-interrupt)" opacity="0.85" />
+							</marker>
+						</defs>
+
+						{#each graph.edges as e (`${e.from}->${e.to}`)}
+							<path
+								d={roundedPath(e.points, 6)}
+								fill="none"
+								stroke={e.conditional ? 'var(--hx-interrupt)' : 'var(--muted-foreground)'}
+								stroke-opacity={e.conditional ? 0.7 : e.back ? 0.55 : 0.5}
+								stroke-width="1.1"
+								stroke-dasharray={e.conditional ? '4 3' : undefined}
+								marker-end={e.conditional ? 'url(#hx-arrow-cond)' : 'url(#hx-arrow)'}
+							/>
+						{/each}
+
+						{#each graph.nodes as n (n.id)}
+							{@const color = KIND_COLOR[n.kind]}
+							{@const dim =
+								activity.any && !n.members.length && n.kind !== 'terminal' && visitsOf(n.id) === 0}
+							{#if n.kind === 'terminal'}
+								<g transform="translate({n.x}, {n.y})" opacity="0.65">
+									<rect
+										width={n.w}
+										height={n.h}
+										rx={n.h / 2}
+										fill="var(--muted)"
+										stroke="var(--border)"
+										stroke-width="1"
 									/>
-								{/each}
-							</g>
-						{:else if n.members.length}
-							<g transform="translate({n.x}, {n.y})" class:hx-node-active={groupActive(n)}>
-								<rect
-									width={n.w}
-									height={n.h}
-									rx="6"
-									fill="var(--background)"
-									stroke={groupActive(n) ? 'var(--hx-state)' : 'var(--border)'}
-									stroke-width="1.5"
-								/>
+									<text
+										x={n.w / 2}
+										y={n.h / 2 + 2.8}
+										text-anchor="middle"
+										class="hx-g-pill"
+										fill="var(--muted-foreground)"
+									>
+										{short(n.id)}
+									</text>
+								</g>
+							{:else if n.members.length && !expanded.includes(n.id)}
 								<g
+									transform="translate({n.x}, {n.y})"
 									class="cursor-pointer"
+									class:hx-node-active={groupActive(n)}
 									role="button"
 									tabindex="0"
-									aria-label="Collapse the middleware chain"
+									aria-label="{n.members.length} middleware hooks ({phaseOf(n)}) — open the chain"
 									onclick={() => toggle(n.id)}
 									onkeydown={(ev) => ev.key === 'Enter' && toggle(n.id)}
 									onpointerenter={() => (hover = { id: n.id })}
 									onfocus={() => (hover = { id: n.id })}
 									onblur={() => (hover = null)}
 								>
-									<rect width={n.w} height="18" fill="transparent" />
-									<text x="10" y="12" class="hx-g-phase" fill="var(--muted-foreground)">
+									<rect
+										width={n.w}
+										height={n.h}
+										rx="9"
+										fill="var(--background)"
+										stroke={groupActive(n) ? 'var(--hx-state)' : 'var(--border)'}
+										stroke-width="1.5"
+									/>
+									<text x="10" y={n.h / 2 + 2.5} class="hx-g-phase" fill="var(--muted-foreground)">
 										{phaseOf(n)}
 									</text>
 									{#each n.members as m, i (m)}
 										<circle
 											cx={n.w - 9 - (n.members.length - 1 - i) * 9}
-											cy="9"
+											cy={n.h / 2}
 											r="2"
 											fill="var(--hx-state)"
 											opacity={isActive(m) ? 1 : visitsOf(m) > 0 ? 0.85 : 0.3}
 										/>
 									{/each}
 								</g>
-								{#each n.members as m, i (m)}
-									{@const mv = visitsOf(m)}
+							{:else if n.members.length}
+								<g transform="translate({n.x}, {n.y})" class:hx-node-active={groupActive(n)}>
+									<rect
+										width={n.w}
+										height={n.h}
+										rx="6"
+										fill="var(--background)"
+										stroke={groupActive(n) ? 'var(--hx-state)' : 'var(--border)'}
+										stroke-width="1.5"
+									/>
 									<g
-										transform="translate(0, {20 + i * 15})"
 										class="cursor-pointer"
 										role="button"
 										tabindex="0"
-										aria-label="{memberName(m)} — jump to its last event"
-										onclick={(ev) => {
-											ev.stopPropagation();
-											jump(m);
-										}}
-										onkeydown={(ev) => ev.key === 'Enter' && jump(m)}
-										onpointerenter={() => (hover = { id: n.id, member: m })}
-										onfocus={() => (hover = { id: n.id, member: m })}
+										aria-label="Collapse the middleware chain"
+										onclick={() => toggle(n.id)}
+										onkeydown={(ev) => ev.key === 'Enter' && toggle(n.id)}
+										onpointerenter={() => (hover = { id: n.id })}
+										onfocus={() => (hover = { id: n.id })}
 										onblur={() => (hover = null)}
 									>
-										<rect x="5" width={n.w - 10} height="14" fill="transparent" />
-										<circle
-											cx="13"
-											cy="7"
-											r="2"
-											fill="var(--hx-state)"
-											opacity={isActive(m) ? 1 : mv > 0 ? 0.85 : 0.3}
-										/>
-										<text
-											x="21"
-											y="10"
-											class="hx-g-row"
-											fill="currentColor"
-											opacity={mv ? 1 : 0.55}
-										>
-											{fit(memberName(m), n.w - 52)}
+										<rect width={n.w} height="18" fill="transparent" />
+										<text x="10" y="12" class="hx-g-phase" fill="var(--muted-foreground)">
+											{phaseOf(n)}
 										</text>
-										{#if mv}
-											<text
-												x={n.w - 8}
-												y="10"
-												text-anchor="end"
-												class="hx-g-count"
+										{#each n.members as m, i (m)}
+											<circle
+												cx={n.w - 9 - (n.members.length - 1 - i) * 9}
+												cy="9"
+												r="2"
 												fill="var(--hx-state)"
-											>
-												×{mv}
-											</text>
-										{/if}
+												opacity={isActive(m) ? 1 : visitsOf(m) > 0 ? 0.85 : 0.3}
+											/>
+										{/each}
 									</g>
-								{/each}
-							</g>
-						{:else}
-							{@const visits = visitsOf(n.id)}
-							{@const active = isActive(n.id)}
-							<g
-								transform="translate({n.x}, {n.y})"
-								class="cursor-pointer"
-								class:hx-node-active={active}
-								opacity={dim ? 0.55 : 1}
-								role="button"
-								tabindex="0"
-								aria-label="{short(n.id)} — jump to its last event"
-								onclick={() => jump(n.id)}
-								onkeydown={(ev) => ev.key === 'Enter' && jump(n.id)}
-								onpointerenter={() => (hover = { id: n.id })}
-								onfocus={() => (hover = { id: n.id })}
-								onblur={() => (hover = null)}
-							>
-								<rect
-									width={n.w}
-									height={n.h}
-									rx="6"
-									fill="var(--background)"
-									stroke={active ? color : 'var(--border)'}
-									stroke-width="1.5"
-								/>
-								<circle cx="10" cy={n.h / 2} r="2.5" fill={color} opacity="0.9" />
-								<text x="17" y={n.h / 2 + 3.4} class="hx-g-label" fill="currentColor">
-									{fit(short(n.id), n.w - (visits ? 46 : 26))}
-								</text>
-								{#if visits}
-									<text
-										x={n.w - 7}
-										y={n.h / 2 + 3}
-										text-anchor="end"
-										class="hx-g-count"
-										fill={color}
-									>
-										×{visits}
+									{#each n.members as m, i (m)}
+										{@const mv = visitsOf(m)}
+										<g
+											transform="translate(0, {20 + i * 15})"
+											class="cursor-pointer"
+											role="button"
+											tabindex="0"
+											aria-label="{memberName(m)} — jump to its last event"
+											onclick={(ev) => {
+												ev.stopPropagation();
+												jump(m);
+											}}
+											onkeydown={(ev) => ev.key === 'Enter' && jump(m)}
+											onpointerenter={() => (hover = { id: n.id, member: m })}
+											onfocus={() => (hover = { id: n.id, member: m })}
+											onblur={() => (hover = null)}
+										>
+											<rect x="5" width={n.w - 10} height="14" fill="transparent" />
+											<circle
+												cx="13"
+												cy="7"
+												r="2"
+												fill="var(--hx-state)"
+												opacity={isActive(m) ? 1 : mv > 0 ? 0.85 : 0.3}
+											/>
+											<text
+												x="21"
+												y="10"
+												class="hx-g-row"
+												fill="currentColor"
+												opacity={mv ? 1 : 0.55}
+											>
+												{fit(memberName(m), n.w - 52)}
+											</text>
+											{#if mv}
+												<text
+													x={n.w - 8}
+													y="10"
+													text-anchor="end"
+													class="hx-g-count"
+													fill="var(--hx-state)"
+												>
+													×{mv}
+												</text>
+											{/if}
+										</g>
+									{/each}
+								</g>
+							{:else}
+								{@const visits = visitsOf(n.id)}
+								{@const active = isActive(n.id)}
+								<g
+									transform="translate({n.x}, {n.y})"
+									class="cursor-pointer"
+									class:hx-node-active={active}
+									opacity={dim ? 0.55 : 1}
+									role="button"
+									tabindex="0"
+									aria-label={tail(n.id) === 'tools'
+										? 'tools — open the toolbox'
+										: `${short(n.id)} — jump to its last event`}
+									onclick={() => activate(n.id)}
+									onkeydown={(ev) => ev.key === 'Enter' && activate(n.id)}
+									onpointerenter={() => (hover = { id: n.id })}
+									onfocus={() => (hover = { id: n.id })}
+									onblur={() => (hover = null)}
+								>
+									<rect
+										width={n.w}
+										height={n.h}
+										rx="6"
+										fill="var(--background)"
+										stroke={active ? color : 'var(--border)'}
+										stroke-width="1.5"
+									/>
+									<circle cx="10" cy={n.h / 2} r="2.5" fill={color} opacity="0.9" />
+									<text x="17" y={n.h / 2 + 3.4} class="hx-g-label" fill="currentColor">
+										{fit(short(n.id), n.w - (visits ? 46 : 26))}
 									</text>
-								{/if}
-							</g>
-						{/if}
-					{/each}
-				</svg>
+									{#if visits}
+										<text
+											x={n.w - 7}
+											y={n.h / 2 + 3}
+											text-anchor="end"
+											class="hx-g-count"
+											fill={color}
+										>
+											×{visits}
+										</text>
+									{/if}
+								</g>
+							{/if}
+						{/each}
+					</svg>
+				</div>
 			</div>
 
-			{#if card}
+			{#if card && !toolboxOpen}
 				{@const pos = cardPos(card.node)}
 				<div
 					class="hx-rule pointer-events-none absolute z-10 border bg-background px-2.5 py-2"
@@ -513,26 +564,67 @@
 							not visited this session
 						{/if}
 					</p>
-					{#if card.channels?.length}
-						<p class="mt-1 text-[10px] text-muted-foreground">
-							wrote <span class="font-mono text-foreground/85">{card.channels.join(', ')}</span>
+				</div>
+			{/if}
+
+			{#if toolboxOpen && toolsNode}
+				{@const pos = cardPos(toolsNode, 300)}
+				<div
+					class="hx-rule absolute z-20 border bg-background"
+					style:width="236px"
+					style:left="{pos.left}px"
+					style:top="{pos.top}px"
+				>
+					<p class="hx-eyebrow flex items-baseline justify-between px-2.5 pt-2">
+						the toolbox
+						<span class="hx-num text-[9px] text-muted-foreground">
+							{toolbox.names.length || ''}
+						</span>
+					</p>
+					{#if toolbox.names.length === 0}
+						<p class="max-w-[24ch] px-2.5 py-2 text-[10px] leading-relaxed text-muted-foreground">
+							Read off the wire, so it needs a wire: after the first message, the full tool list of
+							the latest request appears here.
 						</p>
-					{/if}
-					{#if card.members}
-						<div class="hx-rule mt-1.5 border-t pt-1.5">
-							{#each card.members as m (m.id)}
-								<p
-									class="flex items-baseline justify-between gap-2 font-mono text-[9.5px] text-muted-foreground"
+					{:else}
+						<div class="mt-1.5 max-h-52 overflow-y-auto pb-1">
+							{#each toolbox.names as name (name)}
+								{@const meta = toolMeta(name)}
+								{@const c = toolbox.calls[name]}
+								<button
+									class="flex w-full items-baseline gap-2 px-2.5 py-1 text-left transition-colors
+									       hover:bg-muted/60 disabled:cursor-default disabled:hover:bg-transparent"
+									disabled={!c}
+									onclick={() => c && onjump?.(c.last)}
+									title={meta.blurb}
 								>
-									<span class="truncate">{m.name}</span>
-									{#if m.visits}
-										<span class="hx-num shrink-0" style:color="var(--hx-state)">×{m.visits}</span>
+									<span
+										class="inline-block size-1.5 shrink-0 translate-y-[-1px] rounded-full"
+										style:background={meta.origin === 'ours'
+											? 'var(--hx-tool)'
+											: 'var(--muted-foreground)'}
+										style:opacity={c ? 1 : 0.45}
+									></span>
+									<span
+										class="min-w-0 flex-1 truncate font-mono text-[10.5px]"
+										class:text-muted-foreground={!c}
+									>
+										{name}
+									</span>
+									{#if c}
+										<span class="hx-num shrink-0 text-[9px]" style:color="var(--hx-tool)">
+											×{c.n}
+										</span>
 									{/if}
-								</p>
+								</button>
 							{/each}
 						</div>
+						<p
+							class="hx-rule border-t px-2.5 py-1.5 text-[9px] leading-relaxed text-muted-foreground/70"
+						>
+							ochre — written for this agent · grey — the harness's · a row jumps to its last call
+						</p>
 					{/if}
-					<p class="mt-1.5 text-[9px] text-muted-foreground/70">{card.hint}</p>
 				</div>
 			{/if}
 		</div>
@@ -540,7 +632,7 @@
 		<p class="mt-1.5 text-[10px] text-muted-foreground">
 			<span style:color="var(--hx-interrupt)">⇢ dashed</span> — conditional, decided at runtime · loops
 			return on the right rail · dot-rows are the middleware onion, click to open · click a node to jump
-			the timeline
+			the timeline · click tools for the toolbox
 		</p>
 	{/if}
 </div>
