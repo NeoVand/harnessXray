@@ -1,6 +1,10 @@
+<script lang="ts">
+	import { base } from '$app/paths';
+</script>
+
 <img
 	class="plate"
-	src="/book/10-build-your-own.jpg"
+	src="{base}/book/10-build-your-own.jpg"
 	alt="Hands stack blocks — folder, wrench, checklist, robot, manual, vault, ring, gate — into a tower crowned by a glowing brain"
 	width="1536"
 	height="1024"
@@ -24,7 +28,7 @@
 
 <img
 	class="plate"
-	src="/book/10-build-tech.jpg"
+	src="{base}/book/10-build-tech.jpg"
 	alt="Schematic: model, tools, subagents, skills, middleware, backend and checkpointer plug into createDeepAgent; out comes the loop"
 	width="1536"
 	height="1024"

@@ -1,6 +1,10 @@
+<script lang="ts">
+	import { base } from '$app/paths';
+</script>
+
 <img
 	class="plate"
-	src="/book/04-plan.jpg"
+	src="{base}/book/04-plan.jpg"
 	alt="A fresh checklist sheet slides over the old one on a clipboard — write_todos replaces the whole plan, never appends"
 	width="1536"
 	height="1024"
@@ -24,7 +28,7 @@
 
 <img
 	class="plate"
-	src="/book/04-plan-tech.jpg"
+	src="{base}/book/04-plan-tech.jpg"
 	alt="Schematic: write_todos replaces the todos channel whole — pending, in_progress, completed"
 	width="1536"
 	height="1024"

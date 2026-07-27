@@ -1,6 +1,10 @@
+<script lang="ts">
+	import { base } from '$app/paths';
+</script>
+
 <img
 	class="plate"
-	src="/book/07-memory.jpg"
+	src="{base}/book/07-memory.jpg"
 	alt="A spiral notebook tied to a speech bubble beside a heavy archive vault — memory for this thread, and memory that outlives every thread"
 	width="1536"
 	height="1024"
@@ -24,7 +28,7 @@
 
 <img
 	class="plate"
-	src="/book/07-memory-tech.jpg"
+	src="{base}/book/07-memory-tech.jpg"
 	alt="Schematic: write_file forks by path — ordinary paths to the thread’s checkpointer, /memories/ to the store that outlives every thread"
 	width="1536"
 	height="1024"

@@ -1,6 +1,10 @@
+<script lang="ts">
+	import { base } from '$app/paths';
+</script>
+
 <img
 	class="plate"
-	src="/book/03-tools.jpg"
+	src="{base}/book/03-tools.jpg"
 	alt="A small model figure points at a pegboard of instruments while the harness’s mechanical hands do the actual work"
 	width="1536"
 	height="1024"
@@ -25,7 +29,7 @@
 
 <img
 	class="plate"
-	src="/book/03-tools-tech.jpg"
+	src="{base}/book/03-tools-tech.jpg"
 	alt="Schematic: the model emits a tool call, the harness executes it, the result rejoins the context; every schema re-sent with every request"
 	width="1536"
 	height="1024"

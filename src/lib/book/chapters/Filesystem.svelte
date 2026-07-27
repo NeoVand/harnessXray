@@ -1,6 +1,10 @@
+<script lang="ts">
+	import { base } from '$app/paths';
+</script>
+
 <img
 	class="plate"
-	src="/book/02-filesystem.jpg"
+	src="{base}/book/02-filesystem.jpg"
 	alt="Robots share one drawer of folders — /notes, /paper, /skills — passing pages in and out; the drawer is saved with the conversation"
 	width="1536"
 	height="1024"
@@ -26,7 +30,7 @@
 
 <img
 	class="plate"
-	src="/book/02-filesystem-tech.jpg"
+	src="{base}/book/02-filesystem-tech.jpg"
 	alt="Schematic: six file tools feed the files channel in graph state — checkpointed every step; /memories/ branches to the store; the asset store stands apart"
 	width="1536"
 	height="1024"
