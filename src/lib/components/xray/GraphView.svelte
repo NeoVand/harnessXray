@@ -570,6 +570,24 @@
 		letter-spacing: 0.07em;
 		text-transform: uppercase;
 	}
+	/*
+		Focus, quietly.
+
+		Clicking a node focuses it (they are keyboard-actionable), and on a dark
+		canvas the engine's default ring — and even the app's 2px ring — reads
+		as a fat white halo around the rounded rect. A click needs no indicator
+		at all: the hover card and the timeline jump ARE the response. Keyboard
+		focus keeps one, but as a hairline in the accent, offset so it reads as
+		an aura rather than a frame.
+	*/
+	svg g[role='button']:focus {
+		outline: none;
+	}
+	svg g[role='button']:focus-visible {
+		outline: 1px solid color-mix(in oklab, var(--hx-accent, var(--hx-model)) 60%, transparent);
+		outline-offset: 3px;
+	}
+
 	.hx-node-active > rect {
 		animation: hx-node-pulse 1.1s ease-in-out infinite;
 	}
