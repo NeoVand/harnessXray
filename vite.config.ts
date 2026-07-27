@@ -18,6 +18,10 @@ export default defineConfig({
 					filename.split(/[/\\]/).includes('node_modules') ? undefined : true
 			},
 			adapter: adapter(),
+			// GitHub Pages serves the site under /<repo>/. CI sets BASE_PATH; a
+			// local dev server or build never sees a difference. Anything that
+			// references static/ by absolute path must go through $app/paths.
+			paths: { base: (process.env.BASE_PATH ?? '') as '' | `/${string}` },
 			alias: { $agent: 'src/lib/agent', $xray: 'src/lib/xray' }
 		})
 	],

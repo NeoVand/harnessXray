@@ -1,6 +1,10 @@
+<script lang="ts">
+	import { base } from '$app/paths';
+</script>
+
 <img
 	class="plate"
-	src="/book/08-middleware.jpg"
+	src="{base}/book/08-middleware.jpg"
 	alt="An envelope pierces concentric rings, each stamping it on the way to the model — every call passes through"
 	width="1536"
 	height="1024"
@@ -26,7 +30,7 @@
 
 <img
 	class="plate"
-	src="/book/08-middleware-tech.jpg"
+	src="{base}/book/08-middleware-tech.jpg"
 	alt="Schematic: the middleware onion around the model — the request passes down the rings, the reply climbs back out"
 	width="1536"
 	height="1024"

@@ -1,6 +1,10 @@
+<script lang="ts">
+	import { base } from '$app/paths';
+</script>
+
 <img
 	class="plate"
-	src="/book/09-gates.jpg"
+	src="{base}/book/09-gates.jpg"
 	alt="A conveyor stopped at a barrier while a human hand hovers over approve, edit and reject buttons"
 	width="1536"
 	height="1024"
@@ -26,7 +30,7 @@
 
 <img
 	class="plate"
-	src="/book/09-gates-tech.jpg"
+	src="{base}/book/09-gates-tech.jpg"
 	alt="Schematic: a gated call stops at the interrupt, the checkpoint holds, and approve, edit or reject resumes a second invocation"
 	width="1536"
 	height="1024"

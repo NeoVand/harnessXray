@@ -1,6 +1,10 @@
+<script lang="ts">
+	import { base } from '$app/paths';
+</script>
+
 <img
 	class="plate"
-	src="/book/01-the-harness.jpg"
+	src="{base}/book/01-the-harness.jpg"
 	alt="A luminous loop: envelopes travel from the model past tool stations and return transformed — the harness is the loop"
 	width="1536"
 	height="1024"
@@ -26,7 +30,7 @@
 
 <img
 	class="plate"
-	src="/book/01-harness-schematic.jpg"
+	src="{base}/book/01-harness-schematic.jpg"
 	alt="Schematic of the loop: the context window — system prompt, skills, memory, files, plan, tools, messages — feeds the model; tool and subagent calls fan out and their results rejoin the context"
 	width="1536"
 	height="1024"

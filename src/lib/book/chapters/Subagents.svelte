@@ -1,6 +1,10 @@
+<script lang="ts">
+	import { base } from '$app/paths';
+</script>
+
 <img
 	class="plate"
-	src="/book/05-subagents.jpg"
+	src="{base}/book/05-subagents.jpg"
 	alt="A worker robot devours a thick stack of pages inside a glass booth and passes one small card out through a slot — 40,000 tokens in, 200 back"
 	width="1536"
 	height="1024"
@@ -26,7 +30,7 @@
 
 <img
 	class="plate"
-	src="/book/05-subagents-tech.jpg"
+	src="{base}/book/05-subagents-tech.jpg"
 	alt="Schematic: one task call fans into parallel subagent context windows; only small digests return — 40k inside, 200 back"
 	width="1536"
 	height="1024"

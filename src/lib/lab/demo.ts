@@ -1,3 +1,4 @@
+import { base } from '$app/paths';
 import { replay, parseFixture, downloadFixture, type Fixture } from '$lib/xray/replay.svelte';
 import { session } from '$lib/agent/session.svelte';
 import { bus } from '$lib/xray/bus.svelte';
@@ -28,7 +29,7 @@ export function exitReplay(): void {
 /** Load the fixture shipped with the app. Returns '' or a readable error. */
 export async function loadBundledDemo(): Promise<string> {
 	try {
-		const res = await fetch('/fixtures/demo.json');
+		const res = await fetch(`${base}/fixtures/demo.json`);
 		if (!res.ok) return 'No demo fixture is bundled with this build — record one from Settings.';
 		enterReplay(parseFixture(await res.text()));
 		return '';

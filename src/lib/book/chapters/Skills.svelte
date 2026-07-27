@@ -1,6 +1,10 @@
+<script lang="ts">
+	import { base } from '$app/paths';
+</script>
+
 <img
 	class="plate"
-	src="/book/06-skills.jpg"
+	src="{base}/book/06-skills.jpg"
 	alt="A shelf of thin closed manuals, one pulled out open and glowing — a skill costs one line until it is read"
 	width="1536"
 	height="1024"
@@ -24,7 +28,7 @@
 
 <img
 	class="plate"
-	src="/book/06-skills-tech.jpg"
+	src="{base}/book/06-skills-tech.jpg"
 	alt="Schematic: one line per skill in the prompt; read_file(SKILL.md) loads the full instructions only when needed"
 	width="1536"
 	height="1024"

@@ -93,7 +93,7 @@
 	<div
 		bind:this={viewport}
 		onscroll={onScroll}
-		class="min-h-0 flex-1 overflow-y-auto"
+		class="min-h-0 flex-1 overflow-x-hidden overflow-y-auto"
 		style:padding-top={topPad}
 	>
 		{#if rows.length === 0}
@@ -121,11 +121,14 @@
 			<!-- One control, one meaning: selecting drives the inspector, and the
 			     inspector is where the payload lives. This row used to expand the
 			     same JSON in place — pure repetition, gone. -->
+			<!-- The lane indent is a margin, so width must give those 12px back —
+			     w-full plus the margin was a permanent horizontal scrollbar. -->
 			<button
-				class="grid w-full min-w-0 grid-cols-[3px_14px_1fr_auto] items-baseline gap-x-2 border-b
+				class="grid min-w-0 grid-cols-[3px_14px_1fr_auto] items-baseline gap-x-2 border-b
 				       border-[color-mix(in_oklab,var(--border)_45%,transparent)] px-3 py-[7px] text-left
 				       transition-colors hover:bg-muted/50"
 				class:bg-muted={active}
+				style:width={r.sub ? 'calc(100% - 12px)' : '100%'}
 				style:border-left={r.sub
 					? '2px solid color-mix(in oklab, var(--hx-subagent) 55%, transparent)'
 					: undefined}
