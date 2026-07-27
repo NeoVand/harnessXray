@@ -57,6 +57,9 @@
 	const content = $derived(active ? (session.files[active] ?? '') : '');
 	/** Agent-written SVG is text in the files channel; sanitise, then show. */
 	const svgUrl = $derived(isSvg ? (asset?.dataUrl ?? (content ? svgToDataUrl(content) : '')) : '');
+	/** Renderable picture, whichever store it came from. Empty means the
+	 * selection is a document (or a picture we cannot show safely). */
+	const picture = $derived(isImage ? (asset?.dataUrl ?? '') : isSvg ? svgUrl : '');
 
 	/**
 	 * Page previews for the selected PDF.
@@ -118,54 +121,67 @@
 				</button>
 			</div>
 
-			<div class="min-h-0 flex-1 overflow-y-auto px-3 py-3">
-				{#if isPdf}
-					<!-- The pages were rendered when the PDF arrived, so showing them
-					     costs nothing and beats a line of text claiming a PDF is here. -->
-					{#if pdfPages.length}
-						<PageDeck
-							pages={pdfPages}
-							max={300}
-							label="Open {active}"
-							onopen={() => active && onread?.(active)}
-						/>
-						<p class="hx-eyebrow mt-1 text-center">
-							{asset ? `${(asset.bytes / 1024 / 1024).toFixed(1)} MB` : ''} · click to read
-						</p>
-					{:else}
-						<button
-							class="hx-rule flex w-full items-center gap-2 rounded border px-3 py-2 text-left
-							       text-xs transition-colors hover:bg-muted"
-							onclick={() => active && onread?.(active)}
-						>
-							<HugeiconsIcon icon={ICON.file} size={14} strokeWidth={1.5} />
-							Read it · {asset ? (asset.bytes / 1024 / 1024).toFixed(1) : '?'} MB
-						</button>
-					{/if}
-				{:else if isSvg}
-					{#if svgUrl}
-						<!-- Same two fences as the reader: sanitised markup in an <img>.
-						     White ground, because posters are authored against light. -->
-						<button class="block w-full" onclick={() => active && onread?.(active)}>
-							<img src={svgUrl} alt={active} class="hx-rule w-full rounded border bg-white" />
-						</button>
-					{:else}
+			{#if picture}
+				<!--
+					A viewer, not a page.
+
+					Pictures fit the pane and centre instead of going full-width and
+					scrolling: the scrollbar gutter is reserved at all times (see the
+					scrollbar rules in layout.css), so a scrolling image sat 12px from
+					the left edge and 22px from the right — a lopsided frame you cannot
+					unsee around a bordered figure. Fitting the pane means no scrollbar
+					can exist, and a wide figure genuinely spans the panel.
+
+					SVG keeps the reader's two fences — sanitised markup in an <img>,
+					white ground because posters are authored against light.
+				-->
+				<button
+					class="flex min-h-0 flex-1 items-center justify-center p-3"
+					onclick={() => active && onread?.(active)}
+				>
+					<img
+						src={picture}
+						alt={active}
+						class="hx-rule max-h-full max-w-full rounded border"
+						class:bg-white={isSvg}
+					/>
+				</button>
+			{:else}
+				<div class="min-h-0 flex-1 overflow-y-auto px-3 py-3">
+					{#if isPdf}
+						<!-- The pages were rendered when the PDF arrived, so showing them
+						     costs nothing and beats a line of text claiming a PDF is here. -->
+						{#if pdfPages.length}
+							<PageDeck
+								pages={pdfPages}
+								max={300}
+								label="Open {active}"
+								onopen={() => active && onread?.(active)}
+							/>
+							<p class="hx-eyebrow mt-1 text-center">
+								{asset ? `${(asset.bytes / 1024 / 1024).toFixed(1)} MB` : ''} · click to read
+							</p>
+						{:else}
+							<button
+								class="hx-rule flex w-full items-center gap-2 rounded border px-3 py-2 text-left
+								       text-xs transition-colors hover:bg-muted"
+								onclick={() => active && onread?.(active)}
+							>
+								<HugeiconsIcon icon={ICON.file} size={14} strokeWidth={1.5} />
+								Read it · {asset ? (asset.bytes / 1024 / 1024).toFixed(1) : '?'} MB
+							</button>
+						{/if}
+					{:else if isSvg}
 						<p class="text-xs text-muted-foreground">
 							This SVG could not be rendered safely — open it to read the source.
 						</p>
-					{/if}
-				{:else if isImage}
-					{#if asset}
-						<button class="block w-full" onclick={() => active && onread?.(active)}>
-							<img src={asset.dataUrl} alt={active} class="hx-rule w-full rounded border" />
-						</button>
-					{:else}
+					{:else if isImage}
 						<p class="text-xs text-muted-foreground">Not in the asset store.</p>
+					{:else}
+						<Markdown source={content} onopen={(p) => (selected = p)} />
 					{/if}
-				{:else}
-					<Markdown source={content} onopen={(p) => (selected = p)} />
-				{/if}
-			</div>
+				</div>
+			{/if}
 		</div>
 	{/if}
 </div>

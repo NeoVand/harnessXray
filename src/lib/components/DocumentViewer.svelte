@@ -117,55 +117,67 @@
 			</button>
 		</header>
 
-		<div class="min-h-0 flex-1 overflow-y-auto">
-			{#if isSvg && !showSource}
-				{#if svgUrl}
-					<!-- Through an <img>, never inline — sanitised or not, an agent's
+		{#if isImage && asset}
+			<!-- Same viewer grammar as the panel preview: the picture fits the
+			     column and centres. Full-width portrait figures forced a scrollbar,
+			     and its always-reserved gutter (see layout.css) hung a wider margin
+			     on the right of the frame than the left. -->
+			<div class="flex min-h-0 flex-1 flex-col gap-4 p-6">
+				<div class="flex min-h-0 flex-1 items-center justify-center">
+					<img
+						src={asset.dataUrl}
+						alt={path}
+						class="hx-rule max-h-full max-w-full rounded border"
+					/>
+				</div>
+				{#if asset.meta?.prompt}
+					<div class="mx-auto max-h-[30%] w-full max-w-[68ch] shrink-0 overflow-y-auto">
+						<p class="hx-eyebrow mb-1">prompt</p>
+						<p class="text-xs leading-relaxed text-muted-foreground">{asset.meta.prompt}</p>
+					</div>
+				{/if}
+			</div>
+		{:else}
+			<div class="min-h-0 flex-1 overflow-y-auto">
+				{#if isSvg && !showSource}
+					{#if svgUrl}
+						<!-- Through an <img>, never inline — sanitised or not, an agent's
 					     markup gets no scripting context at all. White ground: posters
 					     are usually authored against light, and a dark page under a
 					     transparent SVG makes its text vanish. -->
-					<div class="p-6">
-						<img src={svgUrl} alt={path} class="hx-rule w-full rounded border bg-white" />
-					</div>
-				{:else}
-					<p class="p-6 text-xs text-muted-foreground">
-						This SVG could not be rendered safely — flip to
-						<span class="font-mono">source</span> to read it as text.
-					</p>
-				{/if}
-			{:else if isImage}
-				{#if asset}
-					<div class="p-6">
-						<img src={asset.dataUrl} alt={path} class="hx-rule w-full rounded border" />
-						{#if asset.meta?.prompt}
-							<p class="hx-eyebrow mt-4 mb-1">prompt</p>
-							<p class="text-xs leading-relaxed text-muted-foreground">{asset.meta.prompt}</p>
-						{/if}
-					</div>
-				{:else}
+						<div class="p-6">
+							<img src={svgUrl} alt={path} class="hx-rule w-full rounded border bg-white" />
+						</div>
+					{:else}
+						<p class="p-6 text-xs text-muted-foreground">
+							This SVG could not be rendered safely — flip to
+							<span class="font-mono">source</span> to read it as text.
+						</p>
+					{/if}
+				{:else if isImage}
 					<p class="p-6 text-xs text-muted-foreground">Not in the asset store.</p>
-				{/if}
-			{:else if isPdf}
-				{#if asset}
-					<!-- Rendered by pdf.js rather than handed to an embedded viewer;
+				{:else if isPdf}
+					{#if asset}
+						<!-- Rendered by pdf.js rather than handed to an embedded viewer;
 					     see PdfView for why. -->
-					<PdfView dataUrl={asset.dataUrl} label={path} />
-				{:else}
-					<p class="p-6 text-xs text-muted-foreground">
-						This PDF was not kept. Papers fetched before PDF retention was added are text-only.
-					</p>
-				{/if}
-			{:else if showSource}
-				<pre
-					class="p-6 font-mono text-[11px] leading-relaxed [overflow-wrap:anywhere]
+						<PdfView dataUrl={asset.dataUrl} label={path} />
+					{:else}
+						<p class="p-6 text-xs text-muted-foreground">
+							This PDF was not kept. Papers fetched before PDF retention was added are text-only.
+						</p>
+					{/if}
+				{:else if showSource}
+					<pre
+						class="p-6 font-mono text-[11px] leading-relaxed [overflow-wrap:anywhere]
 				            whitespace-pre-wrap text-foreground/85">{text}</pre>
-			{:else}
-				<!-- Comfortable measure, generous leading: a document, not a panel. -->
-				<article bind:this={body} class="doc mx-auto max-w-[68ch] px-8 py-10">
-					<Markdown source={text} {onopen} />
-				</article>
-			{/if}
-		</div>
+				{:else}
+					<!-- Comfortable measure, generous leading: a document, not a panel. -->
+					<article bind:this={body} class="doc mx-auto max-w-[68ch] px-8 py-10">
+						<Markdown source={text} {onopen} />
+					</article>
+				{/if}
+			</div>
+		{/if}
 	</div>
 {/if}
 

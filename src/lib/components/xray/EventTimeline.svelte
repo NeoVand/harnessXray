@@ -198,9 +198,16 @@
 			</button>
 
 			{#if e.kind === 'image_partial' || e.kind === 'image_done' || e.kind === 'paper_fetched' || e.kind === 'figure_extracted'}
+				<!-- Full row width, even padding — a figure hung in the icon gutter's
+				     hanging indent read as shoved into the corner. Sub-lane media keeps
+				     the lane's rule and the same give-back-the-margin width as its row. -->
 				<div
 					class="border-b border-[color-mix(in_oklab,var(--border)_45%,transparent)] px-3 pt-1 pb-2"
-					class:pl-8={e.kind !== 'paper_fetched'}
+					style:width={r.sub ? 'calc(100% - 12px)' : '100%'}
+					style:border-left={r.sub
+						? '2px solid color-mix(in oklab, var(--hx-subagent) 55%, transparent)'
+						: undefined}
+					style:margin-left={r.sub ? '12px' : undefined}
 				>
 					<EventMedia event={e} onopen={onopenasset} />
 				</div>
