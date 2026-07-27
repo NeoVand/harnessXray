@@ -9,6 +9,7 @@
 	import FilesPanel from './FilesPanel.svelte';
 	import MemoryPanel from './MemoryPanel.svelte';
 	import SkillsPanel from './SkillsPanel.svelte';
+	import RunPanel from './RunPanel.svelte';
 	import { skills } from '$lib/agent/skills.svelte';
 	import { session } from '$lib/agent/session.svelte';
 	import { HugeiconsIcon } from '@hugeicons/svelte';
@@ -47,18 +48,23 @@
 	/**
 	 * Two regions, because the panels are not the same size of thing.
 	 *
-	 * `detail` / `raw` / `files` are documents — they want the room. `plan`,
-	 * `skills` and `graph` are dashboards: mostly short, and far more useful
-	 * *while* you are reading something else. Stacking them means you can watch
-	 * the plan tick over as a file is written, instead of tabbing away from one
-	 * to see the other.
+	 * `detail` and `files` are documents — they want the room, and detail
+	 * carries its raw twin as a toggle the way the context panel carries
+	 * pieces|raw: one subject, two readings, never two tabs claiming it.
+	 * `plan`, `skills`, `memory`, `graph` and the `ledger` are dashboards:
+	 * short, glanceable, and most useful *while* you are reading something
+	 * else. Stacking them means you can watch the plan tick over as a file is
+	 * written, instead of tabbing away from one to see the other.
 	 *
-	 * There used to be a `prompt` tab here. It has gone: the Context tab shows
-	 * the same system prompt in its assembled bands, next to everything else in
-	 * the window, and two places claiming to show one string is worse than one.
+	 * There used to be a `prompt` tab here. It has gone: the context panel
+	 * shows the same system prompt in its assembled bands, next to everything
+	 * else in the window, and two places claiming one string is worse than one.
 	 */
-	type Top = 'detail' | 'raw' | 'files' | 'memory';
-	type Bottom = 'plan' | 'skills' | 'graph';
+	type Top = 'detail' | 'files';
+	type Bottom = 'plan' | 'skills' | 'memory' | 'graph' | 'ledger';
+
+	/** Detail's second reading. Local on purpose: reopening should read plain. */
+	let rawDetail = $state(false);
 
 	// Opening a figure should also switch to the tab that can show it.
 	$effect(() => {
@@ -84,15 +90,15 @@
 
 	const TOP_TABS: { id: Top; label: string; icon: IconValue }[] = [
 		{ id: 'detail', label: 'detail', icon: ICON.state },
-		{ id: 'raw', label: 'raw', icon: ICON.code },
-		{ id: 'files', label: 'files', icon: ICON.files },
-		{ id: 'memory', label: 'memory', icon: ICON.memory }
+		{ id: 'files', label: 'files', icon: ICON.files }
 	];
 
 	const BOTTOM_TABS: { id: Bottom; label: string; icon: IconValue }[] = [
 		{ id: 'plan', label: 'plan', icon: ICON.todo },
 		{ id: 'skills', label: 'skills', icon: ICON.skill },
-		{ id: 'graph', label: 'graph', icon: ICON.graph }
+		{ id: 'memory', label: 'memory', icon: ICON.memory },
+		{ id: 'graph', label: 'graph', icon: ICON.graph },
+		{ id: 'ledger', label: 'ledger', icon: ICON.tokens }
 	];
 
 	const counts = $derived({
@@ -125,31 +131,50 @@
 						{t.label}
 						{#if t.id === 'files' && counts.files}
 							<span class="hx-num text-[9px] opacity-60">{counts.files}</span>
-						{:else if t.id === 'memory' && counts.memories}
-							<span class="hx-num text-[9px] opacity-60">{counts.memories}</span>
 						{/if}
 					</button>
 				{/each}
 
-				{#if event && top !== 'files' && top !== 'memory'}
-					{#if top === 'detail'}
+				{#if event && top === 'detail'}
+					<!-- The panel's two readings, up here with the other controls —
+					     the same grammar as the context panel's pieces|raw. -->
+					<span class="ml-auto flex shrink-0 items-center gap-2 text-muted-foreground">
 						<button
-							class="hx-eyebrow ml-auto flex shrink-0 items-center gap-1 transition-colors
-							       hover:text-foreground"
-							onclick={() => event && explain(event)}
-							title="Have the lab explain this event — one small luna call, outside the agent"
+							class="transition-colors hover:text-foreground"
+							style:color={!rawDetail ? 'var(--hx-accent)' : undefined}
+							onclick={() => (rawDetail = false)}
+							aria-pressed={!rawDetail}
+							title="Detail — the payload, decomposed"
+							aria-label="Detail view"
 						>
-							<HugeiconsIcon icon={ICON.sparkle} size={11} strokeWidth={1.5} />
-							explain
+							<HugeiconsIcon icon={ICON.state} size={13} strokeWidth={1.5} />
 						</button>
-					{/if}
-					<span
-						class="hx-num shrink-0 text-[10px] text-muted-foreground/70"
-						class:ml-auto={top !== 'detail'}
-					>
-						{stamp(event.t)}
-						{#if event.kind === 'http_request'}· {bytes(event.bytes)}{/if}
-						{#if event.kind === 'http_response'}· {Math.round(event.ms)}ms{/if}
+						<button
+							class="transition-colors hover:text-foreground"
+							style:color={rawDetail ? 'var(--hx-accent)' : undefined}
+							onclick={() => (rawDetail = true)}
+							aria-pressed={rawDetail}
+							title="Raw — the literal wire, frame by frame"
+							aria-label="Raw view"
+						>
+							<HugeiconsIcon icon={ICON.code} size={13} strokeWidth={1.5} />
+						</button>
+						{#if !rawDetail}
+							<button
+								class="hx-eyebrow flex shrink-0 items-center gap-1 transition-colors
+								       hover:text-foreground"
+								onclick={() => event && explain(event)}
+								title="Have the lab explain this event — one small luna call, outside the agent"
+							>
+								<HugeiconsIcon icon={ICON.sparkle} size={11} strokeWidth={1.5} />
+								explain
+							</button>
+						{/if}
+						<span class="hx-num shrink-0 text-[10px] text-muted-foreground/70">
+							{stamp(event.t)}
+							{#if event.kind === 'http_request'}· {bytes(event.bytes)}{/if}
+							{#if event.kind === 'http_response'}· {Math.round(event.ms)}ms{/if}
+						</span>
 					</span>
 				{/if}
 			</header>
@@ -167,18 +192,18 @@
 			-->
 			<div
 				class="h-full pt-9"
-				class:overflow-auto={top !== 'files' && top !== 'memory'}
-				class:overflow-hidden={top === 'files' || top === 'memory'}
+				class:overflow-auto={top !== 'files'}
+				class:overflow-hidden={top === 'files'}
 			>
 				{#if top === 'files'}
 					<FilesPanel bind:openPath {onread} />
-				{:else if top === 'memory'}
-					<MemoryPanel />
 				{:else if !event}
 					<p class="px-4 py-6 text-xs text-muted-foreground">
 						Select an event in the timeline to dissect it.
 					</p>
-				{:else if top === 'detail'}
+				{:else if rawDetail}
+					<RawView {event} {frames} />
+				{:else}
 					{@const ex = explanations.get(event.id)}
 					{#if ex}
 						<div class="hx-rule border-b px-3 py-3">
@@ -212,8 +237,6 @@
 							/>
 						</div>
 					{/if}
-				{:else}
-					<RawView {event} {frames} />
 				{/if}
 			</div>
 		</div>
@@ -241,16 +264,26 @@
 							<span class="hx-num text-[9px] opacity-60">{counts.todos}</span>
 						{:else if t.id === 'skills' && counts.skills}
 							<span class="hx-num text-[9px] opacity-60">{counts.skills}</span>
+						{:else if t.id === 'memory' && counts.memories}
+							<span class="hx-num text-[9px] opacity-60">{counts.memories}</span>
 						{/if}
 					</button>
 				{/each}
 			</header>
 
-			<div class="h-full overflow-auto pt-8">
+			<div
+				class="h-full pt-8"
+				class:overflow-auto={bottom !== 'memory'}
+				class:overflow-hidden={bottom === 'memory'}
+			>
 				{#if bottom === 'plan'}
 					<TodoPanel />
 				{:else if bottom === 'skills'}
 					<SkillsPanel onmanage={onmanageskills} />
+				{:else if bottom === 'memory'}
+					<MemoryPanel />
+				{:else if bottom === 'ledger'}
+					<RunPanel />
 				{:else}
 					<GraphView {onjump} />
 				{/if}

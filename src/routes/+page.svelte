@@ -5,7 +5,6 @@
 	import Composer from '$lib/components/chat/Composer.svelte';
 	import EventTimeline from '$lib/components/xray/EventTimeline.svelte';
 	import Inspector from '$lib/components/xray/Inspector.svelte';
-	import RunPanel from '$lib/components/xray/RunPanel.svelte';
 	import SettingsSheet from '$lib/components/SettingsSheet.svelte';
 	import DocumentViewer from '$lib/components/DocumentViewer.svelte';
 	import BookViewer from '$lib/components/BookViewer.svelte';
@@ -39,20 +38,18 @@
 	let skillsOpen = $state(false);
 	let aboutOpen = $state(false);
 
-	/** The left column of the X-ray: what happened, or what is in the window. */
-	let lens = $state<'timeline' | 'context'>('timeline');
 	let showFrames = $state(false);
 
 	// The context panel's two readings. Owned here, not in the panel, because
-	// the switch lives in the tab bar — a component boundary above the thing
-	// it drives.
+	// the switch lives in the pane's own bar — a component boundary above the
+	// thing it drives.
 	let contextView = $state<'pieces' | 'raw'>('pieces');
 
 	// Owned here so the inspector's tabs survive a document being opened and
 	// closed — that unmounts the whole component, and local state would snap
 	// back to `detail` on every close.
-	let inspectorTop = $state<'detail' | 'raw' | 'files' | 'memory'>('detail');
-	let inspectorBottom = $state<'plan' | 'skills' | 'graph'>('plan');
+	let inspectorTop = $state<'detail' | 'files'>('detail');
+	let inspectorBottom = $state<'plan' | 'skills' | 'memory' | 'graph' | 'ledger'>('plan');
 
 	/** Height of the floating tab bar; panels leave this much room at the top. */
 	const TAB_H = '36px';
@@ -353,35 +350,30 @@
 				{:else}
 					<Resizable.PaneGroup direction="horizontal" autoSaveId="hx:xray">
 						<Resizable.Pane defaultSize={34} minSize={22}>
-							<!-- The timeline does not need the whole column: past a certain
-						     height it is just more rows you are not looking at. The run
-						     accounting lives underneath it, where it is visible while you
-						     scrub rather than hidden behind a tab. -->
+							<!-- Two readings of the same run, both always on screen now: the
+						     events record on top, and beneath it what the model could see
+						     when they happened. Neither is derivable from the other, and
+						     tabbing between them hid exactly the correspondence a class
+						     is there to watch. The ledger moved to the inspector's
+						     dashboard row. -->
 							<!-- v2: the default split must match the inspector's, and a saved
 						     layout under the old id would silently keep the misaligned one. -->
 							<Resizable.PaneGroup direction="vertical" autoSaveId="hx:timeline-v2">
 								<Resizable.Pane defaultSize={62} minSize={25}>
-									<!-- Two readings of the same run. The timeline is the record of
-								     what happened; the context is what the model could see when
-								     it happened. Neither is derivable from the other. -->
 									<div class="relative h-full min-h-0">
 										<div
 											class="hx-rule hx-frost absolute inset-x-0 top-0 z-20 flex h-9 items-center
 										       gap-3.5 border-b px-3"
 										>
-											{#each [{ id: 'timeline', label: 'events', icon: ICON.time }, { id: 'context', label: 'context', icon: ICON.context }] as const as t (t.id)}
-												<button
-													class="hx-eyebrow flex h-full items-center gap-1.5 transition-colors
-												       hover:text-foreground"
-													style:color={lens === t.id ? 'var(--hx-accent)' : undefined}
-													onclick={() => (lens = t.id)}
-												>
-													<HugeiconsIcon icon={t.icon} size={12} strokeWidth={1.5} />
-													{t.label}
-												</button>
-											{/each}
+											<span
+												class="hx-eyebrow flex h-full items-center gap-1.5"
+												style:color="var(--hx-accent)"
+											>
+												<HugeiconsIcon icon={ICON.time} size={12} strokeWidth={1.5} />
+												events
+											</span>
 											<span class="ml-auto flex items-center gap-3 text-muted-foreground">
-												{#if lens === 'timeline' && frameCount}
+												{#if frameCount}
 													<button
 														class="hx-eyebrow flex items-center gap-1 transition-colors
 													       hover:text-foreground"
@@ -394,94 +386,100 @@
 													</button>
 												{/if}
 
-												{#if lens === 'context'}
-													<!-- The panel's controls live up here with every other lens
-												     control, so the panel itself can be all content. -->
-													<span class="flex items-center gap-2">
-														<button
-															class="transition-colors hover:text-foreground"
-															style:color={contextView === 'pieces'
-																? 'var(--hx-accent)'
-																: undefined}
-															onclick={() => (contextView = 'pieces')}
-															aria-pressed={contextView === 'pieces'}
-															title="Pieces — the request cut into system prompt, schemas and messages"
-															aria-label="Pieces view"
-														>
-															<HugeiconsIcon icon={ICON.state} size={13} strokeWidth={1.5} />
-														</button>
-														<button
-															class="transition-colors hover:text-foreground"
-															style:color={contextView === 'raw' ? 'var(--hx-accent)' : undefined}
-															onclick={() => (contextView = 'raw')}
-															aria-pressed={contextView === 'raw'}
-															title="Raw — the exact request body, whole"
-															aria-label="Raw view"
-														>
-															<HugeiconsIcon icon={ICON.code} size={13} strokeWidth={1.5} />
-														</button>
-														<button
-															class="transition-colors hover:text-foreground disabled:opacity-30"
-															onclick={() => session.compact()}
-															disabled={session.busy ||
-																session.compacting ||
-																session.messages.length < 3}
-															title="Fold the earlier conversation into a summary"
-															aria-label="Compact the conversation"
-														>
-															<HugeiconsIcon icon={ICON.compact} size={13} strokeWidth={1.5} />
-														</button>
-													</span>
-												{/if}
-
-												{#if lens === 'timeline'}
-													<FilterMenu
-														options={kindOptions}
-														hidden={hiddenKinds}
-														label="event kinds"
-													/>
-												{:else}
-													<FilterMenu
-														options={GROUP_OPTIONS}
-														hidden={hiddenGroups}
-														label="sections"
-													/>
-												{/if}
+												<FilterMenu
+													options={kindOptions}
+													hidden={hiddenKinds}
+													label="event kinds"
+												/>
 
 												{#if lastShot}
-													<button
-														class="flex items-center gap-1.5 transition-colors hover:text-foreground"
-														onclick={() => (lens = 'context')}
-														title="context used"
+													<!-- A readout, not a control — the panel it used to open
+												     is permanently below. -->
+													<span
+														class="flex items-center gap-1.5"
+														title="context used — decomposed in the panel below"
 													>
 														<ContextDonut used={contextUsed} warn={COMPACT_AT} />
 														<span class="hx-num text-[10px]">{compact(lastShot.tokens)}</span>
-													</button>
+													</span>
 												{/if}
 											</span>
 										</div>
 										<div class="h-full">
-											{#if lens === 'timeline'}
-												<EventTimeline
-													{selectedId}
-													{showFrames}
-													hidden={hiddenKinds}
-													topPad={TAB_H}
-													onselect={select}
-													onopenasset={(p) => {
-														openPath = p;
-														if (p.endsWith('.pdf')) readPath = p;
-													}}
-												/>
-											{:else}
-												<ContextPanel view={contextView} hidden={hiddenGroups} topPad={TAB_H} />
-											{/if}
+											<EventTimeline
+												{selectedId}
+												{showFrames}
+												hidden={hiddenKinds}
+												topPad={TAB_H}
+												onselect={select}
+												onopenasset={(p) => {
+													openPath = p;
+													if (p.endsWith('.pdf')) readPath = p;
+												}}
+											/>
 										</div>
 									</div>
 								</Resizable.Pane>
 								<Resizable.Handle />
 								<Resizable.Pane defaultSize={38} minSize={14} collapsible collapsedSize={8}>
-									<RunPanel />
+									<div class="relative h-full min-h-0">
+										<header
+											class="hx-rule hx-frost absolute inset-x-0 top-0 z-20 flex h-8 items-center
+										       gap-3.5 border-y px-3"
+										>
+											<span
+												class="hx-eyebrow flex h-full items-center gap-1.5"
+												style:color="var(--hx-accent)"
+											>
+												<HugeiconsIcon icon={ICON.context} size={12} strokeWidth={1.5} />
+												context
+											</span>
+											<span class="ml-auto flex items-center gap-3 text-muted-foreground">
+												<span class="flex items-center gap-2">
+													<button
+														class="transition-colors hover:text-foreground"
+														style:color={contextView === 'pieces' ? 'var(--hx-accent)' : undefined}
+														onclick={() => (contextView = 'pieces')}
+														aria-pressed={contextView === 'pieces'}
+														title="Pieces — the request cut into system prompt, schemas and messages"
+														aria-label="Pieces view"
+													>
+														<HugeiconsIcon icon={ICON.state} size={13} strokeWidth={1.5} />
+													</button>
+													<button
+														class="transition-colors hover:text-foreground"
+														style:color={contextView === 'raw' ? 'var(--hx-accent)' : undefined}
+														onclick={() => (contextView = 'raw')}
+														aria-pressed={contextView === 'raw'}
+														title="Raw — the exact request body, whole"
+														aria-label="Raw view"
+													>
+														<HugeiconsIcon icon={ICON.code} size={13} strokeWidth={1.5} />
+													</button>
+													<button
+														class="transition-colors hover:text-foreground disabled:opacity-30"
+														onclick={() => session.compact()}
+														disabled={session.busy ||
+															session.compacting ||
+															session.messages.length < 3}
+														title="Fold the earlier conversation into a summary"
+														aria-label="Compact the conversation"
+													>
+														<HugeiconsIcon icon={ICON.compact} size={13} strokeWidth={1.5} />
+													</button>
+												</span>
+
+												<FilterMenu
+													options={GROUP_OPTIONS}
+													hidden={hiddenGroups}
+													label="sections"
+												/>
+											</span>
+										</header>
+										<div class="h-full">
+											<ContextPanel view={contextView} hidden={hiddenGroups} topPad="32px" />
+										</div>
+									</div>
 								</Resizable.Pane>
 							</Resizable.PaneGroup>
 						</Resizable.Pane>
