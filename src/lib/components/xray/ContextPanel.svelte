@@ -5,6 +5,9 @@
 	import { COMPACT_AT } from '$lib/agent/models';
 	import { compact } from '$lib/xray/usage';
 	import { bytes } from '$lib/xray/format';
+	import { pieceIcon } from '$lib/xray/piece-icon';
+	import { HugeiconsIcon } from '@hugeicons/svelte';
+	import { ICON, type IconValue } from '$lib/icons';
 
 	/**
 	 * The context window, opened up.
@@ -96,10 +99,15 @@
 	/** Pretty-printed lazily — the pieces view never pays for the stringify. */
 	const rawText = $derived(view === 'raw' && rawReq ? JSON.stringify(rawReq.body, null, 2) : '');
 
-	const GROUPS: { id: PieceGroup; label: string; note: string }[] = [
-		{ id: 'system', label: 'system prompt', note: 'one string, assembled from many' },
-		{ id: 'tools', label: 'tool schemas', note: 'every schema, every request' },
-		{ id: 'messages', label: 'messages', note: 'the conversation so far' }
+	const GROUPS: { id: PieceGroup; label: string; note: string; icon: IconValue }[] = [
+		{
+			id: 'system',
+			label: 'system prompt',
+			note: 'one string, assembled from many',
+			icon: ICON.prompt
+		},
+		{ id: 'tools', label: 'tool schemas', note: 'every schema, every request', icon: ICON.tool },
+		{ id: 'messages', label: 'messages', note: 'the conversation so far', icon: ICON.message }
 	];
 
 	const GROUP_COLOR: Record<PieceGroup, string> = {
@@ -230,7 +238,10 @@
 							class="hx-rule hx-frost sticky z-10 flex items-baseline gap-2 border-b px-3 py-1.5"
 							style:top={under}
 						>
-							<span class="hx-eyebrow">{g.label}</span>
+							<span class="hx-eyebrow flex items-center gap-1.5">
+								<HugeiconsIcon icon={g.icon} size={11} strokeWidth={1.5} />
+								{g.label}
+							</span>
 							<span class="hx-num text-[10px] text-muted-foreground">
 								{rows.length} · {totals[g.id].toLocaleString()}
 							</span>
@@ -264,6 +275,17 @@
 									style:background={p.color}
 									style:opacity={isOpen ? 1 : 0.5}
 								></span>
+								<!-- What kind of thing this is, at a glance. The colour was
+								     already spoken for — it maps to the event palette, so the
+								     filesystem band is fs-teal because filesystem events are —
+								     which left every row needing to be read to be identified. -->
+								<span
+									class="shrink-0 translate-y-[2px]"
+									style:color={p.color}
+									style:opacity={isOpen ? 1 : 0.75}
+								>
+									<HugeiconsIcon icon={pieceIcon(p)} size={12} strokeWidth={1.5} />
+								</span>
 								<span class="min-w-0 flex-1">
 									<span class="block truncate font-mono text-[11px]">{p.label}</span>
 									{#if p.note}
