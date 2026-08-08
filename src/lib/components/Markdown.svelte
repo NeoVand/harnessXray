@@ -9,7 +9,7 @@
 	import {
 		extractMath,
 		restoreMath,
-		linkify,
+		enrichBody,
 		isInternalHref,
 		internalPath
 	} from '$lib/paper/enrich';
@@ -48,30 +48,54 @@
 	 */
 	const split = $derived(splitFrontmatter(source ?? ''));
 
+	/**
+	 * A virtual figure path to something an `<img>` can actually load.
+	 *
+	 * Rasters live in the asset store (a PNG is ~950KB and graph state is
+	 * checkpointed); an SVG the agent hand-wrote is ordinary text in the files
+	 * channel, so it resolves from there — through the sanitiser, because
+	 * model-authored markup is untrusted markup. Anything else is left alone.
+	 */
+	function resolveFigure(path: string): string {
+		if (!/^\/(?:figures|paper|notes|uploads)\//.test(path)) return path;
+		const hit = assets.peek(path);
+		if (hit) return hit.dataUrl;
+		if (path.endsWith('.svg')) {
+			const text = session.files[path];
+			const url = typeof text === 'string' ? svgToDataUrl(text) : '';
+			if (url) return url;
+		}
+		return path;
+	}
+
 	const prepared = $derived.by(() => {
 		void assetVersion.n;
-		// Figure paths are virtual. Rasters live in the asset store (a PNG is
-		// ~950KB and graph state is checkpointed); an SVG the agent hand-wrote is
-		// ordinary text in the files channel, so it resolves from there — through
-		// the sanitiser, because model-authored markup is untrusted markup.
-		const withFigures = linkify(split.body).replace(
-			/!\[([^\]]*)\]\((\/(?:figures|paper|notes|uploads)\/[^)\s]+)\)/g,
-			(whole, alt: string, path: string) => {
-				const hit = assets.peek(path);
-				if (hit) return `![${alt}](${hit.dataUrl})`;
-				if (path.endsWith('.svg')) {
-					const text = session.files[path];
-					const url = typeof text === 'string' ? svgToDataUrl(text) : '';
-					if (url) return `![${alt}](${url})`;
-				}
-				return whole;
-			}
-		);
-		return extractMath(withFigures);
+		return extractMath(enrichBody(split.body, resolveFigure));
 	});
 
+	/**
+	 * A figure on its own becomes a `<figure>` with its alt text under it.
+	 *
+	 * The agent already writes the caption — `![Figure 1: SWE-agent is an LM
+	 * interacting with a computer… Figure from arXiv:2405.15793.](/figures/…)` —
+	 * and alt text is the one place a reader never sees it, because it only
+	 * surfaces when the image fails to load. Promoting it to a visible caption
+	 * costs nothing and turns a wall of pictures into a figure list.
+	 *
+	 * Narrow on purpose: only a paragraph that holds an image and nothing else,
+	 * which is what `marked` emits for a figure on its own line. An image used
+	 * inline mid-sentence keeps its alt attribute and stays where it is. The alt
+	 * is `marked`'s own escaped output, and DOMPurify runs over the result
+	 * either way.
+	 */
+	const FIGURE = /<p>(<img\b[^>]*\balt="([^"]*)"[^>]*>)<\/p>/g;
+
 	const html = $derived.by(() => {
-		const parsed = marked.parse(prepared.text, { async: false }) as string;
+		const parsed = (marked.parse(prepared.text, { async: false }) as string).replace(
+			FIGURE,
+			(whole, img: string, alt: string) =>
+				alt.trim() ? `<figure>${img}<figcaption>${alt}</figcaption></figure>` : whole
+		);
 		const clean = DOMPurify.sanitize(parsed, {
 			ALLOWED_TAGS: [
 				'p',
@@ -101,7 +125,9 @@
 				'hr',
 				'sup',
 				'sub',
-				'img'
+				'img',
+				'figure',
+				'figcaption'
 			],
 			ALLOWED_ATTR: ['href', 'title', 'src', 'alt'],
 			ADD_DATA_URI_TAGS: ['img'],
@@ -244,6 +270,22 @@
 		border-radius: var(--radius-sm);
 		margin: 0.9em 0;
 		display: block;
+	}
+	/* A captioned figure reads as one object: the margin moves to the figure so
+	   the picture and its caption are not separated by the image's own gap. */
+	.md :global(figure) {
+		margin: 1.1em 0;
+	}
+	.md :global(figure img) {
+		margin: 0;
+	}
+	.md :global(figcaption) {
+		margin-top: 0.5em;
+		font-size: 0.86em;
+		line-height: 1.5;
+		color: var(--muted-foreground);
+		border-left: 1px solid var(--border);
+		padding-left: 0.7em;
 	}
 	.md :global(hr) {
 		border: 0;

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { arxivIdFrom, authorsLine, resolveFigureUrl } from './retrieval';
+import { arxivIdFrom, arxivYear, authorsLine, resolveFigureUrl } from './retrieval';
 
 /**
  * The two index bugs that made a "latest paper by X" run thrash: the arXiv id
@@ -111,5 +111,37 @@ describe('resolveFigureUrl — the shape that produced nothing', () => {
 		expect(resolveFigureUrl('https://cdn.example/x.png', 'https://arxiv.org/html/2401.02385')).toBe(
 			'https://cdn.example/x.png'
 		);
+	});
+});
+
+/**
+ * The year the citation prints has to be the year its identifier states.
+ *
+ * OpenAlex answers `publication_year`, which for a preprint that later ran in
+ * a journal is the journal's. A live run cited "Cheng et al., 2026,
+ * arXiv:2401.03428" — a paper whose id says 2024 in its first four digits —
+ * because that is what the registry handed the model. The id is what the
+ * reader checks, so the id is what decides the year.
+ */
+describe('arxivYear', () => {
+	it('reads the year off a modern id', () => {
+		expect(arxivYear('2401.03428')).toBe(2024);
+		expect(arxivYear('2310.06770')).toBe(2023);
+	});
+
+	it('reads it off a legacy id, including the 1990s', () => {
+		// Landmark papers are overwhelmingly legacy — AdS/CFT is hep-th/9711200.
+		expect(arxivYear('hep-th/9711200')).toBe(1997);
+		expect(arxivYear('math.AG/0601001')).toBe(2006);
+	});
+
+	it('tolerates a version suffix', () => {
+		expect(arxivYear('2405.15793v3')).toBe(2024);
+	});
+
+	it('refuses anything whose month is not a month', () => {
+		// A DOI fragment or a stray number must not become a confident year.
+		expect(arxivYear('2499.12345')).toBeNull();
+		expect(arxivYear('not-an-id')).toBeNull();
 	});
 });

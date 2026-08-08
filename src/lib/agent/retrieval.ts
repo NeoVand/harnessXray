@@ -77,6 +77,30 @@ export function arxivIdFrom(work: Record<string, unknown>): string | null {
 }
 
 /**
+ * The year an arXiv id itself states.
+ *
+ * OpenAlex reports `publication_year`, which for a preprint that later ran in a
+ * journal is the JOURNAL's year. The app cites by arXiv id, so the two
+ * disagreed in print: a live run produced "Cheng et al., 2026, arXiv:2401.03428"
+ * — a paper whose identifier says January 2024 in the first four digits. The
+ * agent was faithful to what we handed it; what we handed it was internally
+ * contradictory, and a reader who checks the id is the person the citation is
+ * for.
+ *
+ * Both id schemes encode the submission month. Modern is `YYMM.NNNNN` from
+ * 2007-04 on; legacy is `archive/YYMMNNN`, which ran from 1991 to 2007 — so
+ * `91`–`99` is the 1990s and everything else is the 2000s.
+ */
+export function arxivYear(id: string): number | null {
+	const m = id.match(/^(?:[a-z-]+(?:\.[A-Z]{2})?\/)?(\d{2})(\d{2})/);
+	if (!m) return null;
+	const yy = Number(m[1]);
+	const mm = Number(m[2]);
+	if (mm < 1 || mm > 12) return null;
+	return yy >= 91 ? 1900 + yy : 2000 + yy;
+}
+
+/**
  * Authors, formatted so the one that matters survives.
  *
  * "First et al." erased exactly the name a "latest paper by X" question needs
@@ -134,20 +158,26 @@ async function searchOpenAlex(
 	if (!res.ok) throw new Error(`OpenAlex returned HTTP ${res.status}.`);
 
 	const json = (await res.json()) as { results?: Record<string, unknown>[] };
-	return (json.results ?? []).map((w) => ({
-		arxivId: arxivIdFrom(w),
-		title: String(w.title ?? 'Untitled'),
-		// 25, not 6: the senior author on a ten-name paper is the one a reader
-		// asks about, and slicing at six silently deleted them.
-		authors: ((w.authorships as { author?: { display_name?: string } }[] | undefined) ?? [])
-			.slice(0, 25)
-			.map((a) => a.author?.display_name ?? '')
-			.filter(Boolean),
-		year: (w.publication_year as number) ?? null,
-		citations: (w.cited_by_count as number) ?? 0,
-		abstract: deInvertAbstract(w.abstract_inverted_index as Record<string, number[]>),
-		url: String(w.id ?? '')
-	}));
+	return (json.results ?? []).map((w) => {
+		const arxivId = arxivIdFrom(w);
+		return {
+			arxivId,
+			title: String(w.title ?? 'Untitled'),
+			// 25, not 6: the senior author on a ten-name paper is the one a reader
+			// asks about, and slicing at six silently deleted them.
+			authors: ((w.authorships as { author?: { display_name?: string } }[] | undefined) ?? [])
+				.slice(0, 25)
+				.map((a) => a.author?.display_name ?? '')
+				.filter(Boolean),
+			// The id's year wins when there is an id, because the id is what gets
+			// printed beside it. `publication_year` stays the answer for anything
+			// we cite by DOI instead.
+			year: (arxivId && arxivYear(arxivId)) || ((w.publication_year as number) ?? null),
+			citations: (w.cited_by_count as number) ?? 0,
+			abstract: deInvertAbstract(w.abstract_inverted_index as Record<string, number[]>),
+			url: String(w.id ?? '')
+		};
+	});
 }
 
 /**
@@ -185,8 +215,10 @@ async function searchCrossref(
 				.map((a) => [a.given, a.family].filter(Boolean).join(' '))
 				.filter(Boolean),
 			year:
-				((it.issued as { 'date-parts'?: number[][] } | undefined)?.['date-parts']?.[0]?.[0] as
-					number | undefined) ?? null,
+				(doi && arxivIdFromDoi(doi) && arxivYear(arxivIdFromDoi(doi) as string)) ||
+				(((it.issued as { 'date-parts'?: number[][] } | undefined)?.['date-parts']?.[0]?.[0] as
+					number | undefined) ??
+					null),
 			citations: (it['is-referenced-by-count'] as number) ?? 0,
 			abstract: String(it.abstract ?? '').replace(/<[^>]+>/g, ''),
 			url: doi ? `https://doi.org/${doi}` : ''

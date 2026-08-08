@@ -73,7 +73,7 @@
 <div
 	bind:this={viewport}
 	onscroll={onScroll}
-	class="min-h-0 flex-1 overflow-y-auto"
+	class="turn-scroller min-h-0 flex-1 overflow-y-auto"
 	style:padding-top={topPad}
 	style:padding-bottom={bottomPad}
 >
@@ -86,7 +86,7 @@
 	-->
 	<div class="w-full py-3">
 		{#if session.messages.length === 0}
-			<div class="mx-auto w-full max-w-[68ch] px-6 pt-10">
+			<div class="turn-col mx-auto w-full max-w-[68ch] pt-10">
 				<p class="hx-eyebrow mb-3">the harness, live</p>
 				<p class="max-w-[46ch] text-sm leading-relaxed text-muted-foreground">
 					Everything this agent does is dissected on the right — the literal request body, every raw
@@ -165,7 +165,7 @@
 				<!-- Something that happened *to* the conversation rather than in it.
 				     A rule with a label, so it reads as a seam in the transcript and
 				     is not mistaken for either party speaking. -->
-				<div class="mx-auto w-full max-w-[68ch] px-6 py-3">
+				<div class="turn-col mx-auto w-full max-w-[68ch] py-3">
 					<div class="flex items-center gap-2">
 						<span class="hx-rule h-px flex-1 border-t"></span>
 						<span class="hx-eyebrow flex items-center gap-1.5" style:color="var(--hx-memory)">
@@ -196,7 +196,7 @@
 					stays a small object on that side rather than a full-width bar.
 				-->
 				<article class="group pt-2 pb-2">
-					<div class="mx-auto flex w-full max-w-[68ch] flex-col items-end px-6">
+					<div class="turn-col mx-auto flex w-full max-w-[68ch] flex-col items-end">
 						<p
 							class="hx-eyebrow mb-1 flex items-center gap-1.5 leading-none"
 							style:color="var(--hx-user)"
@@ -216,12 +216,12 @@
 									if (e.key === 'Escape') editing = null;
 								}}
 								class="hx-rule hx-field w-full resize-none rounded-lg border bg-background p-2.5
-								       text-sm leading-relaxed"
+								       text-right text-[13px] leading-relaxed"
 								rows="3"></textarea>
 						{:else if m.text}
 							<p
-								class="turn-you w-fit max-w-full rounded-lg px-3 py-2 text-sm
-							          leading-relaxed whitespace-pre-wrap"
+								class="turn-you w-fit max-w-full rounded-lg border px-3 py-1.5 text-right
+							          text-[13px] leading-relaxed whitespace-pre-wrap"
 							>
 								{m.text}
 							</p>
@@ -335,7 +335,7 @@
 				</article>
 			{:else}
 				<article class="pt-2 pb-2">
-					<div class="mx-auto w-full max-w-[68ch] px-6">
+					<div class="turn-col mx-auto w-full max-w-[68ch]">
 						<p
 							class="hx-eyebrow mb-1 flex items-center gap-1.5 leading-none"
 							style:color="var(--hx-model)"
@@ -355,7 +355,11 @@
 							     of its input the cache absorbed. The Run panel has the whole
 							     ledger; this is the line item. -->
 							<p class="hx-num mt-1.5 text-[10px] text-muted-foreground/60">
-								{money(m.usage.costUsd)} · {compact(m.usage.input)} in
+								<!-- The one figure on this line anyone acts on. Lifted out of the
+								     muted run with the model's own colour — the same teal the
+								     ledger totals in, so the line item and the total read as one
+								     currency rather than two. -->
+								<span class="turn-cost">{money(m.usage.costUsd)}</span> · {compact(m.usage.input)} in
 								{#if m.usage.input > 0}
 									({Math.round((m.usage.cached / m.usage.input) * 100)}% cached){/if}
 								· {compact(m.usage.output)} out · {m.usage.calls}
@@ -380,7 +384,7 @@
 		{#each tutor.transcript as entry, i (i)}
 			{#if entry.role === 'you'}
 				<article class="pt-2 pb-1">
-					<div class="mx-auto flex w-full max-w-[68ch] flex-col items-end px-6">
+					<div class="turn-col mx-auto flex w-full max-w-[68ch] flex-col items-end">
 						<p
 							class="hx-eyebrow mb-1 flex items-center gap-1.5 leading-none"
 							style:color="var(--hx-accent, var(--hx-state))"
@@ -389,8 +393,8 @@
 							<HugeiconsIcon icon={ICON.lab} size={11} strokeWidth={1.5} />
 						</p>
 						<p
-							class="turn-you w-fit max-w-full rounded-lg px-3 py-2 text-sm
-							       leading-relaxed whitespace-pre-wrap"
+							class="turn-you w-fit max-w-full rounded-lg border px-3 py-1.5 text-right
+							       text-[13px] leading-relaxed whitespace-pre-wrap"
 						>
 							{entry.text}
 						</p>
@@ -398,7 +402,7 @@
 				</article>
 			{:else}
 				<article class="pt-2 pb-2">
-					<div class="mx-auto w-full max-w-[68ch] px-6">
+					<div class="turn-col mx-auto w-full max-w-[68ch]">
 						<div class="lab-reply pl-3">
 							<p
 								class="hx-eyebrow mb-1 leading-none"
@@ -421,7 +425,7 @@
 			{/if}
 		{/each}
 
-		<div class="mx-auto w-full max-w-[68ch] px-6 pt-2">
+		<div class="turn-col mx-auto w-full max-w-[68ch] pt-2">
 			<ApprovalCard />
 
 			{#if session.stalled && !session.busy}
@@ -482,32 +486,64 @@
 
 <style>
 	/*
+		The column, inset the same on both sides.
+
+		It was `px-6` — 24px of padding either side — and looked wrong on the
+		right for a reason that is not in this file: the scroller reserves a
+		gutter for its scrollbar (layout.css, Scrollbars), and that gutter is
+		real horizontal space taken off the content box. So the text sat 24px
+		from the left edge of the pane and 34px from the right, and the whole
+		column read as shoved. Paying the gutter back on the right makes the
+		two insets equal on screen, which is what anyone actually judges.
+
+		`scrollbar-gutter: stable` is what makes that arithmetic safe: without
+		it the gutter only exists once the transcript overflows, so a short
+		chat would sit 12px from the left and 2px from the right.
+
+		The value matches the chat header and the composer, so a turn, the
+		word `chat` above it and the `+` below it all start on one pixel
+		column instead of three.
+	*/
+	.turn-col {
+		padding-inline-start: 0.75rem;
+		padding-inline-end: calc(0.75rem - var(--hx-gutter));
+	}
+	.turn-scroller {
+		scrollbar-gutter: stable;
+	}
+
+	/*
 		The user speaks plum; the agent speaks teal.
 
 		Each speaker gets a colour identity from the LEGEND, not the chrome:
 		the accent marks the app's own controls, and in most themes it sits on
 		the model's teal — borrowing it here made "you" and "agent" the same
 		colour. --hx-user is the user's colour everywhere (timeline rows, the
-		context messages band, and now the bubble): a wash behind it and a
-		tint through the text, retuned per theme in layout.css. Proportions
-		stay low — enough to feel, never enough to fight the reading — and
-		dark keeps a lighter wash, where the same amount reads as a panel.
+		context messages band, the legend, and here), so the bubble derives
+		from it rather than restating it: `--hx-you-*` in layout.css mixes the
+		wash, the edge and the ink once, and every theme retunes all three by
+		retuning the one hue they come from.
+
+		The edge is doing most of the work now. A hairline states the shape at
+		any wash strength, which let the fill drop to a tint you read as
+		colour rather than as a grey box — the old recipe washed plum through
+		--muted, and grey is very good at eating 10% of a hue.
 	*/
 	.turn-you {
-		background: color-mix(
-			in oklab,
-			var(--hx-user) 10%,
-			color-mix(in oklab, var(--muted) 45%, transparent)
-		);
-		color: color-mix(in oklab, var(--hx-user) 30%, var(--foreground));
+		background: var(--hx-you-wash);
+		border-color: var(--hx-you-edge);
+		color: var(--hx-you-ink);
 	}
-	:global(.dark) .turn-you {
-		background: color-mix(
-			in oklab,
-			var(--hx-user) 13%,
-			color-mix(in oklab, var(--muted) 28%, transparent)
-		);
-		color: color-mix(in oklab, var(--hx-user) 34%, var(--foreground));
+
+	/* The receipt's headline figure. A tinted ground rather than louder text:
+	   the line is 10px and deliberately quiet, so brightening the number
+	   enough to find it would have made it shout instead. */
+	.turn-cost {
+		color: color-mix(in oklab, var(--hx-model) 62%, var(--foreground));
+		background: color-mix(in oklab, var(--hx-model) 11%, transparent);
+		border-radius: 3px;
+		padding: 0.1em 0.35em;
+		margin-inline-start: -0.35em;
 	}
 
 	/* The lab's hairline: the accent at rule strength, so the second voice is
