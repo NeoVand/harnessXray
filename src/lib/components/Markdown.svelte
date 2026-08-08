@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { marked } from 'marked';
+	import { splitFrontmatter } from '$lib/paper/frontmatter';
+	import Frontmatter from './Frontmatter.svelte';
 	import DOMPurify from 'dompurify';
 	import { assets, assetVersion } from '$lib/storage/assets.svelte';
 	import { session } from '$lib/agent/session.svelte';
@@ -35,13 +37,24 @@
 
 	marked.setOptions({ gfm: true, breaks: true });
 
+	/**
+	 * Frontmatter comes off the top BEFORE anything else runs.
+	 *
+	 * Left in, `marked` does the only thing it can with `---`: two horizontal
+	 * rules around one running paragraph, so a skill's most structured lines
+	 * rendered as its least structured prose. Splitting here also keeps it out of
+	 * linkify and the math extractor, neither of which has any business inside a
+	 * metadata header.
+	 */
+	const split = $derived(splitFrontmatter(source ?? ''));
+
 	const prepared = $derived.by(() => {
 		void assetVersion.n;
 		// Figure paths are virtual. Rasters live in the asset store (a PNG is
 		// ~950KB and graph state is checkpointed); an SVG the agent hand-wrote is
 		// ordinary text in the files channel, so it resolves from there — through
 		// the sanitiser, because model-authored markup is untrusted markup.
-		const withFigures = linkify(source ?? '').replace(
+		const withFigures = linkify(split.body).replace(
 			/!\[([^\]]*)\]\((\/(?:figures|paper|notes|uploads)\/[^)\s]+)\)/g,
 			(whole, alt: string, path: string) => {
 				const hit = assets.peek(path);
@@ -110,6 +123,9 @@
 	}
 </script>
 
+{#if split.frontmatter}
+	<Frontmatter source={split.frontmatter} {compact} />
+{/if}
 <!-- eslint-disable-next-line svelte/no-at-html-tags -- sanitised immediately above -->
 <div class="md" class:compact onclick={onClick} role="presentation">{@html html}</div>
 
