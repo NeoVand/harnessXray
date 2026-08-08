@@ -17,6 +17,7 @@
 	import { tip } from '$lib/hooks/tip';
 	import { isEvicted, EVICT_HELP } from '$lib/agent/eviction';
 	import { INHERITANCE_HELP, NOT_INHERITED } from '$lib/agent/subagent-state';
+	import { subagentIcon } from '$lib/agent/subagent-meta';
 
 	interface Props {
 		selectedId: string | null;
@@ -168,7 +169,11 @@
 					class="flex min-w-0 items-center gap-1.5 border-b
 					       border-[color-mix(in_oklab,var(--border)_45%,transparent)] py-1 pr-3 pl-5"
 				>
-					<HugeiconsIcon icon={ICON.subagent} size={11} strokeWidth={1.5} />
+					<!-- The delegate's own glyph, the same one the crew and the toolbox
+					     draw. A lane you can recognise before you read it. -->
+					<span style:color="var(--hx-subagent)">
+						<HugeiconsIcon icon={subagentIcon(r.laneLabel)} size={11} strokeWidth={1.5} />
+					</span>
 					<span class="hx-eyebrow shrink-0" style:color="var(--hx-subagent)">
 						{r.laneLabel || 'subagent'}
 					</span>
