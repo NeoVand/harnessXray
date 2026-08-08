@@ -126,12 +126,41 @@
 						</ol>
 					</div>
 				{/if}
+				{#if a.name === 'generate_image' && !editing}
+					<!-- For an image the PROMPT is the decision — it is the whole of
+					     what you are approving, and it is about to be paid for. It used
+					     to arrive as a truncated one-line arg summary with the real text
+					     behind a json toggle, so the only way to read what you were
+					     approving was to read serialised JSON. Now: the brief in full,
+					     as prose, with the parameters that cost money beside it. -->
+					{@const img = a.args as {
+						prompt?: string;
+						path?: string;
+						size?: string;
+						quality?: string;
+					}}
+					<div class="hx-rule mt-2 rounded border bg-background/60 px-3 py-2">
+						<p class="text-xs leading-relaxed whitespace-pre-wrap">{img.prompt}</p>
+						{#if img.path || img.size || img.quality}
+							<p class="hx-rule mt-2 flex flex-wrap gap-x-3 gap-y-1 border-t pt-1.5">
+								{#each [['path', img.path], ['size', img.size], ['quality', img.quality]] as [k, v] (k)}
+									{#if v}
+										<span class="hx-eyebrow flex items-baseline gap-1">
+											{k}
+											<span class="hx-num text-[10px] text-foreground/80">{v}</span>
+										</span>
+									{/if}
+								{/each}
+							</p>
+						{/if}
+					</div>
+				{/if}
 				{#if !editing}
-					<!-- Collapsed by default: a fetch_paper or generate_image call can
-					     carry hundreds of characters of arguments, and an approval that
-					     fills the screen is one people stop reading. The outline already
-					     rendered itself above, so it skips the one-line summary — but
-					     the literal JSON stays one click away for both. -->
+					<!-- Collapsed by default: a fetch_paper call can carry hundreds of
+					     characters of arguments, and an approval that fills the screen is
+					     one people stop reading. The outline and the image brief already
+					     rendered themselves above, so they skip the one-line summary —
+					     but the literal JSON stays one click away for all of them. -->
 					<button
 						class="hx-eyebrow mt-1 flex items-center gap-1 transition-colors hover:text-foreground"
 						onclick={() => (showArgs = !showArgs)}
@@ -147,7 +176,7 @@
 					</button>
 					{#if showArgs}
 						<div class="mt-1"><JsonCode source={JSON.stringify(a.args)} /></div>
-					{:else if a.name !== 'present_outline'}
+					{:else if a.name !== 'present_outline' && a.name !== 'generate_image'}
 						<p class="mt-0.5 truncate font-mono text-[10px] text-muted-foreground">
 							{argSummary(a.args)}
 						</p>
