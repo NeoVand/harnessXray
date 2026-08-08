@@ -1,4 +1,4 @@
-import { assets, toBase64, thumbnail } from '$lib/storage/assets.svelte';
+import { assets, toBase64, thumbnail, fromDataUrl } from '$lib/storage/assets.svelte';
 import { bus } from '$lib/xray/bus.svelte';
 
 /**
@@ -160,6 +160,66 @@ export async function ingest(file: File): Promise<Attachment> {
 	});
 
 	return { kind: 'text', name: file.name, path, bytes: file.size, text };
+}
+
+/**
+ * Attach something the app already holds.
+ *
+ * The counterpart to `ingest`, for a file the run itself produced — a note, an
+ * extracted figure, a paper it downloaded. Pointing at one of those in the
+ * files panel and saying "this one" is a thing people kept trying to do by
+ * pasting the path into the message, and a path in prose is a suggestion the
+ * model can misread. Staging it as an attachment makes it the same object an
+ * upload is, with the same manifest line.
+ *
+ * The three routes are the ones `ingest` documents, and the reason they still
+ * apply is the point worth seeing: a picture the agent MADE is no more readable
+ * to the model than one you uploaded. It still has to ride inside the message
+ * as a content block, and it still costs tokens on every turn afterwards. A
+ * text file, meanwhile, is already in the graph's `files` channel — attaching
+ * it adds no bytes to anything, it just tells the agent which one you mean.
+ *
+ * `text` is passed in rather than read from the session so this module stays
+ * ignorant of the session (which imports it). Nothing is emitted on the
+ * timeline: an upload crosses a boundary and earns a row, while this is a file
+ * the run already has.
+ */
+export async function attachStored(path: string, text?: string): Promise<Attachment> {
+	const name = path.split('/').pop() || path;
+
+	// A text file in the virtual filesystem, including agent-written SVG.
+	if (typeof text === 'string' && text.length) {
+		return { kind: 'text', name, path, bytes: text.length, text };
+	}
+
+	const asset = await assets.get(path);
+	if (!asset) throw new Error(`${path} is not in this conversation any more.`);
+
+	if (asset.kind === 'image') {
+		if (/\.svg$/i.test(path)) {
+			throw new Error(
+				`${name} is an SVG — the model reads it as markup, so open it and attach the source instead.`
+			);
+		}
+		return { kind: 'image', name, path, bytes: asset.bytes, text: '', dataUrl: asset.dataUrl };
+	}
+
+	if (asset.kind === 'pdf') {
+		// Extracted here rather than at send, for the same reason `ingest` does it
+		// on pick: the chip can then say how much text the agent actually gets.
+		const { extractPdfText } = await import('./pdf');
+		const body = await extractPdfText(fromDataUrl(asset.dataUrl));
+		return {
+			kind: 'pdf',
+			name,
+			path,
+			bytes: asset.bytes,
+			text: body,
+			pages: (asset.meta?.pages as string[] | undefined) ?? []
+		};
+	}
+
+	throw new Error(`${name} is not something the agent can read.`);
 }
 
 /** The line appended to the user's message so the agent knows what arrived. */

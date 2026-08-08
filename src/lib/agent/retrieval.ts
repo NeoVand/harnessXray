@@ -403,21 +403,13 @@ export async function fetchPaperFigures(
 			};
 }
 
-/** A stored data URL back to bytes. */
-function bytesOf(dataUrl: string): ArrayBuffer {
-	const bin = atob(dataUrl.slice(dataUrl.indexOf(',') + 1));
-	const out = new Uint8Array(bin.length);
-	for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-	return out.buffer;
-}
-
 /** The PDF bytes for a paper: the copy we already kept, or a fresh download. */
 async function pdfBytesFor(id: string): Promise<ArrayBuffer> {
-	const { assets } = await import('$lib/storage/assets.svelte');
+	const { assets, fromDataUrl } = await import('$lib/storage/assets.svelte');
 	const stored = await assets.get(`/papers/${id.replace(/\//g, '-')}.pdf`);
 	// fetch_paper keeps the PDF it downloaded, so a paper already read costs
 	// nothing to extract from — and cannot be rate-limited on the second ask.
-	if (stored?.dataUrl) return bytesOf(stored.dataUrl);
+	if (stored?.dataUrl) return fromDataUrl(stored.dataUrl);
 
 	let res: Response;
 	try {
@@ -455,7 +447,7 @@ export async function extractFigures(
 	// A path means a file already in the store — an upload, or a paper we kept.
 	// There is no arXiv id to attribute to, so the file's own name stands in.
 	if (raw.startsWith('/')) {
-		const { assets } = await import('$lib/storage/assets.svelte');
+		const { assets, fromDataUrl } = await import('$lib/storage/assets.svelte');
 		const asset = await assets.get(raw);
 		if (!asset)
 			return { figures: [], note: `No file at ${raw}. Check list_figures or ls.`, via: 'none' };
@@ -467,7 +459,7 @@ export async function extractFigures(
 			};
 		const id =
 			String(asset.meta?.arxivId ?? '') || (raw.split('/').pop() ?? raw).replace(/\.pdf$/i, '');
-		return fromPdf(bytesOf(asset.dataUrl), id, max);
+		return fromPdf(fromDataUrl(asset.dataUrl), id, max);
 	}
 
 	const html = await fetchPaperFigures(raw, max);

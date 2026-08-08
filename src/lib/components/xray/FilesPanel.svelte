@@ -63,6 +63,42 @@
 	const picture = $derived(isImage ? (asset?.dataUrl ?? '') : isSvg ? svgUrl : '');
 
 	/**
+	 * Staging the file on screen into the next message.
+	 *
+	 * People kept doing this by pasting the path into the composer, and a path in
+	 * prose is a suggestion the model can misread or ignore. As an attachment it
+	 * is the same object an upload is — same chip, same manifest line — and the
+	 * route it takes still depends on what it is, which is the part worth seeing:
+	 * a note is already in the graph's `files` channel and costs nothing to point
+	 * at, while a figure the agent drew itself has to ride inside the message as
+	 * pixels, exactly like one you uploaded.
+	 */
+	let attaching = $state(false);
+	let attachError = $state('');
+	const staged = $derived(!!active && session.attachments.some((a) => a.path === active));
+
+	const attachHint = $derived(
+		isImage
+			? 'Attach to the next message — pixels ride inside the message itself, and cost tokens on every turn after'
+			: isPdf
+				? 'Attach to the next message — the text is extracted and the agent reads it at a path'
+				: 'Attach to the next message — the agent reads it at its path'
+	);
+
+	async function attach() {
+		if (!active || staged || attaching) return;
+		attaching = true;
+		attachError = '';
+		try {
+			const { attachStored } = await import('$lib/agent/uploads');
+			session.attachments.push(await attachStored(active, content));
+		} catch (e) {
+			attachError = e instanceof Error ? e.message : String(e);
+		}
+		attaching = false;
+	}
+
+	/**
 	 * Page previews for the selected PDF.
 	 *
 	 * Whatever the asset already carries, else rendered from the bytes we still
@@ -107,10 +143,24 @@
 		</div>
 
 		<div class="flex min-h-0 flex-1 flex-col">
-			<div class="hx-rule flex shrink-0 items-center gap-2 border-b px-3 py-1.5">
+			<div class="hx-rule flex shrink-0 items-center gap-3 border-b px-3 py-1.5">
 				<span class="min-w-0 flex-1 truncate font-mono text-[11px] text-muted-foreground">
 					{active}
 				</span>
+				<!-- Hand this file to the agent, from where you are already looking at
+				     it. Stays lit once staged, because the chip it produced is in the
+				     composer at the other end of the window. -->
+				<button
+					class="hx-eyebrow flex shrink-0 items-center gap-1 transition-colors
+					       hover:text-foreground disabled:pointer-events-none"
+					style:color={staged ? 'var(--hx-accent)' : undefined}
+					disabled={staged || attaching}
+					onclick={attach}
+					{@attach tip(staged ? 'Staged in the composer — send to hand it over' : attachHint)}
+				>
+					<HugeiconsIcon icon={staged ? ICON.ok : ICON.attach} size={11} strokeWidth={1.5} />
+					{staged ? 'attached' : attaching ? 'reading…' : 'attach'}
+				</button>
 				<!-- The panel is for glancing; reading happens in the viewer. -->
 				<button
 					class="hx-eyebrow flex shrink-0 items-center gap-1 transition-colors hover:text-foreground"
@@ -121,6 +171,12 @@
 					open
 				</button>
 			</div>
+
+			{#if attachError}
+				<p class="hx-rule shrink-0 border-b px-3 py-1 text-[10px]" style:color="var(--hx-error)">
+					{attachError}
+				</p>
+			{/if}
 
 			{#if picture}
 				<!--
