@@ -5,6 +5,7 @@
 	import MemoryPanel from './MemoryPanel.svelte';
 	import SkillsPanel from './SkillsPanel.svelte';
 	import RunPanel from './RunPanel.svelte';
+	import ToolsPanel from './ToolsPanel.svelte';
 	import { skills } from '$lib/agent/skills.svelte';
 	import { session } from '$lib/agent/session.svelte';
 	import { HugeiconsIcon } from '@hugeicons/svelte';
@@ -42,7 +43,7 @@
 	 * was. Below, the dashboards — graph first, because the default view
 	 * should be the one that is alive while a run is going.
 	 */
-	type Bottom = 'graph' | 'skills' | 'memory' | 'ledger';
+	type Bottom = 'graph' | 'tools' | 'skills' | 'memory' | 'ledger';
 
 	// The hint is what the tab *shows*, not what it is called — the label
 	// already says that, and a tooltip repeating the word under the pointer
@@ -53,6 +54,12 @@
 			label: 'graph',
 			icon: ICON.graph,
 			hint: 'The assembled machine — nodes and edges read from the running graph'
+		},
+		{
+			id: 'tools',
+			label: 'tools',
+			icon: ICON.tool,
+			hint: 'Every tool the model was offered, and what each schema costs on every request'
 		},
 		{
 			id: 'skills',
@@ -141,12 +148,16 @@
 			>
 				{#if bottom === 'skills'}
 					<SkillsPanel onmanage={onmanageskills} />
+				{:else if bottom === 'tools'}
+					<ToolsPanel {onjump} />
 				{:else if bottom === 'memory'}
 					<MemoryPanel />
 				{:else if bottom === 'ledger'}
 					<RunPanel />
 				{:else}
-					<GraphView {onjump} />
+					<!-- The graph's tools node points here rather than opening its own
+					     overlay: same affordance, no panel parked on the drawing. -->
+					<GraphView {onjump} onopentools={() => (bottom = 'tools')} />
 				{/if}
 			</div>
 		</div>
