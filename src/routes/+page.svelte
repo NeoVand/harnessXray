@@ -155,9 +155,18 @@
 		if (last && last.kind !== 'http_sse_frame') selectedId = last.id;
 	});
 
+	/**
+	 * A deliberate jump: select the row AND scroll it into view.
+	 *
+	 * The follow-the-run effect above sets `selectedId` too, and scrolling on
+	 * that would drag the timeline back down every time an event landed. So the
+	 * reveal is a separate signal that only this path raises.
+	 */
+	let revealId = $state<string | null>(null);
 	function select(id: string) {
 		following = false;
 		selectedId = id;
+		revealId = id;
 	}
 
 	function onKeydown(e: KeyboardEvent) {
@@ -499,6 +508,7 @@
 												{:else}
 													<EventTimeline
 														{selectedId}
+														{revealId}
 														{showFrames}
 														hidden={hiddenKinds}
 														topPad="32px"
