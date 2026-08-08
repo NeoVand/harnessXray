@@ -52,6 +52,17 @@ export interface CrewMember {
 	returned: number;
 	/** True when concurrent dispatches made some spend unattributable. */
 	spentAmbiguous: boolean;
+	/**
+	 * An `http_request` made inside this subagent's dispatch window, if one was
+	 * seen — the only place its OWN tool set appears on the wire.
+	 *
+	 * Subagent model calls go out through the same instrumented fetch as the
+	 * parent's, so their requests carry their own `tools` array. Reading the
+	 * schemas back out of one of those is how the app can show what a subagent
+	 * actually carries, at real token cost, instead of listing names from our
+	 * registry and hoping they match.
+	 */
+	sampleRequest: string;
 }
 
 // Widened to plain strings on purpose: the roster is whatever the wire says,
@@ -153,6 +164,8 @@ export function crew(bus: EventBus): CrewMember[] {
 	 * neither and the whole reading is flagged instead of quietly guessed at.
 	 */
 	const spent: Record<string, number> = {};
+	/** subagent → an http_request id seen inside its window. */
+	const sample: Record<string, string> = {};
 	let ambiguous = false;
 	/** Dispatches currently open, oldest first — `task` ids to subagent names. */
 	const openCalls: { id: string; name: string }[] = [];
@@ -173,20 +186,34 @@ export function crew(bus: EventBus): CrewMember[] {
 			if (hit) returned[hit.name] = (returned[hit.name] ?? 0) + e.chars;
 			continue;
 		}
+		// Unambiguous when every open dispatch is the SAME subagent — three
+		// paper-readers running at once are all paper-reader, and that is the one
+		// case this app fans out on purpose. Only a genuine mix is unattributable.
+		const only = openCalls.length
+			? openCalls.every((o) => o.name === openCalls[0].name)
+				? openCalls[0].name
+				: ''
+			: '';
+
+		if (e.kind === 'http_request' && only && e.url.includes('/responses')) {
+			const body = e.body as { tools?: unknown } | null;
+			// Only a request that actually carries tools: an image call has none and
+			// would otherwise overwrite a good sample with an empty one.
+			if (Array.isArray(body?.tools) && body.tools.length) sample[only] = e.id;
+		}
 		if (e.kind === 'http_response' && e.rawUsage && openCalls.length) {
 			const u = e.rawUsage as { input_tokens?: number };
-			if (openCalls.length === 1) {
-				spent[openCalls[0].name] = (spent[openCalls[0].name] ?? 0) + (u.input_tokens ?? 0);
-			} else {
-				ambiguous = true;
-			}
+			if (only) spent[only] = (spent[only] ?? 0) + (u.input_tokens ?? 0);
+			else ambiguous = true;
 		}
 	}
 
 	// general-purpose was handed `defaultTools` — the main agent's whole set — so
 	// its count is the wire's tool count, which is the honest number rather than
 	// a guess. Everything else we declared ourselves.
-	const mainToolCount = lastTools(bus).length;
+	const mainTools = lastTools(bus);
+	const mainToolCount = mainTools.length;
+	const mainToolNames = mainTools.map((t) => nameOf(t)).filter(Boolean);
 
 	return roster.map((name) => {
 		const ours = OURS.has(name);
@@ -199,11 +226,14 @@ export function crew(bus: EventBus): CrewMember[] {
 				? { count: declared ?? 0, known: declared !== undefined }
 				: { count: mainToolCount, known: mainToolCount > 0 },
 			calls: calls[name] ?? { n: 0, last: '' },
-			toolNames: OUR_TOOL_NAMES.get(name) ?? [],
+			// The clone was handed `defaultTools`, so its declared list IS the main
+			// agent's — otherwise it reads as carrying nothing at all.
+			toolNames: OUR_TOOL_NAMES.get(name) ?? (ours ? [] : mainToolNames),
 			prompt: OUR_PROMPT.get(name) ?? '',
 			spent: spent[name] ?? 0,
 			returned: returned[name] ?? 0,
-			spentAmbiguous: ambiguous
+			spentAmbiguous: ambiguous,
+			sampleRequest: sample[name] ?? ''
 		};
 	});
 }

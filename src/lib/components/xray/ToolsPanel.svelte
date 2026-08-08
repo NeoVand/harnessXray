@@ -99,6 +99,48 @@
 		if (!openProse.delete(name)) openProse.add(name);
 	}
 
+	/**
+	 * What each subagent carries, from its own request on the wire.
+	 *
+	 * This is the half of the tool set nobody could see. The main agent's request
+	 * lists the main agent's tools; a subagent's tools appear only in the requests
+	 * IT makes, and those go out through the same instrumented fetch — so they are
+	 * on the wire, they were simply never read back. Which matters because a
+	 * subagent's tool set is not the subset you declared: the harness adds the six
+	 * file tools, write_todos and task to every one of them, so paper-reader is
+	 * carrying far more than the two tools its spec names.
+	 *
+	 * Falls back to the declared names when a subagent has not run yet, and says
+	 * which of the two it is showing.
+	 */
+	const crews = $derived.by(() => {
+		void bus.version;
+		return roster.map((m) => {
+			const shot = m.sampleRequest ? shotAt(bus, m.sampleRequest) : undefined;
+			const wire = (shot?.pieces ?? [])
+				.filter((p) => p.group === 'tools')
+				.map((p) => ({
+					name: p.label,
+					tokens: p.tokens,
+					meta: toolMeta(p.label),
+					call: calls[p.label]
+				}));
+			return {
+				...m,
+				measured: wire.length > 0,
+				tools: wire.length
+					? wire
+					: m.toolNames.map((n) => ({
+							name: n,
+							tokens: 0,
+							meta: toolMeta(n),
+							call: calls[n]
+						})),
+				total: wire.reduce((n, t) => n + t.tokens, 0)
+			};
+		});
+	});
+
 	const total = $derived(rows.reduce((n, r) => n + r.tokens, 0));
 	const used = $derived(rows.filter((r) => r.call).length);
 	/** Widest schema, so the share bars have a sensible full scale. */
@@ -272,6 +314,89 @@
 					{/if}
 				</div>
 			{/each}
+
+			{#if crews.length}
+				<!-- Grouped under the subagent that carries them, because the question
+				     "what tools exist in this run" has an answer the main request alone
+				     cannot give. -->
+				<div class="hx-rule mt-4 border-t pt-3">
+					<p class="hx-eyebrow mb-1">what the subagents carry</p>
+					<p class="mb-2 text-[10px] leading-relaxed text-muted-foreground">
+						A subagent's tools appear only in the requests it makes — and they are not the subset
+						you declared. The harness adds the file tools, the plan and
+						<span class="font-mono">task</span> to every one.
+					</p>
+
+					{#each crews as c (c.name)}
+						{@const isOpen = open.has(`crew:${c.name}`)}
+						<div class="hx-rule border-b last:border-b-0">
+							<button
+								class="flex w-full items-center gap-2 py-1.5 text-left transition-colors
+								       hover:bg-muted/50"
+								onclick={() => toggle(`crew:${c.name}`)}
+								aria-expanded={isOpen}
+							>
+								<span
+									class="inline-block size-1.5 shrink-0 rounded-full"
+									style:background={c.origin === 'ours'
+										? 'var(--hx-subagent)'
+										: 'var(--hx-interrupt)'}
+									style:opacity={c.calls.n ? 1 : 0.5}
+								></span>
+								<span
+									class="min-w-0 flex-1 truncate font-mono text-[11px]"
+									class:text-muted-foreground={!c.calls.n}
+								>
+									{c.name}
+								</span>
+								<span class="hx-num shrink-0 text-[9px] text-muted-foreground/60">
+									{c.tools.length} tools
+								</span>
+								{#if c.total}
+									<span class="hx-num w-10 shrink-0 text-right text-[10px] text-muted-foreground">
+										{compact(c.total)}
+									</span>
+								{/if}
+								<span
+									class="shrink-0 text-muted-foreground/50 transition-transform"
+									style:transform={isOpen ? 'rotate(0deg)' : 'rotate(-90deg)'}
+								>
+									<HugeiconsIcon icon={ICON.expand} size={10} strokeWidth={1.5} />
+								</span>
+							</button>
+
+							{#if isOpen}
+								<div class="pb-2 pl-5">
+									<p class="hx-eyebrow mb-1.5">
+										{c.measured
+											? 'read from its own request on the wire'
+											: 'declared in its spec — it has not run yet, so nothing is on the wire'}
+									</p>
+									{#each c.tools as t (t.name)}
+										<div class="flex items-center gap-2 py-[3px]">
+											<span
+												class="shrink-0"
+												style:color={t.meta.origin === 'ours'
+													? 'var(--hx-tool)'
+													: 'var(--muted-foreground)'}
+												style:opacity={t.call ? 1 : 0.55}
+											>
+												<HugeiconsIcon icon={t.meta.icon} size={11} strokeWidth={1.5} />
+											</span>
+											<span class="min-w-0 flex-1 truncate font-mono text-[10px]">{t.name}</span>
+											{#if t.tokens}
+												<span class="hx-num shrink-0 text-[9px] text-muted-foreground/60">
+													{compact(t.tokens)}
+												</span>
+											{/if}
+										</div>
+									{/each}
+								</div>
+							{/if}
+						</div>
+					{/each}
+				</div>
+			{/if}
 
 			<p class="mt-3 text-[10px] leading-relaxed text-muted-foreground/60">
 				<span style:color="var(--hx-tool)">ochre</span>
