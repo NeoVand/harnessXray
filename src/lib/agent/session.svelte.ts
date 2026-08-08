@@ -11,6 +11,7 @@ import { SUBAGENTS } from './subagents';
 import { SYSTEM_PROMPT } from './prompt';
 import { skills, SKILLS_ROOT, skillPath, skillReadIn } from './skills.svelte';
 import { compactRequest, compactThread } from './compaction';
+import { todoListMiddleware } from 'langchain';
 import { worldStateMiddleware } from './awareness';
 import { oneGatePerTurnMiddleware } from './one-gate';
 import { manifest, type Attachment } from './uploads';
@@ -445,6 +446,21 @@ class Session {
 
 	// ── the agent ────────────────────────────────────────────────────────────
 
+	/**
+	 * An agent built only to be *looked at* — the graph before a run exists.
+	 *
+	 * It takes no key, because compiling a graph never calls a model. What it
+	 * must take is everything that changes the graph's SHAPE: the skills
+	 * directory, the gated tools and our own middleware all add nodes, and a
+	 * drawing that omits them is a drawing of a different agent. It used to omit
+	 * all three, so the topology quietly simplified whenever no run had happened
+	 * yet — after a reload the middleware after the model just vanished, which
+	 * looks exactly like a bug and was in fact a lie.
+	 *
+	 * No backend, store or checkpointer: those decide where state LIVES, not what
+	 * the graph looks like, and building them here would mean touching IndexedDB
+	 * to draw a picture.
+	 */
 	async peekAgent(): Promise<unknown> {
 		if (this.#agent) return this.#agent;
 		if (this.#shape) return this.#shape;
@@ -453,7 +469,10 @@ class Session {
 			model: `openai:${this.model}`,
 			tools: AGENT_TOOLS,
 			systemPrompt: SYSTEM_PROMPT,
-			subagents: SUBAGENTS as never
+			subagents: SUBAGENTS as never,
+			skills: [SKILLS_ROOT],
+			middleware: [todoListMiddleware(), worldStateMiddleware, oneGatePerTurnMiddleware] as never,
+			interruptOn: this.interruptOn
 		});
 		return this.#shape;
 	}
@@ -537,6 +556,19 @@ class Session {
 			// Stating the number keeps the gauge in the UI and the moment it fires
 			// describing the same limit.
 			middleware: [
+				// The plan channel, installed by hand as of deepagents 1.12.
+				//
+				// It used to be in the default stack — `[todoListMiddleware(),
+				// createFilesystemMiddleware(...), …]` — and 1.12 moved it into a
+				// Codex *harness profile*, which only applies when a registered
+				// profile matches the model. Ours does not match one, so the upgrade
+				// silently took away `write_todos`, the `todos` state channel, the
+				// plan band in the system prompt, and with them the entire plan tab.
+				// Nothing threw; the panel simply had nothing to draw.
+				//
+				// Naming it here is also the more honest arrangement for this app:
+				// the plan is a middleware you opt into, and now the code says so.
+				todoListMiddleware(),
 				// The filesystem layer, named explicitly for one reason: the eviction
 				// threshold. Naming it here REPLACES the default instance rather than
 				// adding a second, exactly as with the summarizer below — so the
