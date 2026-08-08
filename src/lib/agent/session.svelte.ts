@@ -1407,6 +1407,14 @@ class Session {
 		}
 
 		// The virtual filesystem.
+		//
+		// Scoped by namespace, like the plan channel and for the same reason: a
+		// subagent's writes were all landing on the parent. Files DO cross the
+		// boundary — unlike `todos`, they are inherited and written back, which is
+		// how these agents coordinate at all — so the mirror stays single. Only
+		// the attribution was wrong, which is why the timeline never showed an
+		// fs_write inside a subagent lane and the file log credited every note to
+		// the parent that dispatched the reader.
 		if (update.files && typeof update.files === 'object') {
 			const next = update.files as Record<string, unknown>;
 			for (const [path, value] of Object.entries(next)) {
@@ -1421,7 +1429,8 @@ class Session {
 				this.files[path] = content;
 				bus.emit({
 					kind: 'fs_write',
-					scope: 'main',
+					scope: ns.length ? (`sub:${ns.join('/')}` as const) : 'main',
+					...(lane ? { lane } : {}),
 					op: existed ? 'edit' : 'write',
 					path,
 					bytes: content.length,

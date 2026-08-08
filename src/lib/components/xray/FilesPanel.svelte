@@ -4,6 +4,7 @@
 	import { ICON } from '$lib/icons';
 	import Markdown from '../Markdown.svelte';
 	import FileTree from './FileTree.svelte';
+	import FileLog from './FileLog.svelte';
 	import PageDeck from '../PageDeck.svelte';
 	import { assets, assetVersion, type Asset } from '$lib/storage/assets.svelte';
 	import { svgToDataUrl } from '$lib/paper/svg';
@@ -17,8 +18,19 @@
 		/** Padding inside the tree's scroller, so rows slide under the frosted
 		 * bar above instead of clipping at it. */
 		topPad?: string;
+		/**
+		 * `tree` is what exists; `log` is what changed, newest first. Two views of
+		 * one filesystem rather than one view with a sort menu — they answer
+		 * different questions and the second one shows writes, not files.
+		 */
+		view?: 'tree' | 'log';
 	}
-	let { openPath = $bindable<string | null>(null), onread, topPad = '0px' }: Props = $props();
+	let {
+		openPath = $bindable<string | null>(null),
+		onread,
+		topPad = '0px',
+		view = 'tree'
+	}: Props = $props();
 
 	let selected = $state<string | null>(null);
 
@@ -140,7 +152,11 @@
 		</p>
 	{:else}
 		<div class="hx-rule max-h-[42%] shrink-0 overflow-y-auto border-b" style:padding-top={topPad}>
-			<FileTree {entries} {active} onselect={(p) => (selected = p)} />
+			{#if view === 'log'}
+				<FileLog {active} onselect={(p) => (selected = p)} />
+			{:else}
+				<FileTree {entries} {active} onselect={(p) => (selected = p)} />
+			{/if}
 		</div>
 
 		<!-- The preview, with a header on the same glass as every other panel's.

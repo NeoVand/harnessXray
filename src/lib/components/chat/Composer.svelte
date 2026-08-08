@@ -273,7 +273,7 @@
 					</span>
 				</DropdownMenu.Item>
 				<DropdownMenu.Item onSelect={() => tutor.toggle()}>
-					<HugeiconsIcon icon={ICON.sparkle} size={13} strokeWidth={1.5} />
+					<HugeiconsIcon icon={ICON.lab} size={13} strokeWidth={1.5} />
 					<span class="text-xs">Explain</span>
 					<span
 						class="hx-num ml-auto text-[10px]"

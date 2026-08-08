@@ -637,7 +637,7 @@
 																'Pieces — the request cut into system prompt, schemas and messages'
 															)}
 														>
-															<HugeiconsIcon icon={ICON.state} size={13} strokeWidth={1.5} />
+															<HugeiconsIcon icon={ICON.pieces} size={13} strokeWidth={1.5} />
 														</button>
 														<button
 															class="transition-colors hover:text-foreground"

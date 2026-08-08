@@ -386,7 +386,7 @@
 							style:color="var(--hx-accent, var(--hx-state))"
 						>
 							to the lab
-							<HugeiconsIcon icon={ICON.sparkle} size={11} strokeWidth={1.5} />
+							<HugeiconsIcon icon={ICON.lab} size={11} strokeWidth={1.5} />
 						</p>
 						<p
 							class="turn-you w-fit max-w-full rounded-lg px-3 py-2 text-sm

@@ -1,5 +1,5 @@
 import {
-	BookOpenTextIcon,
+	Book02Icon,
 	JusticeScale01Icon,
 	PaintBrush04Icon,
 	QuillWrite01Icon,
@@ -20,9 +20,14 @@ import type { IconValue } from '$lib/icons';
  * Names are matched exactly and an unknown one falls back to the robot, which
  * is the honest default: `general-purpose` is the harness's own clone and has
  * no character of its own to draw.
+ *
+ * paper-reader is a CLOSED book, not an open one. The open book is the app's
+ * own tutorial button in the top bar, and hugeicons' open-book-with-text is
+ * that icon's two paths verbatim plus four hairline strokes — at the 9-12px a
+ * lane header draws, the strokes are gone and the two are the same picture.
  */
 const META: Record<string, IconValue> = {
-	'paper-reader': BookOpenTextIcon,
+	'paper-reader': Book02Icon,
 	'image-smith': PaintBrush04Icon,
 	'report-writer': QuillWrite01Icon,
 	critic: JusticeScale01Icon,
