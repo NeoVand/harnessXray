@@ -16,13 +16,21 @@
 	interface Props {
 		onopensettings: () => void;
 		onread?: (path: string) => void;
+		/**
+		 * Show a path in the files preview rather than the full-screen reader.
+		 *
+		 * What an attachment chip wants: you clicked it to check *which* file you
+		 * handed over, and the answer belongs next to the run you are watching, not
+		 * on top of it. The reader is still one click further, from the panel.
+		 */
+		onpreview?: (path: string) => void;
 		/** Room for the frosted app header the scroller now runs beneath. */
 		topPad?: string;
 		/** Room for the frosted composer floating over the scroller's tail —
 		 * measured live by the page, since the composer grows with its text. */
 		bottomPad?: string;
 	}
-	let { onopensettings, onread, topPad = '0px', bottomPad = '0px' }: Props = $props();
+	let { onopensettings, onread, onpreview, topPad = '0px', bottomPad = '0px' }: Props = $props();
 
 	let viewport = $state<HTMLElement | null>(null);
 	let pinned = $state(true);
@@ -233,7 +241,7 @@
 									<button
 										class="hx-rule flex items-center gap-2 rounded border px-2.5 py-1.5 text-left
 									       transition-colors hover:bg-muted/60"
-										onclick={() => onread?.(a.path)}
+										onclick={() => (onpreview ?? onread)?.(a.path)}
 										title={a.path}
 									>
 										{#if a.kind === 'image' && assets.peek(a.path)}

@@ -1,10 +1,11 @@
 <script lang="ts">
+	import { tick } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import * as Resizable from '$lib/components/ui/resizable';
 	import Conversation from '$lib/components/chat/Conversation.svelte';
 	import Composer from '$lib/components/chat/Composer.svelte';
 	import EventTimeline from '$lib/components/xray/EventTimeline.svelte';
-	import TodoPanel from '$lib/components/xray/TodoPanel.svelte';
+	import PlanPanel from '$lib/components/xray/PlanPanel.svelte';
 	import Inspector from '$lib/components/xray/Inspector.svelte';
 	import SettingsSheet from '$lib/components/SettingsSheet.svelte';
 	import DocumentViewer from '$lib/components/DocumentViewer.svelte';
@@ -381,6 +382,19 @@
 					<Conversation
 						onopensettings={() => (settingsOpen = true)}
 						onread={(p) => (readPath = p)}
+						onpreview={async (p) => {
+							// The instruments have to be on screen for a preview to be a
+							// preview — a reader or the book parked over them would swallow
+							// the click silently.
+							readPath = null;
+							bookPage = null;
+							// Cleared first, because the panel watches this for a *change*:
+							// clicking the same chip after browsing elsewhere has to move the
+							// selection back, and re-assigning the same value would not.
+							openPath = null;
+							await tick();
+							openPath = p;
+						}}
 						topPad="52px"
 						bottomPad="{composerH + 8}px"
 					/>
@@ -422,26 +436,11 @@
 						     old id would keep the two-pane split forever. -->
 								<Resizable.PaneGroup direction="vertical" autoSaveId="hx:middle-v3">
 									<Resizable.Pane defaultSize={16} minSize={8} collapsible collapsedSize={6}>
-										<div class="relative h-full min-h-0">
-											<div
-												class="hx-rule hx-frost absolute inset-x-0 top-0 z-20 flex h-9 items-center
-										       gap-3.5 border-b px-3"
-											>
-												<span
-													class="hx-eyebrow flex h-full items-center gap-1.5"
-													style:color="var(--hx-accent)"
-												>
-													<HugeiconsIcon icon={ICON.todo} size={12} strokeWidth={1.5} />
-													plan
-													{#if session.todos.length}
-														<span class="hx-num text-[9px] opacity-60">{session.todos.length}</span>
-													{/if}
-												</span>
-											</div>
-											<div class="h-full overflow-y-auto pt-9">
-												<TodoPanel />
-											</div>
-										</div>
+										<!-- The plan owns its own header now: the revision stepper and the
+										     agent it is showing are its state, and threading them up here
+										     to draw a bar would put the controls further from the list
+										     they control than from the pane next door. -->
+										<PlanPanel onjump={select} />
 									</Resizable.Pane>
 									<Resizable.Handle />
 									<Resizable.Pane defaultSize={50} minSize={22}>
