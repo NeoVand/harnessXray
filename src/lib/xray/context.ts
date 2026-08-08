@@ -2,6 +2,28 @@ import type { EventBus } from './bus.svelte';
 import type { XrayEvent } from './events';
 import { SYSTEM_PROMPT } from '$lib/agent/prompt';
 import { INPUT_LIMIT } from '$lib/agent/models';
+import { BASE_AGENT_PROMPT, TASK_SYSTEM_PROMPT } from 'deepagents/browser';
+
+/** The first line with something on it — how a prompt fragment announces itself. */
+function firstLine(prompt: string): string {
+	return (
+		prompt
+			.split('\n')
+			.map((l) => l.trim())
+			.find((l) => l.length > 3) ?? ''
+	);
+}
+
+/** Where the earliest of several markers appears, or -1 if none do. */
+function firstIndexOf(text: string, markers: string[]): number {
+	let at = -1;
+	for (const m of markers) {
+		if (!m) continue;
+		const i = text.indexOf(m);
+		if (i >= 0 && (at < 0 || i < at)) at = i;
+	}
+	return at;
+}
 
 /**
  * What was actually in the context window.
@@ -65,22 +87,45 @@ export interface ContextShot {
  * `createDeepAgent` builds one string: our prefix, then its own base prompt,
  * then one fragment per middleware it installs. Nothing separates them on the
  * wire, so the split has to be recovered by looking for each fragment's opening
- * line. These markers are read from the installed package rather than guessed;
- * a marker that stops matching degrades to a larger "harness" band rather than
+ * line.
+ *
+ * Each band carries a LIST of markers, first hit wins, and that is not
+ * over-engineering — it is what an upgrade actually looks like. deepagents
+ * 1.12 deleted the filesystem middleware's prompt fragment outright (its
+ * guidance moved into the tool schemas), so `## Filesystem Tools` matches
+ * nothing on a current run. But the bundled demo and every archived thread were
+ * recorded against 1.11, and those still contain it. A single marker would have
+ * to choose which of the two to read correctly.
+ *
+ * Markers that upstream exports as constants are taken from the package rather
+ * than retyped here, so they cannot drift from the thing they describe — with
+ * the short historical literal kept behind them for exactly the reason above.
+ * A band that matches nothing degrades into the one before it rather than
  * breaking the panel.
  */
-const BANDS: { key: string; label: string; marker: string; color: string }[] = [
+const BANDS: { key: string; label: string; markers: string[]; color: string }[] = [
 	{
 		key: 'base',
 		label: 'deep agent base',
-		marker: 'You are a Deep Agent',
+		markers: [firstLine(BASE_AGENT_PROMPT), 'You are a Deep Agent'],
 		color: 'var(--hx-model)'
 	},
-	{ key: 'plan', label: 'plan', marker: '## `write_todos`', color: 'var(--hx-state)' },
-	{ key: 'files', label: 'filesystem', marker: '## Filesystem Tools', color: 'var(--hx-fs)' },
-	{ key: 'task', label: 'subagents', marker: '## `task`', color: 'var(--hx-subagent)' },
-	{ key: 'skills', label: 'skills', marker: '## Skills System', color: 'var(--hx-tool)' },
-	{ key: 'memory', label: 'memory', marker: '<agent_memory>', color: 'var(--hx-memory)' }
+	{ key: 'plan', label: 'plan', markers: ['## `write_todos`'], color: 'var(--hx-state)' },
+	{
+		key: 'files',
+		label: 'filesystem',
+		// Gone as of 1.12 — kept so archived runs still decompose correctly.
+		markers: ['## Filesystem Tools'],
+		color: 'var(--hx-fs)'
+	},
+	{
+		key: 'task',
+		label: 'subagents',
+		markers: [firstLine(TASK_SYSTEM_PROMPT), '## `task`'],
+		color: 'var(--hx-subagent)'
+	},
+	{ key: 'skills', label: 'skills', markers: ['## Skills System'], color: 'var(--hx-tool)' },
+	{ key: 'memory', label: 'memory', markers: ['<agent_memory>'], color: 'var(--hx-memory)' }
 ];
 
 /** ~4 characters per token. Only used to apportion, never as a headline. */
@@ -106,7 +151,7 @@ function asText(content: unknown): string {
  * panel silently degrades.
  */
 export function splitSystem(text: string): ContextPiece[] {
-	const hits = BANDS.map((b) => ({ ...b, at: text.indexOf(b.marker) }))
+	const hits = BANDS.map((b) => ({ ...b, at: firstIndexOf(text, b.markers) }))
 		.filter((b) => b.at >= 0)
 		.sort((a, b) => a.at - b.at);
 
