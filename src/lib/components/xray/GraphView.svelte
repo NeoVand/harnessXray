@@ -159,6 +159,29 @@
 		hovered = null;
 	}
 
+	/**
+	 * Clicking off an opened chain closes it.
+	 *
+	 * An expanded onion is a temporary state, and every temporary state in the
+	 * app answers to a click on the background — the shape had no way out except
+	 * hitting the same 8px header strip that opened it, which is a small target
+	 * to have to find twice. The canvas around the drawing is the obvious place
+	 * to click when you are done with something, so it does the closing.
+	 *
+	 * Delegated from the pane rather than laid under the svg as a backing rect:
+	 * the empty space you actually aim at is mostly *outside* the drawing, in the
+	 * pane's own padding and the letterboxing either side of a centred graph.
+	 * `closest` on a node group is what distinguishes "off it" from "on it", and
+	 * it also spares the member rows — their own handler runs, and then this one
+	 * sees the row it came from and leaves the chain open.
+	 */
+	function dismiss(ev: MouseEvent) {
+		if (!expanded.length) return;
+		const t = ev.target;
+		if (t instanceof Element && t.closest('g[role="button"]')) return;
+		expanded = [];
+	}
+
 	/* ── what the pointer is on ─────────────────────────────────────────────
 	   One value, not one per shape. It holds ids and lets geometry re-derive
 	   from the current layout, so expanding a group cannot leave a reading
@@ -278,7 +301,18 @@
 	const svgH = $derived(viewH * scale);
 </script>
 
-<div class="flex h-full min-h-0 flex-col px-3 py-2.5">
+<!-- Escape is the keyboard's version of clicking off it. The background click
+     below has no other keyboard analogue, which is why it carries the ignores
+     rather than a keydown of its own. -->
+<svelte:window
+	onkeydown={(ev) => {
+		if (ev.key === 'Escape' && expanded.length) expanded = [];
+	}}
+/>
+
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<!-- svelte-ignore a11y_click_events_have_key_events -->
+<div class="flex h-full min-h-0 flex-col px-3 py-2.5" onclick={dismiss}>
 	{#if error && !loaded}
 		<p class="text-xs text-muted-foreground">{error}</p>
 	{:else if loaded}

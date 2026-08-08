@@ -140,12 +140,33 @@
 	--hx-interrupt: oklch(0.62 0.11 62); /* warm amber — the one colour allowed to shout */
 	--hx-error: oklch(0.53 0.15 27);
 
+	/* Your turn, as a surface — derived from --hx-user so the bubble, the
+	   timeline row, the context band and the legend can never drift apart.
+	   Mixed into the *page*, not into --muted: muted is grey, and washing plum
+	   through it produced a grey box with a rumour of colour in it. Straight
+	   onto the background the same 9% actually reads as plum, so the wash can
+	   stay this faint and still say whose turn it is. The edge does the rest —
+	   a hairline defines the shape far more cheaply than a heavier fill, which
+	   is the same trick the whole app uses on its panels. */
+	--hx-you-wash: color-mix(in oklab, var(--hx-user) 9%, var(--background));
+	--hx-you-edge: color-mix(in oklab, var(--hx-user) 22%, transparent);
+	/* The text stays text. A little of the hue keeps it from reading as a quote
+	   pulled from elsewhere; any more and your own words are the lowest-contrast
+	   thing on the page. */
+	--hx-you-ink: color-mix(in oklab, var(--hx-user) 13%, var(--foreground));
+
 	/* The theme's own voice: wordmark, focus ring, active tab. One hue per
 	   theme, matched to its temperature; each [data-theme] block overrides it.
 	   The -soft cut is defined once — var() substitutes on the root element,
 	   where the per-theme accent also lands, so it tracks every override. */
 	--hx-accent: oklch(0.5 0.09 275);
 	--hx-accent-soft: color-mix(in oklab, var(--hx-accent) 35%, transparent);
+
+	/* The gutter every scroller reserves for its scrollbar (see Scrollbars,
+	   below). Named because it is real horizontal space: anything that wants
+	   its left and right insets to *look* equal inside a scroller has to pay
+	   this back on the right, and should not repeat the number to do it. */
+	--hx-gutter: 10px;
 
 	/* Scrollbar thumb, as literal alpha rather than a color-mix of --foreground.
 	   Tailwind rewrites color-mix into an @supports block whose *fallback* is the
@@ -228,6 +249,12 @@
 	--hx-subagent: oklch(0.71 0.055 220);
 	--hx-interrupt: oklch(0.78 0.1 62);
 	--hx-error: oklch(0.68 0.14 27);
+
+	/* On slate the wash lifts the surface instead of darkening it, and a lift
+	   reads weaker than a shadow at the same percentage — so both the ground
+	   and its edge come up a notch to land at the same apparent strength. */
+	--hx-you-wash: color-mix(in oklab, var(--hx-user) 12%, var(--background));
+	--hx-you-edge: color-mix(in oklab, var(--hx-user) 28%, transparent);
 
 	/* Midnight's accent — the phosphor teal the wordmark has always been. */
 	--hx-accent: oklch(0.74 0.09 195);
@@ -485,8 +512,8 @@
    heavier thumb the moment the pointer is over the scrollable area, which is
    the jarring default this is here to prevent. Ours only warms slightly. */
 ::-webkit-scrollbar {
-	width: 10px;
-	height: 10px;
+	width: var(--hx-gutter);
+	height: var(--hx-gutter);
 }
 ::-webkit-scrollbar-track,
 ::-webkit-scrollbar-corner {
