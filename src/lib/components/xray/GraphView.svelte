@@ -238,32 +238,6 @@
 	});
 	const svgW = $derived(viewW * scale);
 	const svgH = $derived(viewH * scale);
-	/** Where auto-margins actually put the svg, so the card lands beside it. */
-	const ox = $derived(Math.max(0, (paneW - svgW) / 2));
-	const oy = $derived(Math.max(0, (paneH - svgH) / 2));
-	/** The scroller's position, so overlays track content in the 1:1 case. */
-	let scrollY = $state(0);
-
-	/* Overlays live OUTSIDE the scroll box and are clamped to the pane, so a
-	   card on the lowest node can never grow the scrollable height — that grew
-	   a scrollbar, which shrank the pane, which rescaled the graph under the
-	   pointer. Hover must never move the thing being hovered. */
-	// Narrow on purpose. The card is an annotation on a drawing, not a panel:
-	// at 224px it covered a third of the pane and hid the very edges you were
-	// tracing. It hugs its content now and tops out here.
-	const CARD_W = 168;
-	function cardPos(n: LaidNode, estH = 56): { left: number; top: number } {
-		const right = ox + (n.x + n.w + PAD) * scale + 8;
-		const left =
-			right + CARD_W <= paneW ? right : Math.max(4, ox + (n.x + PAD) * scale - CARD_W - 8);
-		// Centred on the node, not aligned to its top edge — and clamped only to
-		// keep it on screen. The old rule pinned `top` to at most `paneH - estH`,
-		// which for any node in the lower half of a tall graph stranded the card
-		// near the ceiling, describing something the pointer was nowhere near.
-		const mid = oy + (n.y + n.h / 2 + PAD) * scale - scrollY;
-		const top = Math.max(4, Math.min(mid - estH / 2, Math.max(4, paneH - estH - 4)));
-		return { left, top };
-	}
 </script>
 
 <div class="flex h-full min-h-0 flex-col px-3 py-2.5">
@@ -287,7 +261,6 @@
 				class="h-full overflow-x-hidden overflow-y-auto"
 				bind:clientWidth={paneW}
 				bind:clientHeight={paneH}
-				onscroll={(e) => (scrollY = e.currentTarget.scrollTop)}
 			>
 				<div class="flex min-h-full w-full">
 					<svg
@@ -526,41 +499,38 @@
 					</svg>
 				</div>
 			</div>
-
-			{#if card}
-				{@const pos = cardPos(card.node)}
-				<!-- Two lines, frosted, hugging its text. It was three stacked lines in
-				     a fixed 224px box on an opaque background — a panel parked over the
-				     drawing rather than a label attached to a node. -->
-				<div
-					class="hx-rule hx-frost pointer-events-none absolute z-10 rounded border px-2 py-1.5
-					       shadow-[0_6px_18px_-12px_rgb(0_0_0/0.5)]"
-					style:max-width="{CARD_W}px"
-					style:left="{pos.left}px"
-					style:top="{pos.top}px"
-				>
-					<p class="flex items-center gap-1.5">
-						<span class="inline-block size-1.5 shrink-0 rounded-full" style:background={card.color}
-						></span>
-						<span class="truncate font-mono text-[10.5px] leading-tight">{card.name}</span>
-					</p>
-					<p class="hx-num mt-0.5 pl-3 text-[9.5px] whitespace-nowrap text-muted-foreground">
-						{card.kindLabel}
-						{#if card.visits > 0}
-							· ×{card.visits}{#if card.seen}
-								· {card.seen}{/if}
-						{:else}
-							· unvisited
-						{/if}
-					</p>
-				</div>
-			{/if}
 		</div>
 
-		<p class="mt-1.5 text-[10px] text-muted-foreground">
-			<span style:color="var(--hx-interrupt)">⇢ dashed</span> — conditional, decided at runtime · loops
-			return on the right rail · dot-rows are the middleware onion, click to open · click a node to jump
-			the timeline · click tools for the tools tab
+		<!-- The readout, not a card.
+		     A floating panel over a drawing is the wrong shape however small you
+		     make it: the thing you want to read is always next to the thing you are
+		     pointing at, so it covers a neighbour, an edge, or the node itself. This
+		     is the legend line doing double duty — it becomes the hover readout and
+		     goes back to being the legend when you leave. Nothing is ever occluded,
+		     and the graph cannot move under the pointer. -->
+		<p class="mt-1.5 min-h-[2.4em] text-[10px] leading-snug text-muted-foreground">
+			{#if card}
+				<span class="inline-flex items-baseline gap-1.5">
+					<span
+						class="inline-block size-1.5 translate-y-[-1px] rounded-full"
+						style:background={card.color}
+					></span>
+					<span class="font-mono text-[10.5px] text-foreground">{card.name}</span>
+				</span>
+				<span class="hx-num">
+					· {card.kindLabel}
+					{#if card.visits > 0}
+						· ×{card.visits}{#if card.seen}
+							· {card.seen}{/if}
+					{:else}
+						· unvisited
+					{/if}
+				</span>
+			{:else}
+				<span style:color="var(--hx-interrupt)">⇢ dashed</span> — conditional, decided at runtime · loops
+				return on the right rail · dot-rows are the middleware onion, click to open · click a node to
+				jump the timeline · click tools for the tools tab
+			{/if}
 		</p>
 	{/if}
 </div>
