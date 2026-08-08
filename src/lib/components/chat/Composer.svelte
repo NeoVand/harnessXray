@@ -113,24 +113,27 @@
 	ondrop={onDrop}
 	role="presentation"
 >
-	<!-- Chips and errors ride the same column as the text, and the empty spans
-	     reserve the button slots so they line up with it rather than with the
-	     bar's edge. The whole row is conditional: the spacers are 28px tall, so
-	     leaving it mounted made the composer permanently that much taller for a
-	     row that is empty almost all of the time. -->
+	<!-- Chips hang off the left edge, under the + that made them — their icons
+	     land on the same 16px as its icon, so the column reads as one control
+	     rather than as a caption floating over the text. (They used to ride the
+	     centred text column, which put them in the middle of the bar with
+	     nothing above or below to justify the position.) The whole row is
+	     conditional: leaving it mounted made the composer permanently taller for
+	     a row that is empty almost all of the time. -->
 	{#if error || session.attachments.length || reading}
-		<div class="flex gap-1.5">
-			<span class="size-7 shrink-0" aria-hidden="true"></span>
-			<div class="mx-auto w-full max-w-[68ch] min-w-0 flex-1">
+		<div class="min-w-0">
+			<div class="min-w-0">
 				{#if error}
 					<p class="mb-2 text-[11px]" style:color="var(--hx-error)">{error}</p>
 				{/if}
 
 				{#if session.attachments.length || reading}
-					<div class="mb-2 flex flex-wrap gap-1.5">
+					<!-- -ml-px pays back the chip's own border, so its icon lands on the
+					     same pixel column as the + below it rather than one off it. -->
+					<div class="mb-2 -ml-px flex flex-wrap gap-1.5">
 						{#each session.attachments as a, i (a.path + i)}
 							<span
-								class="hx-rule flex items-center gap-1.5 rounded border px-2 py-1 text-[10px]"
+								class="hx-rule flex items-center gap-1.5 rounded border px-1.5 py-1 text-[10px]"
 								title={a.path}
 							>
 								<span style:color={attachmentType(a.kind).color}>
@@ -162,7 +165,6 @@
 					{/if}
 				{/if}
 			</div>
-			<span class="size-7 shrink-0" aria-hidden="true"></span>
 		</div>
 	{/if}
 

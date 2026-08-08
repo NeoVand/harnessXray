@@ -1,7 +1,7 @@
 import {
 	BookOpenTextIcon,
 	JusticeScale01Icon,
-	PaintBrush01Icon,
+	PaintBrush04Icon,
 	QuillWrite01Icon,
 	RoboticIcon
 } from '@hugeicons/core-free-icons';
@@ -23,7 +23,7 @@ import type { IconValue } from '$lib/icons';
  */
 const META: Record<string, IconValue> = {
 	'paper-reader': BookOpenTextIcon,
-	'image-smith': PaintBrush01Icon,
+	'image-smith': PaintBrush04Icon,
 	'report-writer': QuillWrite01Icon,
 	critic: JusticeScale01Icon,
 	'general-purpose': RoboticIcon

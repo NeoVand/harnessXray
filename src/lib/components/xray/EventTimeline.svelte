@@ -34,6 +34,18 @@
 		hidden?: Set<string>;
 		/** Room to leave at the top for the frosted header floating over us. */
 		topPad?: string;
+		/**
+		 * A row someone elsewhere asked to be *shown*, not merely selected.
+		 *
+		 * Separate from `selectedId` on purpose. Selection also moves on its own
+		 * while the run follows along, and scrolling on that would drag the view
+		 * back down every time an event landed — which is exactly what you do not
+		 * want while reading further up. Only a deliberate jump sets this, so only
+		 * a deliberate jump scrolls. Every "jump →" in the app was silent without
+		 * it: the row highlighted somewhere off screen and nothing appeared to
+		 * happen.
+		 */
+		revealId?: string | null;
 	}
 	let {
 		selectedId,
@@ -41,8 +53,16 @@
 		onopenasset,
 		showFrames = false,
 		hidden = new Set<string>(),
-		topPad = '0px'
+		topPad = '0px',
+		revealId = null
 	}: Props = $props();
+
+	/** Bring a jumped-to row into view. Re-runs when the row becomes the target. */
+	function reveal(active: boolean) {
+		return (node: HTMLElement) => {
+			if (active) node.scrollIntoView({ block: 'center' });
+		};
+	}
 
 	interface Row {
 		e: XrayEvent;
@@ -219,6 +239,7 @@
 				style:margin-left={r.sub ? '12px' : undefined}
 				onclick={() => open(e)}
 				aria-expanded={expandedId === e.id}
+				{@attach reveal(e.id === revealId)}
 			>
 				<span
 					class="h-full min-h-[14px] self-stretch rounded-full"

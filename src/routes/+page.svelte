@@ -1,10 +1,11 @@
 <script lang="ts">
+	import { tick } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import * as Resizable from '$lib/components/ui/resizable';
 	import Conversation from '$lib/components/chat/Conversation.svelte';
 	import Composer from '$lib/components/chat/Composer.svelte';
 	import EventTimeline from '$lib/components/xray/EventTimeline.svelte';
-	import TodoPanel from '$lib/components/xray/TodoPanel.svelte';
+	import PlanPanel from '$lib/components/xray/PlanPanel.svelte';
 	import Inspector from '$lib/components/xray/Inspector.svelte';
 	import SettingsSheet from '$lib/components/SettingsSheet.svelte';
 	import DocumentViewer from '$lib/components/DocumentViewer.svelte';
@@ -124,16 +125,15 @@
 		return shotStubs(bus);
 	});
 	const lastShot = $derived(ctxStubs.at(-1));
+	/** The live window, for the chat header — always the head, never the pager. */
+	const liveUsed = $derived(lastShot ? Math.min(1, lastShot.tokens / INPUT_LIMIT) : 0);
+	/** Turns you have taken, which is what "how long is this chat" means. */
+	const turns = $derived(session.messages.filter((m) => m.role === 'user').length);
 
 	/** Which model call the context panel shows; null follows the run. */
 	let ctxPinned = $state<string | null>(null);
 	const ctxIndex = $derived(ctxStubs.findIndex((s) => s.id === (ctxPinned ?? lastShot?.id)));
 
-	// The gauge reads the call the panel is *showing*, not always the latest.
-	// It sits beside the pager now, and a donut that ignored the pager beside
-	// the control that drives it would be a readout lying about its subject.
-	const shownShot = $derived(ctxIndex >= 0 ? ctxStubs[ctxIndex] : undefined);
-	const contextUsed = $derived(shownShot ? Math.min(1, shownShot.tokens / INPUT_LIMIT) : 0);
 	function ctxStep(by: number) {
 		if (!ctxStubs.length) return;
 		const at = Math.max(
@@ -154,9 +154,18 @@
 		if (last && last.kind !== 'http_sse_frame') selectedId = last.id;
 	});
 
+	/**
+	 * A deliberate jump: select the row AND scroll it into view.
+	 *
+	 * The follow-the-run effect above sets `selectedId` too, and scrolling on
+	 * that would drag the timeline back down every time an event landed. So the
+	 * reveal is a separate signal that only this path raises.
+	 */
+	let revealId = $state<string | null>(null);
 	function select(id: string) {
 		following = false;
 		selectedId = id;
+		revealId = id;
 	}
 
 	function onKeydown(e: KeyboardEvent) {
@@ -240,26 +249,10 @@
 			</span>
 		{/if}
 
+		<!-- New chat and history moved down into the chat column's own header:
+		     they act on the conversation, not on the app, and the app bar is the
+		     wrong distance from the thing they change. -->
 		<div class="ml-auto flex items-center gap-3">
-			<button
-				class="text-muted-foreground transition-colors hover:text-foreground"
-				onclick={session.newThread.bind(session)}
-				aria-label="New chat"
-				{@attach tip('New chat  ⌘N')}
-			>
-				<HugeiconsIcon icon={ICON.newChat} size={15} strokeWidth={1.5} />
-			</button>
-
-			<button
-				class="text-muted-foreground transition-colors hover:text-foreground"
-				style:color={historyOpen ? 'var(--hx-accent)' : undefined}
-				onclick={() => (historyOpen = !historyOpen)}
-				aria-label="History"
-				{@attach tip(historyOpen ? 'Hide saved chats' : 'Saved chats on this device')}
-			>
-				<HugeiconsIcon icon={ICON.history} size={15} strokeWidth={1.5} />
-			</button>
-
 			<button
 				class="text-muted-foreground transition-colors hover:text-foreground"
 				style:color={bookPage ? 'var(--hx-accent)' : undefined}
@@ -314,6 +307,65 @@
 			     of both. -->
 			<Resizable.Pane defaultSize={42} minSize={26}>
 				<div class="relative flex h-full min-h-0 flex-col">
+					<!-- The chat's own header, on the same frosted glass and the same
+					     hairline as every instrument's. The column was the one part of
+					     the app without one, which made it read as background rather
+					     than as a panel — and left its two controls stranded in the app
+					     bar beside settings and the theme, which act on something else
+					     entirely. -->
+					<header
+						class="hx-rule hx-frost absolute inset-x-0 top-10 z-30 flex h-9 items-center gap-3
+						       border-b px-3"
+					>
+						<span
+							class="hx-eyebrow flex h-full items-center gap-1.5"
+							style:color="var(--hx-accent)"
+						>
+							<HugeiconsIcon icon={ICON.message} size={12} strokeWidth={1.5} />
+							chat
+							{#if turns}
+								<span class="hx-num text-[9px] opacity-60">{turns}</span>
+							{/if}
+						</span>
+
+						<span class="ml-auto flex items-center gap-3 text-muted-foreground">
+							{#if lastShot}
+								<!-- How full the window is *now* — the number that decides whether
+								     the next message is worth sending as-is. The context pane's
+								     donut follows its own pager; this one always reads the live
+								     head. -->
+								<span
+									class="flex items-center gap-1.5"
+									{@attach tip(
+										`${lastShot.tokens.toLocaleString()} of ${compact(INPUT_LIMIT)} tokens — ${Math.round(liveUsed * 100)}% of the window${liveUsed >= COMPACT_AT ? '; the harness compacts past here' : ''}`
+									)}
+								>
+									<ContextDonut used={liveUsed} warn={COMPACT_AT} />
+									<span class="hx-num text-[10px]">{compact(lastShot.tokens)}</span>
+								</span>
+							{/if}
+
+							<button
+								class="transition-colors hover:text-foreground"
+								onclick={session.newThread.bind(session)}
+								aria-label="New chat"
+								{@attach tip('New chat  ⌘N')}
+							>
+								<HugeiconsIcon icon={ICON.newChat} size={14} strokeWidth={1.5} />
+							</button>
+
+							<button
+								class="transition-colors hover:text-foreground"
+								style:color={historyOpen ? 'var(--hx-accent)' : undefined}
+								onclick={() => (historyOpen = !historyOpen)}
+								aria-label="History"
+								{@attach tip(historyOpen ? 'Hide saved chats' : 'Saved chats on this device')}
+							>
+								<HugeiconsIcon icon={ICON.history} size={14} strokeWidth={1.5} />
+							</button>
+						</span>
+					</header>
+
 					{#if historyOpen}
 						<!-- An overlay, not a shelf.
 						     It used to be a flex child, so opening it SHOVED the transcript
@@ -322,7 +374,7 @@
 						     the column on the same frosted glass the header and composer
 						     already use, and the transcript passes underneath. -->
 						<div
-							class="hx-rule hx-frost absolute inset-x-0 top-10 z-30 flex max-h-[45%] flex-col
+							class="hx-rule hx-frost absolute inset-x-0 top-[76px] z-30 flex max-h-[45%] flex-col
 							       border-b shadow-[0_10px_30px_-18px_rgb(0_0_0/0.55)]"
 						>
 							<!-- Title and dismiss share a row: closing a panel should not mean
@@ -381,7 +433,20 @@
 					<Conversation
 						onopensettings={() => (settingsOpen = true)}
 						onread={(p) => (readPath = p)}
-						topPad="52px"
+						onpreview={async (p) => {
+							// The instruments have to be on screen for a preview to be a
+							// preview — a reader or the book parked over them would swallow
+							// the click silently.
+							readPath = null;
+							bookPage = null;
+							// Cleared first, because the panel watches this for a *change*:
+							// clicking the same chip after browsing elsewhere has to move the
+							// selection back, and re-assigning the same value would not.
+							openPath = null;
+							await tick();
+							openPath = p;
+						}}
+						topPad="88px"
 						bottomPad="{composerH + 8}px"
 					/>
 					<div class="absolute inset-x-0 bottom-0 z-30" bind:clientHeight={composerH}>
@@ -422,26 +487,11 @@
 						     old id would keep the two-pane split forever. -->
 								<Resizable.PaneGroup direction="vertical" autoSaveId="hx:middle-v3">
 									<Resizable.Pane defaultSize={16} minSize={8} collapsible collapsedSize={6}>
-										<div class="relative h-full min-h-0">
-											<div
-												class="hx-rule hx-frost absolute inset-x-0 top-0 z-20 flex h-9 items-center
-										       gap-3.5 border-b px-3"
-											>
-												<span
-													class="hx-eyebrow flex h-full items-center gap-1.5"
-													style:color="var(--hx-accent)"
-												>
-													<HugeiconsIcon icon={ICON.todo} size={12} strokeWidth={1.5} />
-													plan
-													{#if session.todos.length}
-														<span class="hx-num text-[9px] opacity-60">{session.todos.length}</span>
-													{/if}
-												</span>
-											</div>
-											<div class="h-full overflow-y-auto pt-9">
-												<TodoPanel />
-											</div>
-										</div>
+										<!-- The plan owns its own header now: the revision stepper and the
+										     agent it is showing are its state, and threading them up here
+										     to draw a bar would put the controls further from the list
+										     they control than from the pane next door. -->
+										<PlanPanel onjump={select} />
 									</Resizable.Pane>
 									<Resizable.Handle />
 									<Resizable.Pane defaultSize={50} minSize={22}>
@@ -450,7 +500,7 @@
 												class="hx-rule hx-frost absolute inset-x-0 top-0 z-20 flex h-8 items-center
 										       gap-3.5 border-y px-3"
 											>
-												{#each [{ id: 'events', label: 'events', icon: ICON.time }, { id: 'ledger', label: 'ledger', icon: ICON.tokens }] as v (v.id)}
+												{#each [{ id: 'events', label: 'events', icon: ICON.events }, { id: 'ledger', label: 'ledger', icon: ICON.tokens }] as v (v.id)}
 													<button
 														class="hx-eyebrow flex h-full items-center gap-1.5 transition-colors
 													       hover:text-foreground"
@@ -500,6 +550,7 @@
 												{:else}
 													<EventTimeline
 														{selectedId}
+														{revealId}
 														{showFrames}
 														hidden={hiddenKinds}
 														topPad="32px"
@@ -528,25 +579,12 @@
 													context
 												</span>
 
-												{#if shownShot}
-													<!-- The gauge belongs to the thing it measures. It used to
-											     ride the events bar, where it was the one readout in
-											     the app that described a different panel than the one
-											     it sat on. Here it is a summary of the breakdown
-											     directly below — and it survives this pane being
-											     collapsed, which is when a one-line reading of how
-											     full the window is matters most. -->
-													<span
-														class="flex items-center gap-1.5 text-muted-foreground"
-														{@attach tip(
-															`${shownShot.tokens.toLocaleString()} of ${compact(INPUT_LIMIT)} tokens — ${Math.round(contextUsed * 100)}% of the window${contextUsed >= COMPACT_AT ? '; the harness compacts past here' : ''}`
-														)}
-													>
-														<ContextDonut used={contextUsed} warn={COMPACT_AT} />
-														<span class="hx-num text-[10px]">{compact(shownShot.tokens)}</span>
-													</span>
-												{/if}
-
+												<!-- No gauge here. The panel underneath IS the gauge, in far
+											     more detail, and a donut on the bar of the pane that
+											     already draws the breakdown was the same number said
+											     twice. The one reading worth having away from the
+											     breakdown is the live one, and that lives in the chat
+											     header where the decision it informs gets made. -->
 												{#if ctxStubs.length > 1}
 													<!-- The pager, up here with the panel's other controls,
 												     so paging costs no row inside the panel. -->
