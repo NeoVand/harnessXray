@@ -84,6 +84,18 @@
 		}
 	];
 
+	/**
+	 * A tool the subagents tab asked the toolbox to open.
+	 *
+	 * A fresh object per request, deliberately: clicking the same chip twice
+	 * should land twice, and identity is what the toolbox's effect keys on.
+	 */
+	let toolFocus = $state<{ carrier: string; tool: string } | null>(null);
+	function openTool(carrier: string, tool: string) {
+		toolFocus = { carrier, tool };
+		bottom = 'tools';
+	}
+
 	const counts = $derived({
 		files: session.fileList.length,
 		memories: session.memories.length,
@@ -130,7 +142,12 @@
 						class="hx-eyebrow flex h-full items-center gap-1.5 transition-colors
 						       hover:text-foreground"
 						style:color={bottom === t.id ? 'var(--hx-accent)' : undefined}
-						onclick={() => (bottom = t.id)}
+						onclick={() => {
+							// Reaching the toolbox by its own tab is a fresh visit, not a
+							// replay of the last chip someone clicked three panels ago.
+							toolFocus = null;
+							bottom = t.id;
+						}}
 						{@attach tip(t.hint)}
 					>
 						<HugeiconsIcon icon={t.icon} size={12} strokeWidth={1.5} />
@@ -152,9 +169,9 @@
 				{#if bottom === 'skills'}
 					<SkillsPanel onmanage={onmanageskills} />
 				{:else if bottom === 'tools'}
-					<ToolsPanel {onjump} />
+					<ToolsPanel {onjump} focus={toolFocus} />
 				{:else if bottom === 'subagents'}
-					<SubagentsPanel {onjump} />
+					<SubagentsPanel {onjump} onopentool={openTool} />
 				{:else if bottom === 'memory'}
 					<MemoryPanel />
 				{:else}

@@ -3,6 +3,8 @@
 	import { bus } from '$lib/xray/bus.svelte';
 	import { crew } from '$lib/xray/crew';
 	import { compact } from '$lib/xray/usage';
+	import { toolMeta } from '$lib/agent/tool-meta';
+	import { subagentIcon, subagentColor } from '$lib/agent/subagent-meta';
 	import { HugeiconsIcon } from '@hugeicons/svelte';
 	import { ICON } from '$lib/icons';
 
@@ -21,8 +23,10 @@
 	 */
 	interface Props {
 		onjump?: (eventId: string) => void;
+		/** Open one of a subagent's tools in the toolbox, filtered to that subagent. */
+		onopentool?: (carrier: string, tool: string) => void;
 	}
-	let { onjump }: Props = $props();
+	let { onjump, onopentool }: Props = $props();
 
 	const roster = $derived.by(() => {
 		void bus.version;
@@ -70,21 +74,21 @@
 						aria-expanded={isOpen}
 					>
 						<span
-							class="inline-block size-1.5 shrink-0 rounded-full"
-							style:background={m.origin === 'ours' ? 'var(--hx-subagent)' : 'var(--hx-interrupt)'}
+							class="shrink-0"
+							style:color={subagentColor(m.origin)}
 							style:opacity={m.calls.n ? 1 : 0.5}
-						></span>
+						>
+							<HugeiconsIcon icon={subagentIcon(m.name)} size={12} strokeWidth={1.5} />
+						</span>
 						<span
 							class="min-w-0 flex-1 truncate font-mono text-[11px]"
 							class:text-muted-foreground={!m.calls.n}
 						>
 							{m.name}
 						</span>
-						{#if m.tools.known}
-							<span class="hx-num shrink-0 text-[9px] text-muted-foreground/60">
-								{m.tools.count}t
-							</span>
-						{/if}
+						<span class="hx-num shrink-0 text-[9px] text-muted-foreground/60">
+							{m.carries.length}t
+						</span>
 						<!-- The trade, on the row: paid inside, received outside. -->
 						{#if m.spent || m.returned}
 							<span class="hx-num shrink-0 text-[9.5px] whitespace-nowrap">
@@ -128,17 +132,38 @@
 								</p>
 							{/if}
 
-							{#if m.toolNames.length}
+							{#if m.carries.length}
 								<div>
-									<p class="hx-eyebrow mb-1">its tools</p>
+									<p class="hx-eyebrow mb-1">
+										its tools —
+										<span class="text-muted-foreground/60">
+											{m.carriesMeasured
+												? 'read off a request it made'
+												: 'declared; it has not run yet'}
+										</span>
+									</p>
+									<!-- Chips, not labels: a name you cannot open is the thing this
+									     panel used to get wrong. Each one lands in the toolbox with
+									     the list already filtered to this subagent and the schema
+									     already showing. -->
 									<p class="flex flex-wrap gap-1">
-										{#each m.toolNames as t (t)}
-											<span
-												class="hx-rule rounded border px-1.5 py-0.5 font-mono text-[9.5px]
-												       text-muted-foreground"
+										{#each m.carries as t (t)}
+											{@const meta = toolMeta(t)}
+											<button
+												class="hx-rule flex items-center gap-1 rounded border px-1.5 py-0.5
+												       font-mono text-[9.5px] transition-colors hover:bg-muted/60
+												       hover:text-foreground"
+												onclick={() => onopentool?.(m.name, t)}
 											>
+												<span
+													style:color={meta.origin === 'ours'
+														? 'var(--hx-tool)'
+														: 'var(--muted-foreground)'}
+												>
+													<HugeiconsIcon icon={meta.icon} size={9} strokeWidth={1.5} />
+												</span>
 												{t}
-											</span>
+											</button>
 										{/each}
 									</p>
 								</div>
