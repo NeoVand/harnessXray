@@ -7,6 +7,7 @@
 	import PageDeck from '../PageDeck.svelte';
 	import { assets, assetVersion, type Asset } from '$lib/storage/assets.svelte';
 	import { svgToDataUrl } from '$lib/paper/svg';
+	import { fileType } from '$lib/xray/filetype';
 	import { tip } from '$lib/hooks/tip';
 
 	interface Props {
@@ -142,9 +143,26 @@
 			<FileTree {entries} {active} onselect={(p) => (selected = p)} />
 		</div>
 
-		<div class="flex min-h-0 flex-1 flex-col">
-			<div class="hx-rule flex shrink-0 items-center gap-3 border-b px-3 py-1.5">
-				<span class="min-w-0 flex-1 truncate font-mono text-[11px] text-muted-foreground">
+		<!-- The preview, with a header on the same glass as every other panel's.
+		     It floats over the body rather than sitting above it, which is the only
+		     way frost means anything: a document scrolling under the bar is what
+		     the blur is for. -->
+		<div class="relative flex min-h-0 flex-1 flex-col">
+			<div
+				class="hx-rule hx-frost absolute inset-x-0 top-0 z-20 flex h-8 items-center gap-3 border-b
+				       px-3"
+			>
+				<!-- Named and coloured the same way the tree names it. The bar said
+				     which path was showing and not what kind of thing it was, so the
+				     one row that is entirely about this file was the one place its
+				     type went unmarked. -->
+				{#if active}
+					{@const type = fileType(active)}
+					<span class="shrink-0" style:color={type.color}>
+						<HugeiconsIcon icon={type.icon} size={12} strokeWidth={1.5} />
+					</span>
+				{/if}
+				<span class="-ml-1.5 min-w-0 flex-1 truncate font-mono text-[11px] text-muted-foreground">
 					{active}
 				</span>
 				<!-- Hand this file to the agent, from where you are already looking at
@@ -173,7 +191,10 @@
 			</div>
 
 			{#if attachError}
-				<p class="hx-rule shrink-0 border-b px-3 py-1 text-[10px]" style:color="var(--hx-error)">
+				<p
+					class="hx-rule hx-frost absolute inset-x-0 top-8 z-20 border-b px-3 py-1 text-[10px]"
+					style:color="var(--hx-error)"
+				>
 					{attachError}
 				</p>
 			{/if}
@@ -193,7 +214,7 @@
 					white ground because posters are authored against light.
 				-->
 				<button
-					class="flex min-h-0 flex-1 items-center justify-center p-3"
+					class="flex min-h-0 flex-1 items-center justify-center p-3 pt-11"
 					onclick={() => active && onread?.(active)}
 				>
 					<img
@@ -204,7 +225,9 @@
 					/>
 				</button>
 			{:else}
-				<div class="min-h-0 flex-1 overflow-y-auto px-3 py-3">
+				<!-- pt-11, not py-3: the scroller starts under the frosted bar so the
+				     document passes beneath it rather than stopping short of it. -->
+				<div class="min-h-0 flex-1 overflow-y-auto px-3 pt-11 pb-3">
 					{#if isPdf}
 						<!-- The pages were rendered when the PDF arrived, so showing them
 						     costs nothing and beats a line of text claiming a PDF is here. -->
