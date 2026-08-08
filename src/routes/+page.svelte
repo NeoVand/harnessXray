@@ -55,7 +55,7 @@
 	// opened and closed — that unmounts the whole component, and local state
 	// would snap back on every close. Graph first: it is the fastest-moving
 	// panel, and the default view should be the one that is alive.
-	let inspectorBottom = $state<'graph' | 'skills' | 'memory' | 'ledger'>('graph');
+	let inspectorBottom = $state<'graph' | 'tools' | 'skills' | 'memory' | 'ledger'>('graph');
 
 	const frameCount = $derived.by(() => {
 		void bus.version;
@@ -304,7 +304,16 @@
 			<Resizable.Pane defaultSize={42} minSize={26}>
 				<div class="relative flex h-full min-h-0 flex-col">
 					{#if historyOpen}
-						<div class="hx-rule mt-10 flex max-h-[45%] shrink-0 flex-col border-b">
+						<!-- An overlay, not a shelf.
+						     It used to be a flex child, so opening it SHOVED the transcript
+						     down and closing it snapped everything back — the conversation
+						     jumped every time you glanced at your chats. Now it hangs over
+						     the column on the same frosted glass the header and composer
+						     already use, and the transcript passes underneath. -->
+						<div
+							class="hx-rule hx-frost absolute inset-x-0 top-10 z-30 flex max-h-[45%] flex-col
+							       border-b shadow-[0_10px_30px_-18px_rgb(0_0_0/0.55)]"
+						>
 							<!-- Title and dismiss share a row: closing a panel should not mean
 							     hunting for the control that opened it. -->
 							<div class="flex shrink-0 items-center justify-between px-4 pt-3 pb-2">
@@ -355,10 +364,13 @@
 							</div>
 						</div>
 					{/if}
+					<!-- topPad no longer depends on historyOpen: the panel floats above the
+					     transcript instead of displacing it, so the resting text keeps the
+					     same clearance from the header either way. -->
 					<Conversation
 						onopensettings={() => (settingsOpen = true)}
 						onread={(p) => (readPath = p)}
-						topPad={historyOpen ? '12px' : '52px'}
+						topPad="52px"
 						bottomPad="{composerH + 8}px"
 					/>
 					<div class="absolute inset-x-0 bottom-0 z-30" bind:clientHeight={composerH}>
