@@ -14,13 +14,22 @@ import BuildingYourOwn from './chapters/BuildingYourOwn.svelte';
 /**
  * The book's spine.
  *
- * Each chapter is a component — one diagram, then prose — rather than markdown,
- * because the diagrams are hand-authored SVG keyed to the `--hx-*` legend and a
- * renderer would put an escaping layer between them and the theme. The prose is
- * about *this* application: every tool name, subagent contract and middleware
- * layer it mentions was read from the agent code, so if the harness changes,
- * the chapter that describes it is wrong until someone edits it. That is the
- * intended maintenance pressure.
+ * Each chapter is a component rather than markdown, so the plates, the lead,
+ * the subheads and the closing `p.live` pointer are structure the page can
+ * style directly instead of output from a renderer.
+ *
+ * The prose is about *this* application: every tool name, subagent contract
+ * and middleware layer it mentions was read from the agent code, so if the
+ * harness changes, the chapter describing it is wrong until someone edits it.
+ * That is the intended maintenance pressure.
+ *
+ * The voice is load-bearing too, and easy to lose. A chapter opens with a
+ * `p.lead` stating the idea in plain words before any jargon, keeps
+ * paragraphs to one thought each, and puts anything enumerable in a list
+ * rather than a sentence full of semicolons. Density is not rigour — the
+ * reader is meeting these ideas for the first time, and every fact here can
+ * be told plainly. Where we learned something the hard way, the chapter says
+ * so; the failures teach faster than the descriptions do.
  */
 export interface Chapter {
 	id: string;
@@ -43,21 +52,21 @@ export const CHAPTERS: Chapter[] = [
 	{
 		id: 'filesystem',
 		label: 'filesystem',
-		title: 'A filesystem made of state',
+		title: 'A filesystem with no disk',
 		icon: ICON.files,
 		component: Filesystem
 	},
 	{
 		id: 'tools',
 		label: 'tools',
-		title: 'Tools: asking, not doing',
+		title: 'The model asks, the harness does',
 		icon: ICON.tool,
 		component: Tools
 	},
 	{
 		id: 'plan',
 		label: 'plan',
-		title: 'The plan is a channel',
+		title: 'A to-do list the harness owns',
 		icon: ICON.todo,
 		component: Plan
 	},
@@ -92,7 +101,7 @@ export const CHAPTERS: Chapter[] = [
 	{
 		id: 'gates',
 		label: 'gates',
-		title: 'Gates: pausing the graph',
+		title: 'Gates: stopping to ask a human',
 		icon: ICON.pause,
 		component: Gates
 	},

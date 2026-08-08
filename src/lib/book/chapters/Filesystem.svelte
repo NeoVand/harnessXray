@@ -11,21 +11,39 @@
 	loading="lazy"
 />
 
-<p>
-	There is no disk. The filesystem is a <em>channel</em> — one field in the graph state, mapping
-	paths to contents — which buys three properties a real disk would not: it is checkpointed with
-	every step, so a rewind restores the files exactly; it is observable, which is how the files panel
-	mirrors it without the agent's cooperation; and it is scoped to the thread, so a new chat starts
-	clean. Six harness-supplied tools — <em>ls</em>, <em>read_file</em>, <em>write_file</em>,
-	<em>edit_file</em>, <em>glob</em>, <em>grep</em> — are all the agent ever sees of it.
+<p class="lead">
+	This agent writes notes, drafts and figures to files all day long. It also has no disk. Its
+	filesystem is a single field in the graph's state: one map from paths to contents, sitting in
+	memory next to the conversation.
 </p>
 
+<p>That sounds like a downgrade. It buys three things a real disk could not:</p>
+
+<ul>
+	<li>
+		<em>It is saved with every step.</em> Rewind the conversation and the files rewind with it, exactly
+		as they were.
+	</li>
+	<li>
+		<em>It is observable.</em> The files panel mirrors it without the agent's cooperation — nothing is
+		reported, the state is simply read.
+	</li>
+	<li>
+		<em>It is scoped to this thread.</em> A new chat starts clean, with no cleanup to remember.
+	</li>
+</ul>
+
 <p>
-	Its purpose is keeping bulk out of the conversation: a fact in a file costs tokens once when read;
-	the same fact in chat is re-sent every turn forever. Two seams matter. Paths under
-	<em>/memories/</em> are routed to a store that outlives every thread — same tools, two lifetimes.
-	And images are not here at all: they live in an asset store <em>ls</em> cannot see, behind the
-	separate <em>list_figures</em> tool.
+	The agent knows none of that. It sees six ordinary tools and nothing else: <em>ls</em>,
+	<em>read_file</em>, <em>write_file</em>, <em>edit_file</em>, <em>glob</em> and <em>grep</em>.
+</p>
+
+<h2>Why files at all?</h2>
+
+<p>
+	To keep bulk out of the conversation. A fact written to a file costs tokens once, when something
+	reads it back. The same fact typed into the chat is re-sent to the model on every turn after it,
+	forever. Files are how an agent works with more material than fits in its head.
 </p>
 
 <img
@@ -36,6 +54,22 @@
 	height="1024"
 	loading="lazy"
 />
+
+<h2>Two seams worth knowing</h2>
+
+<p>
+	Paths under <em>/memories/</em> quietly go somewhere else: a store that outlives every thread. Same
+	tools, two lifetimes — chapter 7 takes that apart.
+</p>
+
+<p>
+	Images are not here at all. They live in a separate asset store that <em>ls</em> cannot see,
+	behind a tool called <em>list_figures</em>. This trips people up: <em>ls /figures/</em> always
+	comes back empty, even when the figures are real and on screen. An agent told to check its images
+	with
+	<em>ls</em> will confidently conclude they do not exist. Ours once deleted a perfectly good picture
+	that way.
+</p>
 
 <p class="live">
 	See it live: the files tab in the inspector, and the sage fs rows on the events timeline — one per

@@ -11,19 +11,34 @@
 	loading="lazy"
 />
 
-<p>
-	A <em>skill</em> is a markdown file — no code, no registration, no deployment. The harness puts
-	one line per skill into the prompt (name and description), and when the model decides a skill
-	applies, it reads the file with the same <em>read_file</em> it uses for anything else, paying for
-	the instructions only then. That is <em>progressive disclosure</em>: twenty skills cost a few
-	hundred tokens of listing; the doctrine inside them costs nothing until needed.
+<p class="lead">
+	A <em>skill</em> is a markdown file. That is the whole idea. No code, no registration, no deployment
+	— a folder with a SKILL.md in it, written in prose, by anyone.
 </p>
 
 <p>
-	Three ship here — <em>arxiv-review</em> (the review craft), <em>infographic</em> (the image
-	briefing doctrine), <em>skill-creator</em> (the recursive one) — and your own load exactly like built-ins.
-	Using one is nearly invisible by design: it is just a read_file whose path starts with /skills/, which
-	is why this app captions those timeline rows with the skill's name.
+	The harness puts one line per skill into the system prompt: a name and a description. When the
+	model decides a skill applies, it opens the file with the same <em>read_file</em> it uses for anything
+	else, and only then pays for what is inside.
+</p>
+
+<p>
+	That is <em>progressive disclosure</em>, and the arithmetic is why people love it. Twenty skills
+	cost a few hundred tokens of table of contents. The doctrine inside them — thousands of words of
+	hard-won instruction — costs nothing at all until the moment it is needed.
+</p>
+
+<h2>Three ship here</h2>
+
+<ul>
+	<li><em>arxiv-review</em> — how to actually review a body of papers.</li>
+	<li><em>infographic</em> — how to brief an image well, learned by getting it wrong.</li>
+	<li><em>skill-creator</em> — the recursive one: a skill for writing skills.</li>
+</ul>
+
+<p>
+	Your own load exactly like these. There is no built-in tier and no privileged format; a skill you
+	write this afternoon reaches the model the same way.
 </p>
 
 <img
@@ -34,6 +49,12 @@
 	height="1024"
 	loading="lazy"
 />
+
+<p>
+	Using a skill is nearly invisible by design — it is just a <em>read_file</em> whose path happens to
+	start with /skills/. That is why this app captions those rows on the timeline with the skill's name.
+	Otherwise you would never catch the moment an agent picked up a manual and changed how it works.
+</p>
 
 <p class="live">
 	See it live: the skills tab in the inspector, and the captioned skill reads on the events timeline
