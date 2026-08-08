@@ -1,75 +1,218 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { bus } from '$lib/xray/bus.svelte';
-	import { shotStubs, shotAt } from '$lib/xray/context';
+	import { shotAt } from '$lib/xray/context';
 	import { compact } from '$lib/xray/usage';
-	import { toolMeta } from '$lib/agent/tool-meta';
-	import { crew } from '$lib/xray/crew';
-	import { tip } from '$lib/hooks/tip';
+	import { toolMeta, type ToolMeta } from '$lib/agent/tool-meta';
+	import { subagentIcon, subagentColor } from '$lib/agent/subagent-meta';
+	import { crew, mainRequest } from '$lib/xray/crew';
 	import { HugeiconsIcon } from '@hugeicons/svelte';
-	import { ICON } from '$lib/icons';
+	import { ICON, type IconValue } from '$lib/icons';
 	import JsonCode from './JsonCode.svelte';
 
 	/**
-	 * The toolbox, given room.
+	 * The toolbox — every tool in the run, once each, all of them openable.
 	 *
-	 * It used to live behind a click on the graph's `tools` node, at 236px, which
-	 * meant almost nobody found it and it could never show the number that
-	 * matters: what each schema COSTS. Every tool's description and parameter
-	 * shape is re-sent on every single request whether it is called or not, so a
-	 * tool nobody uses is still a bill every turn — the standing cost the book
-	 * talks about and the app could not quantify per tool.
+	 * The first version of this panel listed the main agent's tools and then, in a
+	 * second section underneath, the tools each subagent carries. That was two
+	 * mistakes wearing one coat. The second list was flat text, so a tool only a
+	 * subagent carries — `generate_image`, `edit_image` — could be named but never
+	 * opened: the one place in the app where you could see that a tool exists and
+	 * not see what it IS. And the two lists overlapped almost entirely, because
+	 * the harness gives every subagent the six file tools, the plan and `task`, so
+	 * `ls` and `glob` appeared six times over with no way to tell that they were
+	 * the same schema each time.
 	 *
-	 * Read off the last request on the wire, like the graph's toolbox was, and
-	 * for the same reason: the wire is the only account of the tool set that the
-	 * model itself sees. Our own registry would show what we MEANT to send.
+	 * So: one index, keyed by tool name, built from every request on the wire —
+	 * the parent's and each subagent's. A row appears once and carries the list of
+	 * who holds it. The strip at the top filters to one carrier when the question
+	 * is "what does paper-reader actually have", which is also where the subagents
+	 * tab lands you when you click one of its tools.
+	 *
+	 * Everything is read off the wire rather than our own registry, for the reason
+	 * this whole app exists: the registry says what we MEANT to send. Names we
+	 * declared for a subagent that has not run yet are listed as declared and say
+	 * so, with no schema to show, because there genuinely isn't one yet.
 	 */
 	interface Props {
 		/** Move the timeline to a tool's most recent call. */
 		onjump?: (eventId: string) => void;
+		/**
+		 * A tool someone elsewhere asked to see — from the subagents tab. A fresh
+		 * object each time, so asking twice for the same tool still lands.
+		 */
+		focus?: { carrier: string; tool: string } | null;
 	}
-	let { onjump }: Props = $props();
+	let { onjump, focus = null }: Props = $props();
 
-	const shot = $derived.by(() => {
-		void bus.version;
-		const last = shotStubs(bus).at(-1);
-		return last ? shotAt(bus, last.id) : undefined;
-	});
+	type Piece = NonNullable<ReturnType<typeof shotAt>>['pieces'][number];
 
-	/** Calls per tool name, and the last one, folded from the timeline. */
+	interface Carrier {
+		key: string;
+		label: string;
+		icon: IconValue;
+		color: string;
+		/** Read off its own request, or merely declared in its spec. */
+		measured: boolean;
+		count: number;
+		total: number;
+	}
+
+	interface Row {
+		name: string;
+		note: string;
+		/** The literal schema as it went out. Empty when only declared. */
+		schema: string;
+		tokens: number;
+		chars: number;
+		meta: ToolMeta;
+		/** Carrier keys holding this tool, in strip order. */
+		carriers: string[];
+	}
+
+	/**
+	 * Calls per tool, per carrier.
+	 *
+	 * Attributed by LangGraph's stream namespace, not by the wire — which is the
+	 * opposite of how token spend has to be attributed, and worth the asymmetry:
+	 * a `tool_start` genuinely knows which lane it happened in, so a subagent's
+	 * `read_file` calls are not silently added to the parent's.
+	 */
 	const calls = $derived.by(() => {
 		void bus.version;
-		const out: Record<string, { n: number; last: string }> = {};
+		const out: Record<string, Record<string, { n: number; last: string }>> = {};
 		for (const e of bus.events) {
 			if (e.kind !== 'tool_start') continue;
-			const c = (out[e.name] ??= { n: 0, last: '' });
+			const key = e.scope === 'main' ? 'main' : (e.lane ?? e.scope.slice(4).split(':')[0]);
+			const lane = (out[key] ??= {});
+			const c = (lane[e.name] ??= { n: 0, last: '' });
 			c.n++;
 			c.last = e.id;
 		}
 		return out;
 	});
 
+	/** How many times a tool was called, and where last — under one carrier or all. */
+	function callsOf(tool: string, carrier: string): { n: number; last: string } | undefined {
+		if (carrier !== 'all') return calls[carrier]?.[tool];
+		let n = 0;
+		let last = '';
+		for (const lane of Object.values(calls)) {
+			const c = lane[tool];
+			if (!c) continue;
+			n += c.n;
+			last = c.last;
+		}
+		return n ? { n, last } : undefined;
+	}
+
 	const roster = $derived.by(() => {
 		void bus.version;
 		return crew(bus);
 	});
 
+	function bandOf(id: string): Piece[] {
+		const shot = id ? shotAt(bus, id) : undefined;
+		return (shot?.pieces ?? []).filter((p) => p.group === 'tools');
+	}
+
+	/** The index and the strip, built together in one pass over the carriers. */
+	const model = $derived.by(() => {
+		void bus.version;
+		// A plain record, not a Map: this is scratch, rebuilt from nothing on every
+		// derivation and never read reactively, and tool names are non-numeric
+		// strings so insertion order is preserved.
+		const index: Record<string, Row> = {};
+		const carriers: Carrier[] = [];
+
+		const hold = (key: string, name: string) => {
+			const row = index[name];
+			if (row && !row.carriers.includes(key)) row.carriers.push(key);
+			return row;
+		};
+		const absorb = (key: string, pieces: Piece[]) => {
+			for (const p of pieces) {
+				if (hold(key, p.label)) continue;
+				index[p.label] = {
+					name: p.label,
+					note: p.note ?? '',
+					schema: p.text,
+					tokens: p.tokens,
+					chars: p.chars,
+					meta: toolMeta(p.label),
+					carriers: [key]
+				};
+			}
+		};
+		const declare = (key: string, names: string[]) => {
+			for (const n of names) {
+				if (hold(key, n)) continue;
+				index[n] = {
+					name: n,
+					note: '',
+					schema: '',
+					tokens: 0,
+					chars: 0,
+					meta: toolMeta(n),
+					carriers: [key]
+				};
+			}
+		};
+
+		const main = bandOf(mainRequest(bus));
+		absorb('main', main);
+		carriers.push({
+			key: 'main',
+			label: 'main agent',
+			icon: ICON.agent,
+			color: 'var(--hx-accent)',
+			measured: main.length > 0,
+			count: main.length,
+			total: main.reduce((n, p) => n + p.tokens, 0)
+		});
+
+		for (const m of roster) {
+			const pieces = m.sampleRequest ? bandOf(m.sampleRequest) : [];
+			if (pieces.length) absorb(m.name, pieces);
+			else declare(m.name, m.carries);
+			carriers.push({
+				key: m.name,
+				label: m.name,
+				icon: subagentIcon(m.name),
+				color: subagentColor(m.origin),
+				measured: pieces.length > 0,
+				count: m.carries.length,
+				total: pieces.reduce((n, p) => n + p.tokens, 0)
+			});
+		}
+
+		return { rows: Object.values(index), carriers };
+	});
+
+	/** Which carrier the list is showing. `all` is the union, deduped. */
+	let carrier = $state('main');
+	const current = $derived(model.carriers.find((c) => c.key === carrier));
+
 	const rows = $derived(
-		(shot?.pieces ?? [])
-			.filter((p) => p.group === 'tools')
-			.map((p) => ({
-				name: p.label,
-				note: p.note ?? '',
-				// The literal schema as it went out — description, parameter types,
-				// enums, defaults. This is the whole of what the tool IS to the model,
-				// and it is what the token count is counting.
-				schema: p.text,
-				tokens: p.tokens,
-				chars: p.chars,
-				meta: toolMeta(p.label),
-				call: calls[p.label]
-			}))
+		model.rows
+			.filter((r) => carrier === 'all' || r.carriers.includes(carrier))
+			// Costliest first: the panel's whole argument is that a schema is a bill
+			// on every request, so the biggest bill belongs at the top. Tools with no
+			// schema on the wire yet sort last, where "not measured" reads as a state
+			// rather than as "free".
+			.map((r) => ({ ...r, call: callsOf(r.name, carrier) }))
+			.sort((a, b) => b.tokens - a.tokens || a.name.localeCompare(b.name))
 	);
+
+	const total = $derived(rows.reduce((n, r) => n + r.tokens, 0));
+	const used = $derived(rows.filter((r) => r.call).length);
+	/** Widest schema in view, so the share bars have a sensible full scale. */
+	const widest = $derived(Math.max(1, ...rows.map((r) => r.tokens)));
+
+	function carrierOf(key: string): Carrier | undefined {
+		return model.carriers.find((c) => c.key === key);
+	}
 
 	/**
 	 * Which descriptions are open.
@@ -99,63 +242,38 @@
 		if (!openProse.delete(name)) openProse.add(name);
 	}
 
-	/**
-	 * What each subagent carries, from its own request on the wire.
-	 *
-	 * This is the half of the tool set nobody could see. The main agent's request
-	 * lists the main agent's tools; a subagent's tools appear only in the requests
-	 * IT makes, and those go out through the same instrumented fetch — so they are
-	 * on the wire, they were simply never read back. Which matters because a
-	 * subagent's tool set is not the subset you declared: the harness adds the six
-	 * file tools, write_todos and task to every one of them, so paper-reader is
-	 * carrying far more than the two tools its spec names.
-	 *
-	 * Falls back to the declared names when a subagent has not run yet, and says
-	 * which of the two it is showing.
-	 */
-	const crews = $derived.by(() => {
-		void bus.version;
-		return roster.map((m) => {
-			const shot = m.sampleRequest ? shotAt(bus, m.sampleRequest) : undefined;
-			const wire = (shot?.pieces ?? [])
-				.filter((p) => p.group === 'tools')
-				.map((p) => ({
-					name: p.label,
-					tokens: p.tokens,
-					meta: toolMeta(p.label),
-					call: calls[p.label]
-				}));
-			return {
-				...m,
-				measured: wire.length > 0,
-				tools: wire.length
-					? wire
-					: m.toolNames.map((n) => ({
-							name: n,
-							tokens: 0,
-							meta: toolMeta(n),
-							call: calls[n]
-						})),
-				total: wire.reduce((n, t) => n + t.tokens, 0)
-			};
+	/** The tool an arriving `focus` asked for, so its row can pull itself up. */
+	let landed = $state('');
+
+	$effect(() => {
+		const f = focus;
+		if (!f) return;
+		untrack(() => {
+			carrier = f.carrier;
+			open.clear();
+			open.add(f.tool);
+			landed = f.tool;
 		});
 	});
 
-	const total = $derived(rows.reduce((n, r) => n + r.tokens, 0));
-	const used = $derived(rows.filter((r) => r.call).length);
-	/** Widest schema, so the share bars have a sensible full scale. */
-	const widest = $derived(Math.max(1, ...rows.map((r) => r.tokens)));
+	/** Bring the row a jump landed on into view. Re-runs when `active` flips. */
+	function reveal(active: boolean) {
+		return (node: HTMLElement) => {
+			if (active) node.scrollIntoView({ block: 'nearest' });
+		};
+	}
 </script>
 
 <div class="h-full min-h-0 overflow-y-auto">
 	<div class="px-3 pt-3 pb-3">
-		{#if !rows.length}
+		{#if !model.rows.length}
 			<p class="text-xs leading-relaxed text-muted-foreground">
 				Read off the wire, so it needs a wire: after the first message this lists every tool the
-				model was actually offered, and what each one costs to offer.
+				model was actually offered — the parent's and each subagent's — and what each one costs to
+				offer.
 			</p>
 		{:else}
-			<div class="mb-3 flex items-baseline justify-between gap-2">
+			<div class="mb-2 flex items-baseline justify-between gap-2">
 				<span class="hx-num text-[15px]" style:color="var(--hx-tool)">
 					{compact(total)}
 				</span>
@@ -163,15 +281,61 @@
 					{rows.length} tools · {used} used
 				</span>
 			</div>
-			<p class="mb-3 text-[10px] leading-relaxed text-muted-foreground">
-				Re-sent on <em class="text-foreground/80 not-italic">every</em> request, called or not. A tool
-				you never use still costs this much per turn.
+			<p class="mb-2.5 text-[10px] leading-relaxed text-muted-foreground">
+				{#if carrier === 'all'}
+					Every distinct tool in this run, counted once. Most of them are carried by several agents
+					— the harness hands the file tools, the plan and <span class="font-mono">task</span> to every
+					subagent it makes.
+				{:else}
+					Re-sent on <em class="text-foreground/80 not-italic">every</em> request
+					{current?.key === 'main' ? 'the parent makes' : `${carrier} makes`}, called or not. A tool
+					it never uses still costs this much per turn.
+				{/if}
 			</p>
 
+			<!-- The carrier strip. Not a second list of tools: the same list, asked a
+			     different question. -->
+			<div class="mb-2.5 flex flex-wrap items-center gap-1">
+				<button
+					class="hx-rule flex items-center gap-1 rounded border px-1.5 py-[3px] text-[9.5px]
+					       transition-colors hover:bg-muted/60"
+					class:bg-muted={carrier === 'all'}
+					style:border-color={carrier === 'all' ? 'var(--hx-tool)' : undefined}
+					onclick={() => (carrier = 'all')}
+				>
+					<HugeiconsIcon icon={ICON.tool} size={10} strokeWidth={1.5} />
+					<span class="font-mono">all</span>
+					<span class="hx-num text-muted-foreground/60">{model.rows.length}</span>
+				</button>
+				{#each model.carriers as c (c.key)}
+					<button
+						class="hx-rule flex items-center gap-1 rounded border px-1.5 py-[3px] text-[9.5px]
+						       transition-colors hover:bg-muted/60"
+						class:bg-muted={carrier === c.key}
+						style:border-color={carrier === c.key ? c.color : undefined}
+						style:opacity={c.measured ? 1 : 0.6}
+						onclick={() => (carrier = c.key)}
+					>
+						<span style:color={c.color}>
+							<HugeiconsIcon icon={c.icon} size={10} strokeWidth={1.5} />
+						</span>
+						<span class="font-mono">{c.label}</span>
+						<span class="hx-num text-muted-foreground/60">{c.count}</span>
+					</button>
+				{/each}
+			</div>
+
+			{#if current && !current.measured}
+				<p class="mb-2 text-[9.5px] leading-relaxed text-muted-foreground/70">
+					Declared in its spec — <span class="font-mono">{carrier}</span> has not run yet, so
+					nothing of its own is on the wire. The harness will add the file tools, the plan and
+					<span class="font-mono">task</span> to this list the moment it does.
+				</p>
+			{/if}
+
 			{#each rows as r (r.name)}
-				{@const isTask = r.name === 'task' && roster.length > 0}
 				{@const isOpen = open.has(r.name)}
-				<div class="hx-rule border-b last:border-b-0">
+				<div class="hx-rule border-b last:border-b-0" {@attach reveal(r.name === landed)}>
 					<button
 						class="flex w-full items-center gap-2 py-1.5 text-left transition-colors
 						       hover:bg-muted/50"
@@ -192,6 +356,21 @@
 							{r.name}
 						</span>
 
+						<!-- Who holds it. The whole reason the list is deduped: `ls` is one
+						     schema six agents were each handed, not six tools. -->
+						{#if carrier === 'all' && r.carriers.length > 1}
+							<span class="flex shrink-0 items-center gap-[3px] pr-0.5">
+								{#each r.carriers as k (k)}
+									{@const c = carrierOf(k)}
+									{#if c}
+										<span style:color={c.color} style:opacity="0.65">
+											<HugeiconsIcon icon={c.icon} size={9} strokeWidth={1.5} />
+										</span>
+									{/if}
+								{/each}
+							</span>
+						{/if}
+
 						<!-- The schema's share of the tool band. The point of the row: a
 						     description twenty times longer than its neighbour's is a
 						     twentyfold bill, every turn, forever. -->
@@ -206,7 +385,7 @@
 							></span>
 						</span>
 						<span class="hx-num w-10 shrink-0 text-right text-[10px] text-muted-foreground">
-							{compact(r.tokens)}
+							{r.tokens ? compact(r.tokens) : '—'}
 						</span>
 						<span class="hx-num w-7 shrink-0 text-right text-[10px]">
 							{#if r.call}
@@ -232,9 +411,9 @@
 								class="text-[10.5px] leading-relaxed whitespace-pre-wrap text-foreground/75"
 								class:clamped={!proseOpen}
 							>
-								{r.note || '(no description on the wire)'}
+								{r.note || '(not on the wire yet — this carrier has not run)'}
 							</p>
-							{#if (r.note?.length ?? 0) > 180}
+							{#if r.note.length > 180}
 								<button
 									class="hx-eyebrow mt-0.5 transition-colors hover:text-foreground"
 									onclick={() => toggleProse(r.name)}
@@ -243,23 +422,50 @@
 								</button>
 							{/if}
 
-							<p class="hx-eyebrow mt-2 mb-1">the schema, as it went out</p>
-							<div class="hx-rule max-h-56 overflow-auto rounded border">
-								<JsonCode source={r.schema} />
-							</div>
+							{#if r.schema}
+								<p class="hx-eyebrow mt-2 mb-1">the schema, as it went out</p>
+								<div class="hx-rule max-h-56 overflow-auto rounded border">
+									<JsonCode source={r.schema} />
+								</div>
+							{/if}
 
-							<p class="hx-eyebrow mt-1.5 flex flex-wrap items-baseline gap-x-3">
+							<!-- Carried by, always — including when the list is filtered, because
+							     "who else has this" is exactly the thing a filtered view hides. -->
+							<p class="hx-eyebrow mt-2 mb-1">carried by</p>
+							<p class="flex flex-wrap gap-1">
+								{#each r.carriers as k (k)}
+									{@const c = carrierOf(k)}
+									{#if c}
+										<button
+											class="hx-rule flex items-center gap-1 rounded border px-1.5 py-0.5
+											       font-mono text-[9.5px] transition-colors hover:bg-muted/60"
+											class:bg-muted={carrier === k}
+											onclick={() => (carrier = k)}
+										>
+											<span style:color={c.color}>
+												<HugeiconsIcon icon={c.icon} size={9} strokeWidth={1.5} />
+											</span>
+											{c.label}
+										</button>
+									{/if}
+								{/each}
+							</p>
+
+							<p class="hx-eyebrow mt-2 flex flex-wrap items-baseline gap-x-3">
 								<span>
 									{r.meta.origin === 'ours' ? 'written for this agent' : 'supplied by the harness'}
 								</span>
-								<span class="hx-num text-[9px] text-muted-foreground">
-									{r.chars.toLocaleString()} chars · {compact(r.tokens)} tokens
-								</span>
+								{#if r.chars}
+									<span class="hx-num text-[9px] text-muted-foreground">
+										{r.chars.toLocaleString()} chars · {compact(r.tokens)} tokens
+									</span>
+								{/if}
 								{#if r.call}
+									{@const last = r.call.last}
 									<button
 										class="hx-eyebrow transition-colors hover:text-foreground"
 										style:color="var(--hx-tool)"
-										onclick={() => onjump?.(r.call.last)}
+										onclick={() => onjump?.(last)}
 									>
 										jump to last call →
 									</button>
@@ -267,145 +473,16 @@
 							</p>
 						</div>
 					{/if}
-
-					{#if isTask}
-						<!-- The crew, under the one tool that dispatches it. Not a separate
-						     panel: which subagents exist is a property of the task schema,
-						     and this is where you are already looking at that schema. -->
-						{#each roster as m (m.name)}
-							<button
-								class="flex w-full items-center gap-2 py-1 pl-6 text-left transition-colors
-								       hover:bg-muted/50 disabled:cursor-default disabled:hover:bg-transparent"
-								disabled={!m.calls.n}
-								onclick={() => m.calls.n && onjump?.(m.calls.last)}
-								{@attach tip(
-									m.origin === 'harness'
-										? "Added by the harness, not declared by this app — it carries the main agent's whole tool set"
-										: 'a subagent this app declares'
-								)}
-							>
-								<span
-									class="inline-block size-1 shrink-0 rounded-full"
-									style:background={m.origin === 'ours'
-										? 'var(--hx-subagent)'
-										: 'var(--hx-interrupt)'}
-									style:opacity={m.calls.n ? 1 : 0.5}
-								></span>
-								<span
-									class="min-w-0 flex-1 truncate font-mono text-[10px]"
-									class:text-muted-foreground={!m.calls.n}
-								>
-									{m.name}
-								</span>
-								{#if m.tools.known}
-									<span class="hx-num shrink-0 text-[9px] text-muted-foreground/60">
-										{m.tools.count} tools
-									</span>
-								{/if}
-								<span class="hx-num w-7 shrink-0 text-right text-[10px]">
-									{#if m.calls.n}
-										<span style:color="var(--hx-subagent)">×{m.calls.n}</span>
-									{:else}
-										<span class="text-muted-foreground/40">—</span>
-									{/if}
-								</span>
-							</button>
-						{/each}
-					{/if}
 				</div>
 			{/each}
-
-			{#if crews.length}
-				<!-- Grouped under the subagent that carries them, because the question
-				     "what tools exist in this run" has an answer the main request alone
-				     cannot give. -->
-				<div class="hx-rule mt-4 border-t pt-3">
-					<p class="hx-eyebrow mb-1">what the subagents carry</p>
-					<p class="mb-2 text-[10px] leading-relaxed text-muted-foreground">
-						A subagent's tools appear only in the requests it makes — and they are not the subset
-						you declared. The harness adds the file tools, the plan and
-						<span class="font-mono">task</span> to every one.
-					</p>
-
-					{#each crews as c (c.name)}
-						{@const isOpen = open.has(`crew:${c.name}`)}
-						<div class="hx-rule border-b last:border-b-0">
-							<button
-								class="flex w-full items-center gap-2 py-1.5 text-left transition-colors
-								       hover:bg-muted/50"
-								onclick={() => toggle(`crew:${c.name}`)}
-								aria-expanded={isOpen}
-							>
-								<span
-									class="inline-block size-1.5 shrink-0 rounded-full"
-									style:background={c.origin === 'ours'
-										? 'var(--hx-subagent)'
-										: 'var(--hx-interrupt)'}
-									style:opacity={c.calls.n ? 1 : 0.5}
-								></span>
-								<span
-									class="min-w-0 flex-1 truncate font-mono text-[11px]"
-									class:text-muted-foreground={!c.calls.n}
-								>
-									{c.name}
-								</span>
-								<span class="hx-num shrink-0 text-[9px] text-muted-foreground/60">
-									{c.tools.length} tools
-								</span>
-								{#if c.total}
-									<span class="hx-num w-10 shrink-0 text-right text-[10px] text-muted-foreground">
-										{compact(c.total)}
-									</span>
-								{/if}
-								<span
-									class="shrink-0 text-muted-foreground/50 transition-transform"
-									style:transform={isOpen ? 'rotate(0deg)' : 'rotate(-90deg)'}
-								>
-									<HugeiconsIcon icon={ICON.expand} size={10} strokeWidth={1.5} />
-								</span>
-							</button>
-
-							{#if isOpen}
-								<div class="pb-2 pl-5">
-									<p class="hx-eyebrow mb-1.5">
-										{c.measured
-											? 'read from its own request on the wire'
-											: 'declared in its spec — it has not run yet, so nothing is on the wire'}
-									</p>
-									{#each c.tools as t (t.name)}
-										<div class="flex items-center gap-2 py-[3px]">
-											<span
-												class="shrink-0"
-												style:color={t.meta.origin === 'ours'
-													? 'var(--hx-tool)'
-													: 'var(--muted-foreground)'}
-												style:opacity={t.call ? 1 : 0.55}
-											>
-												<HugeiconsIcon icon={t.meta.icon} size={11} strokeWidth={1.5} />
-											</span>
-											<span class="min-w-0 flex-1 truncate font-mono text-[10px]">{t.name}</span>
-											{#if t.tokens}
-												<span class="hx-num shrink-0 text-[9px] text-muted-foreground/60">
-													{compact(t.tokens)}
-												</span>
-											{/if}
-										</div>
-									{/each}
-								</div>
-							{/if}
-						</div>
-					{/each}
-				</div>
-			{/if}
 
 			<p class="mt-3 text-[10px] leading-relaxed text-muted-foreground/60">
 				<span style:color="var(--hx-tool)">ochre</span>
 				— written for this agent ·
 				<span class="text-muted-foreground">grey</span>
-				— supplied by the harness{#if roster.some((m) => m.origin === 'harness')}
-					·
-					<span style:color="var(--hx-interrupt)">amber</span>
-					— a subagent the harness added{/if}. A row jumps to its last call.
+				— supplied by the harness. A subagent's tools come from a request
+				<em class="not-italic">it</em>
+				made, so they appear once it has run.
 			</p>
 		{/if}
 	</div>

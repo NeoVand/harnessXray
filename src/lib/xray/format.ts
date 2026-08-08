@@ -1,6 +1,7 @@
 import type { DisplayKind, EventKind, XrayEvent } from './events';
 import { ICON, type IconValue } from '$lib/icons';
 import { isEvicted } from '$lib/agent/eviction';
+import { subagentIcon } from '$lib/agent/subagent-meta';
 
 /** One glyph per capture kind, so a run is scannable without reading labels. */
 export const KIND_ICON: Record<EventKind, IconValue> = {
@@ -37,6 +38,13 @@ export const KIND_ICON: Record<EventKind, IconValue> = {
  */
 export function iconOf(e: XrayEvent): IconValue {
 	if ((e.kind === 'tool_start' || e.kind === 'tool_end') && e.skill) return ICON.skill;
+	// A dispatch is drawn as the delegate it dispatches, not as a generic robot —
+	// the same glyph the lane header, the crew and the toolbox use, so the row
+	// that opens a lane and the lane itself read as one thing.
+	if (e.kind === 'tool_start' && e.name === 'task') {
+		const type = (e.args as { subagent_type?: unknown } | null)?.subagent_type;
+		if (typeof type === 'string') return subagentIcon(type);
+	}
 	return KIND_ICON[e.kind];
 }
 

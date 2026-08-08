@@ -38,6 +38,14 @@ export interface CrewMember {
 	calls: { n: number; last: string };
 	/** Tool names it carries — known for ours, empty for the harness's clone. */
 	toolNames: string[];
+	/**
+	 * What it ACTUALLY carried, read off a request it made — which is never the
+	 * list we declared. The harness adds the six file tools, the plan and `task`
+	 * to every subagent, so paper-reader ships nine tools for a spec naming two.
+	 * Falls back to the declared names, and `carriesMeasured` says which it is.
+	 */
+	carries: string[];
+	carriesMeasured: boolean;
 	/** Its own system prompt, for the ones this app wrote. */
 	prompt: string;
 	/**
@@ -90,20 +98,12 @@ interface WireTool {
 	parameters?: unknown;
 }
 
-/**
- * Pull the last request off the bus and read the task tool out of it.
- *
- * Newest-first, and only `/responses` calls: an image request carries no tools
- * and would otherwise blank the roster the moment a picture was generated.
- */
-function lastTools(bus: EventBus): WireTool[] {
-	for (let i = bus.events.length - 1; i >= 0; i--) {
-		const e = bus.events[i];
-		if (e.kind !== 'http_request' || !e.url.includes('/responses')) continue;
-		const raw = (e.body as { tools?: unknown } | null)?.tools;
-		if (Array.isArray(raw)) return raw as WireTool[];
-	}
-	return [];
+/** The `tools` array of one request on the bus, if it still holds one. */
+function toolsOf(bus: EventBus, id: string): WireTool[] {
+	const e = id ? bus.byId(id) : undefined;
+	if (!e || e.kind !== 'http_request') return [];
+	const raw = (e.body as { tools?: unknown } | null)?.tools;
+	return Array.isArray(raw) ? (raw as WireTool[]) : [];
 }
 
 const nameOf = (t: WireTool) => t.name ?? t.function?.name ?? '';
@@ -128,8 +128,98 @@ function namesFromSchema(task: WireTool): string[] {
 		.filter(Boolean);
 }
 
+interface Walk {
+	/** The newest `/responses` request made OUTSIDE every dispatch window. */
+	main: string;
+	/** subagent → an `http_request` id seen inside its window. */
+	sample: Record<string, string>;
+	calls: Record<string, { n: number; last: string }>;
+	returned: Record<string, number>;
+	spent: Record<string, number>;
+	ambiguous: boolean;
+}
+
+/**
+ * One pass over the run, attributing everything by dispatch WINDOW.
+ *
+ * The obvious approach does not work, and the reason is worth knowing: the
+ * model — and therefore the instrumented fetch inside it — is constructed once
+ * with `scope: 'main'`, so every wire event in the run is main-scoped however
+ * deep in the graph it originated. The subagent lanes on the timeline come from
+ * LangGraph's stream namespaces, not from the wire, so there is no scope on an
+ * `http_response` to attribute by.
+ *
+ * What IS true is that `task` is awaited: model calls landing between a
+ * dispatch and its result were made by that subagent, and calls landing when no
+ * dispatch is open were made by the parent. Exact while dispatches are
+ * sequential, which is what this app's prompts require for the gated ones. When
+ * two different subagents overlap the window is genuinely ambiguous, so those
+ * tokens go to neither and the whole reading is flagged instead of guessed at.
+ */
+function walk(bus: EventBus): Walk {
+	const out: Walk = { main: '', sample: {}, calls: {}, returned: {}, spent: {}, ambiguous: false };
+	/** Dispatches currently open, oldest first — `task` ids to subagent names. */
+	const openCalls: { id: string; name: string }[] = [];
+
+	for (const e of bus.events) {
+		if (e.kind === 'tool_start' && e.name === 'task') {
+			const type = (e.args as { subagent_type?: unknown } | null)?.subagent_type;
+			if (typeof type !== 'string') continue;
+			const c = (out.calls[type] ??= { n: 0, last: '' });
+			c.n++;
+			c.last = e.id;
+			openCalls.push({ id: e.toolCallId, name: type });
+			continue;
+		}
+		if (e.kind === 'tool_end' && e.name === 'task') {
+			const at = openCalls.findIndex((o) => o.id === e.toolCallId);
+			const hit = at >= 0 ? openCalls.splice(at, 1)[0] : openCalls.shift();
+			if (hit) out.returned[hit.name] = (out.returned[hit.name] ?? 0) + e.chars;
+			continue;
+		}
+		// Unambiguous when every open dispatch is the SAME subagent — three
+		// paper-readers running at once are all paper-reader, and that is the one
+		// case this app fans out on purpose. Only a genuine mix is unattributable.
+		const only = openCalls.length
+			? openCalls.every((o) => o.name === openCalls[0].name)
+				? openCalls[0].name
+				: ''
+			: '';
+
+		if (e.kind === 'http_request' && e.url.includes('/responses')) {
+			const body = e.body as { tools?: unknown } | null;
+			// Only a request that actually carries tools: an image call has none and
+			// would otherwise overwrite a good sample with an empty one.
+			if (Array.isArray(body?.tools) && body.tools.length) {
+				if (only) out.sample[only] = e.id;
+				else if (!openCalls.length) out.main = e.id;
+			}
+		}
+		if (e.kind === 'http_response' && e.rawUsage && openCalls.length) {
+			const u = e.rawUsage as { input_tokens?: number };
+			if (only) out.spent[only] = (out.spent[only] ?? 0) + (u.input_tokens ?? 0);
+			else out.ambiguous = true;
+		}
+	}
+	return out;
+}
+
+/**
+ * The parent's own most recent model call.
+ *
+ * "The last request on the wire" is not the same thing, and the difference is
+ * visible: while a subagent is running, the newest request is *its* request,
+ * carrying its tool set and its prompt. Anything that means to describe the
+ * main agent has to skip those, which is what the dispatch windows are for.
+ */
+export function mainRequest(bus: EventBus): string {
+	return walk(bus).main;
+}
+
 export function crew(bus: EventBus): CrewMember[] {
-	const task = lastTools(bus).find((t) => nameOf(t) === 'task');
+	const w = walk(bus);
+	const mainTools = toolsOf(bus, w.main);
+	const task = mainTools.find((t) => nameOf(t) === 'task');
 	if (!task) return [];
 
 	const described = new Map<string, string>();
@@ -144,80 +234,21 @@ export function crew(bus: EventBus): CrewMember[] {
 	const names = namesFromSchema(task);
 	const roster = names.length ? names : [...described.keys()];
 
-	const calls: Record<string, { n: number; last: string }> = {};
-	const returned: Record<string, number> = {};
-
-	/**
-	 * What a subagent spent, attributed by its dispatch WINDOW.
-	 *
-	 * The obvious approach does not work, and the reason is worth knowing: the
-	 * model — and therefore the instrumented fetch inside it — is constructed once
-	 * with `scope: 'main'`, so every wire event in the run is main-scoped however
-	 * deep in the graph it originated. The subagent lanes on the timeline come
-	 * from LangGraph's stream namespaces, not from the wire, so there is no scope
-	 * on an `http_response` to attribute by.
-	 *
-	 * What IS true is that `task` is awaited: model calls landing between a
-	 * dispatch and its result were made by that subagent. Exact while dispatches
-	 * are sequential, which is what this app's prompts require for the gated ones.
-	 * When two overlap the window is genuinely ambiguous, so those tokens go to
-	 * neither and the whole reading is flagged instead of quietly guessed at.
-	 */
-	const spent: Record<string, number> = {};
-	/** subagent → an http_request id seen inside its window. */
-	const sample: Record<string, string> = {};
-	let ambiguous = false;
-	/** Dispatches currently open, oldest first — `task` ids to subagent names. */
-	const openCalls: { id: string; name: string }[] = [];
-
-	for (const e of bus.events) {
-		if (e.kind === 'tool_start' && e.name === 'task') {
-			const type = (e.args as { subagent_type?: unknown } | null)?.subagent_type;
-			if (typeof type !== 'string') continue;
-			const c = (calls[type] ??= { n: 0, last: '' });
-			c.n++;
-			c.last = e.id;
-			openCalls.push({ id: e.toolCallId, name: type });
-			continue;
-		}
-		if (e.kind === 'tool_end' && e.name === 'task') {
-			const at = openCalls.findIndex((o) => o.id === e.toolCallId);
-			const hit = at >= 0 ? openCalls.splice(at, 1)[0] : openCalls.shift();
-			if (hit) returned[hit.name] = (returned[hit.name] ?? 0) + e.chars;
-			continue;
-		}
-		// Unambiguous when every open dispatch is the SAME subagent — three
-		// paper-readers running at once are all paper-reader, and that is the one
-		// case this app fans out on purpose. Only a genuine mix is unattributable.
-		const only = openCalls.length
-			? openCalls.every((o) => o.name === openCalls[0].name)
-				? openCalls[0].name
-				: ''
-			: '';
-
-		if (e.kind === 'http_request' && only && e.url.includes('/responses')) {
-			const body = e.body as { tools?: unknown } | null;
-			// Only a request that actually carries tools: an image call has none and
-			// would otherwise overwrite a good sample with an empty one.
-			if (Array.isArray(body?.tools) && body.tools.length) sample[only] = e.id;
-		}
-		if (e.kind === 'http_response' && e.rawUsage && openCalls.length) {
-			const u = e.rawUsage as { input_tokens?: number };
-			if (only) spent[only] = (spent[only] ?? 0) + (u.input_tokens ?? 0);
-			else ambiguous = true;
-		}
-	}
+	const { calls, returned, spent, sample, ambiguous } = w;
 
 	// general-purpose was handed `defaultTools` — the main agent's whole set — so
 	// its count is the wire's tool count, which is the honest number rather than
 	// a guess. Everything else we declared ourselves.
-	const mainTools = lastTools(bus);
 	const mainToolCount = mainTools.length;
 	const mainToolNames = mainTools.map((t) => nameOf(t)).filter(Boolean);
 
 	return roster.map((name) => {
 		const ours = OURS.has(name);
 		const declared = OUR_TOOL_COUNT.get(name);
+		const spec = OUR_TOOL_NAMES.get(name) ?? (ours ? [] : mainToolNames);
+		const wire = toolsOf(bus, sample[name] ?? '')
+			.map(nameOf)
+			.filter(Boolean);
 		return {
 			name,
 			description: described.get(name) ?? '',
@@ -228,7 +259,9 @@ export function crew(bus: EventBus): CrewMember[] {
 			calls: calls[name] ?? { n: 0, last: '' },
 			// The clone was handed `defaultTools`, so its declared list IS the main
 			// agent's — otherwise it reads as carrying nothing at all.
-			toolNames: OUR_TOOL_NAMES.get(name) ?? (ours ? [] : mainToolNames),
+			toolNames: spec,
+			carries: wire.length ? wire : spec,
+			carriesMeasured: wire.length > 0,
 			prompt: OUR_PROMPT.get(name) ?? '',
 			spent: spent[name] ?? 0,
 			returned: returned[name] ?? 0,

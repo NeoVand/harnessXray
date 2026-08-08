@@ -1,6 +1,6 @@
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
-import { searchPapers, fetchPaper, fetchPaperFigures, authorsLine } from './retrieval';
+import { searchPapers, fetchPaper, extractFigures, authorsLine } from './retrieval';
 import { sources } from './sources';
 import { bus } from '$lib/xray/bus.svelte';
 import { compactRequest } from './compaction';
@@ -320,37 +320,55 @@ export const compactContextTool = tool(
 );
 
 export const extractFiguresTool = tool(
-	async ({ arxivId, max }) => {
-		let figures: Awaited<ReturnType<typeof fetchPaperFigures>>['figures'];
-		let note: string;
+	async ({ paper, max }) => {
+		let out: Awaited<ReturnType<typeof extractFigures>>;
 		try {
-			({ figures, note } = await fetchPaperFigures(arxivId, max));
+			out = await extractFigures(paper, max);
 		} catch (e) {
 			return toolError(e);
 		}
-		if (!figures.length) return note;
+		if (!out.figures.length) return out.note;
+
+		const provenance =
+			out.via === 'pdf'
+				? `These were cut out of the PDF pages around each caption, so they are page crops ` +
+					`rather than the publisher's original files. Caption them "Figure from arXiv:${paper}" ` +
+					`exactly as with any extracted figure.`
+				: `Attribute each one in its caption text: "Figure from arXiv:${paper}".`;
+
 		return [
-			`Extracted ${figures.length} real figures from arXiv:${arxivId}, with the paper's own captions:`,
-			...figures.map(
+			`Extracted ${out.figures.length} real figures from ${paper} ` +
+				`(via ${out.via === 'pdf' ? 'the PDF' : "arXiv's HTML edition"}), with the paper's own captions:`,
+			...out.figures.map(
 				(f, i) =>
 					`${i + 1}. ${f.path} (${(f.bytes / 1024).toFixed(0)} KB)\n   caption: ${f.caption.slice(0, 200) || '(none)'}`
 			),
+			out.note ? `\n${out.note}` : '',
 			'',
-			'Embed one with ![<short caption>](<path>) and attribute it in the caption text: ' +
-				`"Figure from arXiv:${arxivId}". Embed only figures that carry a claim the text needs.`,
+			`Embed one with ![<short caption>](<path>). ${provenance} Embed only figures that carry a ` +
+				'claim the text needs.',
 			'Note: these live in the asset store, not your text filesystem — verify with ' +
 				'list_figures, never with ls.'
-		].join('\n');
+		]
+			.filter(Boolean)
+			.join('\n');
 	},
 	{
 		name: 'extract_figures',
 		description:
-			'Pull the REAL figures out of a paper (2024+ arXiv HTML editions only), with their ' +
-			'original captions, saved under /figures/. Prefer this over generate_image when the ' +
-			'point is to show what the paper actually reported — an extracted figure is evidence, ' +
-			'a generated one is decoration.',
+			"Pull the REAL figures out of a paper, with the paper's own captions, saved under " +
+			"/figures/. Works on any paper: 2024+ arXiv papers give the publisher's original image " +
+			'files, and everything else — legacy ids, pre-2024 papers, and PDFs the user uploaded — ' +
+			'is cut out of the rendered PDF page around each caption. Prefer this over generate_image ' +
+			'when the point is to show what the paper actually reported: an extracted figure is ' +
+			'evidence, a generated one is decoration.',
 		schema: z.object({
-			arxivId: z.string().describe('arXiv id, e.g. 2401.12345 (legacy ids have no HTML edition)'),
+			paper: z
+				.string()
+				.describe(
+					'An arXiv id (2401.12345, or a legacy id like hep-th/9711200), or the path of a PDF ' +
+						'already in the store (/papers/….pdf, /uploads/….pdf)'
+				),
 			max: z.number().int().min(1).max(12).default(6)
 		})
 	}
