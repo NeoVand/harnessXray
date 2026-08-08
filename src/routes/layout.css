@@ -182,23 +182,29 @@
 	   two segments of one bar.
 
 	   So: three families, one per meter, ~100° apart with blue/amber as the
-	   backbone because that pair survives the common colour-vision
-	   deficiencies. Within a family, lightness carries the *rate* — the dearer
-	   the token, the stronger the colour — so the ramp still reads in order if
-	   the hues are lost entirely. Chroma goes to 0.15, above the event palette's
-	   ceiling, because these are 8px segments that have to be identified rather
-	   than merely noticed.
+	   backbone because that pair survives the common colour-vision deficiencies.
+	   Within a family, lightness carries the *rate* — the dearer the token, the
+	   stronger the colour — so the ramp still reads in order if the hues are lost
+	   entirely.
+
+	   Chroma stays in the event palette's own restrained register (≤0.09, the
+	   same range as --hx-model and --hx-user) rather than being pushed up to
+	   force the segments apart. It does not need to be: the separation is doing
+	   its work through hue and through lightness steps of ~0.15, so the swatches
+	   stay as desaturated as the rest of the instrument and still read as five
+	   distinct things at 8px. Saturation was never the fix for the old collision
+	   — a single shared lightness was the bug.
 
 	   Light schemes here, inverted in `.dark`: "strongest" means most contrast
 	   against the page, which is darkest on paper and lightest on slate. Two
 	   ramps rather than four, because legibility follows the page colour and not
 	   the theme's mood. */
-	--hx-tok-write: oklch(0.44 0.15 255);
-	--hx-tok-new: oklch(0.56 0.11 255);
-	--hx-tok-cached: oklch(0.72 0.05 255);
-	--hx-tok-out: oklch(0.5 0.13 70);
-	--hx-tok-reason: oklch(0.71 0.075 70);
-	--hx-tok-image: oklch(0.5 0.15 330);
+	--hx-tok-write: oklch(0.42 0.085 255);
+	--hx-tok-new: oklch(0.56 0.065 255);
+	--hx-tok-cached: oklch(0.73 0.035 255);
+	--hx-tok-out: oklch(0.5 0.085 70);
+	--hx-tok-reason: oklch(0.71 0.045 70);
+	--hx-tok-image: oklch(0.52 0.09 330);
 }
 
 .dark {
@@ -240,14 +246,14 @@
 	--hx-file-code: oklch(0.74 0.08 80);
 	--hx-file-plain: oklch(0.68 0.012 260);
 
-	/* The token ramps, inverted: on slate, strongest means lightest. Hues and
-	   the rate-carries-lightness rule are unchanged from the light schemes. */
-	--hx-tok-write: oklch(0.84 0.13 255);
-	--hx-tok-new: oklch(0.69 0.12 255);
-	--hx-tok-cached: oklch(0.52 0.06 255);
-	--hx-tok-out: oklch(0.83 0.13 75);
-	--hx-tok-reason: oklch(0.61 0.08 75);
-	--hx-tok-image: oklch(0.74 0.15 330);
+	/* The token ramps, inverted: on slate, strongest means lightest. Hues, the
+	   rate-carries-lightness rule and the chroma ceiling are unchanged. */
+	--hx-tok-write: oklch(0.84 0.08 255);
+	--hx-tok-new: oklch(0.7 0.06 255);
+	--hx-tok-cached: oklch(0.54 0.035 255);
+	--hx-tok-out: oklch(0.82 0.08 75);
+	--hx-tok-reason: oklch(0.63 0.045 75);
+	--hx-tok-image: oklch(0.75 0.09 330);
 }
 
 /* ── Themes ──────────────────────────────────────────────────────────────

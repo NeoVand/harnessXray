@@ -78,12 +78,17 @@
 
 			<!-- ── the figure ───────────────────────────────────────────────────
 			     Two readings of one set of buckets. Same order, same colours, so
-			     the eye can only read the difference in width. -->
-			<div class="mb-4 space-y-1">
+			     the eye can only read the difference in width.
+
+			     Geometry copied from the context panel's group bar — h-2,
+			     rounded-[2px], no track, because the segments always sum to the
+			     whole. The two panels sit in the same column and a bar that was
+			     even a pixel taller read as a different instrument. -->
+			<div class="mb-4 space-y-1.5">
 				{#each [{ id: 'spend', label: 'spend', of: (k: { usd: number }) => spendPct(k.usd) }, { id: 'tokens', label: 'tokens', of: (k: { tokens: number }) => tokenPct(k.tokens) }] as bar (bar.id)}
 					<div class="flex items-center gap-2">
-						<span class="hx-eyebrow w-[42px] shrink-0 text-[9px]">{bar.label}</span>
-						<div class="flex h-2.5 flex-1 overflow-hidden rounded-[2px] bg-muted">
+						<span class="hx-eyebrow w-[38px] shrink-0 text-[9px]">{bar.label}</span>
+						<div class="flex h-2 flex-1 overflow-hidden rounded-[2px]">
 							{#each t.kinds as k (k.kind)}
 								{@const pct = bar.of(k)}
 								<span
@@ -114,9 +119,11 @@
 						</div>
 
 						{#each m.rows as k (k.kind)}
-							<div class="mt-1 flex items-baseline gap-2 text-[11px]">
+							<div class="mt-1 flex items-baseline gap-1.5 text-[11px]">
+								<!-- Same swatch as the context panel's legend, down to the
+								     translate: a 1.5px square nudged onto the text baseline. -->
 								<span
-									class="mt-[3px] inline-block size-1.5 shrink-0 self-start rounded-[1px]"
+									class="inline-block size-1.5 shrink-0 translate-y-[-1px] rounded-[1px]"
 									style:background={TOKEN_COLOR[k.kind]}
 								></span>
 								<span class="min-w-0 flex-1 truncate text-muted-foreground">
@@ -135,7 +142,7 @@
 						{/each}
 
 						{#if m.unpriced}
-							<div class="mt-1 flex items-baseline gap-2 text-[11px]">
+							<div class="mt-1 flex items-baseline gap-1.5 text-[11px]">
 								<span class="size-1.5 shrink-0"></span>
 								<span
 									class="min-w-0 flex-1 truncate text-muted-foreground/55"
