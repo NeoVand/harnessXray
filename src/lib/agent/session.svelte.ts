@@ -196,6 +196,11 @@ class Session {
 	#toolStarts = new Map<string, ToolStartEvent>();
 	/** Subgraph namespace → subagent name, paired as dispatches are seen. */
 	#lanes = new Map<string, string>();
+	/**
+	 * The last plan written in each namespace, so a revision is diffed against
+	 * the list it actually replaced rather than against whoever wrote last.
+	 */
+	#planBy = new Map<string, Todo[]>();
 	#shape: unknown = null;
 	#n = 0;
 	#abort: AbortController | null = null;
@@ -380,6 +385,7 @@ class Session {
 		this.#skillsSeen = '';
 		this.#toolStarts.clear();
 		this.#lanes.clear();
+		this.#planBy.clear();
 		bus.clear();
 		this.#restore(id); // re-seeds #n past the restored ids
 	}
@@ -406,6 +412,7 @@ class Session {
 		this.#skillsSeen = '';
 		this.#toolStarts.clear();
 		this.#lanes.clear();
+		this.#planBy.clear();
 		bus.clear();
 	}
 
@@ -1113,6 +1120,7 @@ class Session {
 		this.pending = null;
 		this.#toolStarts.clear();
 		this.#lanes.clear();
+		this.#planBy.clear();
 		compactRequest.pending = false;
 
 		this.messages.push({
@@ -1363,17 +1371,31 @@ class Session {
 
 		// The planning channel. Last-write-wins, so a partial write destroys it —
 		// which is itself worth seeing.
+		//
+		// Per namespace, which is not a detail: `todos` is in EXCLUDED_STATE_KEYS,
+		// so a subagent gets its own empty plan channel rather than the parent's,
+		// and the harness hands every subagent `write_todos` whether it needs one
+		// or not. Both of those were true before this line was; what was wrong was
+		// this panel, which folded every namespace's writes into one list — so a
+		// paper-reader jotting two steps for itself replaced the parent's plan on
+		// screen and then vanished again when the parent wrote next. The lists are
+		// separate in the graph and they are separate here.
 		if (Array.isArray(update.todos)) {
 			const next = update.todos as Todo[];
-			const before = new Map(this.todos.map((t) => [t.content, t.status]));
+			const scope = ns.length ? (`sub:${ns.join('/')}` as const) : 'main';
+			const before = new Map((this.#planBy.get(scope) ?? []).map((t) => [t.content, t.status]));
 			const added = next.filter((t) => !before.has(t.content)).map((t) => t.content);
 			const statusChanged = next
 				.filter((t) => before.has(t.content) && before.get(t.content) !== t.status)
 				.map((t) => ({ content: t.content, from: before.get(t.content)!, to: t.status }));
-			this.todos = next;
+			this.#planBy.set(scope, next);
+			// The parent's list is THE plan: a subagent's lives and dies inside its
+			// own window, and the parent never sees it.
+			if (!ns.length) this.todos = next;
 			bus.emit({
 				kind: 'todo_update',
-				scope: 'main',
+				scope,
+				...(lane ? { lane } : {}),
 				todos: next,
 				added,
 				statusChanged,
