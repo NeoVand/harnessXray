@@ -21,9 +21,11 @@ import type { Todo } from './events';
  * Two further facts fall out of doing it per namespace. `todos` is in
  * deepagents' EXCLUDED_STATE_KEYS, so a subagent does NOT inherit the parent's
  * plan — it gets an empty channel of its own, plans into it, and takes that
- * plan to the grave when its window closes. And the harness hands `write_todos`
- * to every subagent whether its job needs planning or not, so those private
- * plans really do get written. One track per namespace shows both.
+ * plan to the grave when its window closes. And a lane only appears here if
+ * something in it actually holds `write_todos`: through deepagents 1.11 every
+ * subagent did, by default; since 1.12 none does, and the ones that should are
+ * composed that way on purpose in subagents.ts. One track per namespace shows
+ * both — including, honestly, a run where only `main` planned.
  */
 
 export type PlanStatus = Todo['status'];

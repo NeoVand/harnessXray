@@ -8,6 +8,7 @@ import {
 	extractFiguresTool,
 	listFiguresTool
 } from './tools';
+import { todoListMiddleware } from 'langchain';
 import { worldStateMiddleware } from './awareness';
 import { oneGatePerTurnMiddleware } from './one-gate';
 import { SKILLS_ROOT } from './skills.svelte';
@@ -32,6 +33,24 @@ import { SKILLS_ROOT } from './skills.svelte';
  * to; the file exists in state, but nothing ever names it. The skills list
  * costs one line per skill, and the read shows up on the timeline as a
  * `skill` row in that subagent's lane.
+ *
+ * `todoListMiddleware` is the same trap, arrived at from the other direction.
+ * Through 1.11 it was in `createSubagentDefaultMiddleware`, so every subagent
+ * got `write_todos` free; 1.12 deleted that line — the same deletion that took
+ * the plan tab out of the MAIN agent — and a subagent's plan channel went
+ * quiet with it. Nothing threw, because a tool nobody has is a tool nobody
+ * calls.
+ *
+ * It goes back on `report-writer` alone, rather than on all four as the
+ * framework used to do it. That is the only one whose job is genuinely
+ * multi-step, and its private plan is the thing the plan tab exists to show:
+ * `todos` is in deepagents' EXCLUDED_STATE_KEYS, so a subagent inherits none
+ * of the parent's list, plans into an empty channel of its own, and takes that
+ * plan to the grave when its window closes. One lane demonstrates that; four
+ * would only add a 2.9K schema to three agents that must not use it. Read
+ * their prompts and the point is obvious — paper-reader takes ONE paper,
+ * image-smith makes ONE image, and critic is held to a hard six tool calls,
+ * so a planning tool there would spend the budget it is rationing.
  */
 
 export const SUBAGENTS = [
@@ -157,7 +176,9 @@ trust the tool result.`,
 Reply with the path, a one-line description of the structure you chose, and the
 figure paths you placed — or, for any you left out, one clause saying why.`,
 		tools: [searchPapersTool, citeTool, bibliographyTool, listFiguresTool],
-		middleware: [worldStateMiddleware],
+		// Five steps, a checklist it is told to treat as one, and a window that
+		// closes — the case the plan tab was built for. See the note above.
+		middleware: [todoListMiddleware(), worldStateMiddleware],
 		skills: [SKILLS_ROOT]
 	},
 	{
