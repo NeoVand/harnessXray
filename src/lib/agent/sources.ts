@@ -1,5 +1,5 @@
 import { browser } from '$app/environment';
-import type { PaperHit } from './retrieval';
+import { arxivYear, surnameOf, type PaperHit } from './retrieval';
 
 /**
  * The source registry — what makes a citation checkable.
@@ -91,25 +91,50 @@ class SourceRegistry {
 		this.#save();
 	}
 
-	/** Record that a paper's full text was actually read. */
-	markFetched(arxivId: string) {
+	/**
+	 * Record that a paper's full text was actually read, and whatever the read
+	 * turned up about it.
+	 *
+	 * `meta` matters more than it looks. A model knows SWE-bench is 2310.06770
+	 * and dispatches a reader straight at the id, without searching first — so
+	 * the entry was created here, with an empty title and no authors, and the
+	 * reference list came out `Unknown authors (n.d.). (title not recorded).`
+	 * for every famous paper in the run. The fetch had the header in its hands
+	 * the whole time.
+	 *
+	 * Only ever fills blanks: a search hit's metadata is canonical and a second
+	 * read must not overwrite it with something thinner.
+	 */
+	markFetched(arxivId: string, meta?: { title?: string; authors?: string[] }) {
 		const prior = this.#byId.get(arxivId);
+		// Free, offline, and always agrees with the id printed beside it — an
+		// arXiv id states its own year. `(n.d.)` was never necessary here.
+		const year = arxivYear(arxivId);
 		if (prior) {
 			prior.fetched = true;
+			if (!prior.title && meta?.title) prior.title = meta.title;
+			if (!prior.authors.length && meta?.authors?.length) prior.authors = meta.authors;
+			if (prior.year == null) prior.year = year;
 		} else {
 			// Fetched directly by id, without a search first — still a real read.
 			this.#byId.set(arxivId, {
 				n: this.#byId.size + 1,
 				arxivId,
-				title: '',
-				authors: [],
-				year: null,
+				title: meta?.title ?? '',
+				authors: meta?.authors ?? [],
+				year,
 				citations: 0,
 				fetched: true,
 				cited: 0
 			});
 		}
 		this.#save();
+	}
+
+	/** True when a source still cannot name itself, so a lookup is worth a request. */
+	needsMetadata(arxivId: string): boolean {
+		const s = this.#byId.get(arxivId);
+		return !s || !s.authors.length || !s.title;
 	}
 
 	get(arxivId: string): Source | undefined {
@@ -149,9 +174,9 @@ class SourceRegistry {
 		}
 		s.cited++;
 		this.#save();
-		// A paper fetched directly by id may carry no metadata. A bare arXiv id
-		// is an honest citation; "(Unknown, n.d.)" is typesetting a shrug.
-		const who = s.authors[0]?.split(' ').at(-1);
+		// A paper nothing could name still cites cleanly by id. A bare arXiv id is
+		// an honest citation; "(Unknown, n.d.)" is typesetting a shrug.
+		const who = s.authors[0] ? surnameOf(s.authors[0]) : '';
 		const inline = who
 			? `(${who}${s.authors.length > 1 ? ' et al.' : ''}, ${s.year ?? 'n.d.'}, arXiv:${s.arxivId})`
 			: `(arXiv:${s.arxivId})`;

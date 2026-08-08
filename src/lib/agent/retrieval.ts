@@ -550,9 +550,148 @@ async function fromPdf(
 	};
 }
 
+/**
+ * Title and authors, off the LaTeXML markup we already have in hand.
+ *
+ * The bibliography used to read "Unknown authors (n.d.). (title not recorded)."
+ * for any paper the agent fetched straight by id — which is most famous papers,
+ * because a model knows SWE-bench is 2310.06770 and dispatches a reader without
+ * searching first. The registry only ever learned a title from `search_papers`,
+ * so a run that skipped the search produced a reference list that named nothing.
+ *
+ * The information was never missing; it was thrown away. `htmlToText` parsed
+ * the page into a DOM, took the prose and dropped the header.
+ */
+function htmlMeta(doc: Document): { title: string; authors: string[] } {
+	const clean = (s: string | null | undefined) => (s ?? '').replace(/\s+/g, ' ').trim();
+
+	// Highwire tags first. They are what arXiv publishes for citation managers,
+	// so when they are present they are the paper's own statement of its
+	// metadata — no markup archaeology, no LaTeXML version differences.
+	const metaTitle = clean(
+		doc.querySelector('meta[name="citation_title"]')?.getAttribute('content')
+	);
+	const metaAuthors = [...doc.querySelectorAll('meta[name="citation_author"]')]
+		.map((m) => clean(m.getAttribute('content')))
+		.filter(Boolean);
+
+	const title =
+		metaTitle ||
+		clean(
+			(
+				doc.querySelector('.ltx_title_document') ??
+				doc.querySelector('h1.ltx_title') ??
+				doc.querySelector('title')
+			)?.textContent
+		);
+
+	// A `personname` carries the name on its first line and then, very often,
+	// the affiliation, an email and footnote markers — all as text nodes in the
+	// same element. The name is the first line.
+	const seen = new Set<string>();
+	const authors: string[] = [...metaAuthors];
+	for (const a of authors) seen.add(a);
+	for (const el of doc.querySelectorAll('.ltx_personname, .ltx_creator .ltx_text')) {
+		const name = clean((el.textContent ?? '').split('\n')[0]);
+		// Same 25 the search path keeps: enough for the senior author on a long
+		// paper to survive, short of turning a collaboration into a wall.
+		if (!name || name.length > 80 || seen.has(name) || authors.length >= 25) continue;
+		seen.add(name);
+		authors.push(name);
+	}
+	return { title, authors };
+}
+
+/**
+ * The family name, from either order a source might write it in.
+ *
+ * Indexes are inconsistent about this — OpenAlex returns "Jimenez, Carlos E."
+ * beside "John Yang" in the same author list — and taking the last
+ * whitespace-separated token turned the first of those into "E.", so the
+ * citation read "(E. et al., 2023, arXiv:2310.06770)". A comma means the family
+ * name came first.
+ */
+export function surnameOf(name: string): string {
+	const [head, ...rest] = name.split(',');
+	if (rest.length) return head.trim();
+	return head.trim().split(/\s+/).at(-1) ?? '';
+}
+
+/**
+ * Keep only what the paper itself corroborates.
+ *
+ * This is the guard that matters, and it applies to every source of metadata
+ * including our own parsing. Two real failures found it:
+ *
+ *   · OpenAlex's record for `10.48550/arXiv.2310.06770` — SWE-bench — carries
+ *     the title of an entirely different, much later paper. Written straight
+ *     into a reference list, that is a citation error a reader would be marked
+ *     down for, and strictly worse than admitting the title is unknown.
+ *   · The same index's disambiguated author names are sometimes people who do
+ *     not exist: SWE-agent came back with a "Carlos Jimenez-Gomez" in place of
+ *     Carlos E. Jimenez.
+ *
+ * So a title has to appear on the paper, and an author's surname has to appear
+ * on the paper, or neither is recorded. Comparison is on squashed alphanumerics
+ * because PDF extraction encodes inter-word spaces as position and drops them
+ * unpredictably — "SWE-bench: Can Language" can come out "SWE-bench:CanLanguage".
+ */
+export function confirmMetadata(
+	meta: { title?: string; authors?: string[] },
+	paperText: string
+): { title: string; authors: string[] } {
+	const squash = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+	// The front matter, where a title and an author list live. Generous, because
+	// a two-column extraction can interleave a whole page before reaching them.
+	const hay = squash(paperText.slice(0, 6000));
+
+	const needle = squash(meta.title ?? '').slice(0, 40);
+	const title = needle.length >= 12 && hay.includes(needle) ? (meta.title ?? '') : '';
+
+	const authors = (meta.authors ?? []).filter((a) => {
+		const surname = surnameOf(a);
+		return surname.length > 2 && hay.includes(squash(surname));
+	});
+	return { title, authors };
+}
+
+/**
+ * Title and authors for a paper we have nothing else on.
+ *
+ * The last resort, and deliberately narrow: only reached when the fetch went
+ * down the PDF path (pre-2024, no HTML edition) *and* nothing already knows the
+ * paper. OpenAlex is keyless and CORS-open, and arXiv mints a DOI for every
+ * submission, so one GET answers it — but it shares the daily quota with
+ * `search_papers`, which is why it is not simply called on every fetch.
+ *
+ * Best-effort throughout: a reference that names the paper by id alone is a
+ * worse citation, not a failed run.
+ */
+export async function arxivMetadata(
+	arxivId: string
+): Promise<{ title: string; authors: string[] } | null> {
+	try {
+		const res = await labFetch(
+			`https://api.openalex.org/works/doi:10.48550/arXiv.${arxivId}?select=title,authorships`
+		);
+		if (!res.ok) return null;
+		const w = (await res.json()) as Record<string, unknown>;
+		const title = String(w.title ?? '').trim();
+		const authors = ((w.authorships as { author?: { display_name?: string } }[] | undefined) ?? [])
+			.slice(0, 25)
+			.map((a) => a.author?.display_name ?? '')
+			.filter(Boolean);
+		return title || authors.length ? { title, authors } : null;
+	} catch {
+		return null;
+	}
+}
+
 /** Strip an arXiv LaTeXML page down to readable text, keeping section structure. */
-function htmlToText(html: string): string {
+export function parseHtmlPaper(html: string): { text: string; title: string; authors: string[] } {
 	const doc = new DOMParser().parseFromString(html, 'text/html');
+	// Before the pruning, so a stylesheet-less page still yields its header.
+	const meta = htmlMeta(doc);
 	doc
 		.querySelectorAll('script,style,nav,footer,.ltx_bibliography,.ltx_page_footer')
 		.forEach((n) => n.remove());
@@ -567,7 +706,7 @@ function htmlToText(html: string): string {
 		else if (tag === 'li') out.push(`- ${text}`);
 		else out.push(text);
 	});
-	return out.join('\n');
+	return { text: out.join('\n'), ...meta };
 }
 
 export interface FetchedPaper {
@@ -578,6 +717,16 @@ export interface FetchedPaper {
 	truncated: boolean;
 	/** First-page thumbnails, when the source was a PDF. */
 	pages?: string[];
+	/**
+	 * What the paper says it is called, and who wrote it.
+	 *
+	 * Only the HTML edition carries these — the PDF path yields extracted text
+	 * with no reliable header, and guessing a title from the first line of a
+	 * two-column scan would put an arXiv stamp in a reference list. Empty means
+	 * "ask somewhere else", which is what `fetch_paper` does.
+	 */
+	title?: string;
+	authors?: string[];
 }
 
 export async function fetchPaper(arxivId: string, maxChars = 24000): Promise<FetchedPaper> {
@@ -593,14 +742,19 @@ export async function fetchPaper(arxivId: string, maxChars = 24000): Promise<Fet
 		if (legacy) throw new Error('legacy id — PDF only');
 		const res = await labFetch(`https://arxiv.org/html/${id}`);
 		if (res.ok) {
-			const text = htmlToText(await res.text());
-			if (text.length > 500) {
+			const parsed = parseHtmlPaper(await res.text());
+			if (parsed.text.length > 500) {
+				// The header of the document itself, taken as read. It is the paper's
+				// own statement of what it is called and who wrote it; there is no
+				// more authoritative source available to a browser.
 				return {
 					arxivId: id,
 					source: 'html',
-					text: text.slice(0, maxChars),
-					chars: text.length,
-					truncated: text.length > maxChars
+					text: parsed.text.slice(0, maxChars),
+					chars: parsed.text.length,
+					truncated: parsed.text.length > maxChars,
+					title: parsed.title,
+					authors: parsed.authors
 				};
 			}
 		}
@@ -662,5 +816,12 @@ export async function fetchPaper(arxivId: string, maxChars = 24000): Promise<Fet
 		chars: text.length,
 		truncated: text.length > maxChars,
 		pages
+		// Deliberately no title or authors. Pre-2024 papers have no HTML edition
+		// and arXiv's own metadata routes are CORS-blocked, so there is no header
+		// to read — and reading one off the extracted text does not work: page one
+		// opens with a venue banner ("Published as a conference paper at ICLR
+		// 2024") and the title itself wraps across lines, so the honest-looking
+		// heuristic produced a banner or half a title. `fetch_paper` asks an index
+		// instead, and confirms the answer against this text.
 	};
 }

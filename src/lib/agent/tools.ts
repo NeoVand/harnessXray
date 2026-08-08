@@ -1,6 +1,13 @@
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
-import { searchPapers, fetchPaper, extractFigures, authorsLine } from './retrieval';
+import {
+	searchPapers,
+	fetchPaper,
+	extractFigures,
+	authorsLine,
+	arxivMetadata,
+	confirmMetadata
+} from './retrieval';
 import { sources } from './sources';
 import { bus } from '$lib/xray/bus.svelte';
 import { compactRequest } from './compaction';
@@ -96,7 +103,23 @@ export const fetchPaperTool = tool(
 		} catch (e) {
 			return toolError(e);
 		}
-		sources.markFetched(paper.arxivId);
+		sources.markFetched(paper.arxivId, { title: paper.title, authors: paper.authors });
+		// Only when the read itself could not say. The HTML edition carries its
+		// own header, and a paper found by `search_papers` already has canonical
+		// metadata — so this costs a request for pre-2024 papers fetched straight
+		// by id, and nothing at all otherwise. Best-effort: a citation that names
+		// the paper by id alone is a poorer reference, not a failed fetch.
+		if (sources.needsMetadata(paper.arxivId)) {
+			const meta = await arxivMetadata(paper.arxivId);
+			// Never unconfirmed. OpenAlex's record for SWE-bench's arXiv DOI carries
+			// a different paper's title, and its disambiguated author names are
+			// sometimes people who do not exist — either one written straight into a
+			// reference list is a citation error, and worse than an honest blank.
+			if (meta) {
+				const ok = confirmMetadata(meta, paper.text);
+				if (ok.title || ok.authors.length) sources.markFetched(paper.arxivId, ok);
+			}
+		}
 		// A read paper should be visible as an object, not just a character count.
 		bus.emit({
 			kind: 'paper_fetched',

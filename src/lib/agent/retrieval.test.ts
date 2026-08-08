@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { arxivIdFrom, arxivYear, authorsLine, resolveFigureUrl } from './retrieval';
+import {
+	arxivIdFrom,
+	arxivYear,
+	authorsLine,
+	confirmMetadata,
+	surnameOf,
+	resolveFigureUrl
+} from './retrieval';
 
 /**
  * The two index bugs that made a "latest paper by X" run thrash: the arXiv id
@@ -143,5 +150,83 @@ describe('arxivYear', () => {
 		// A DOI fragment or a stray number must not become a confident year.
 		expect(arxivYear('2499.12345')).toBeNull();
 		expect(arxivYear('not-an-id')).toBeNull();
+	});
+});
+
+/**
+ * The guard on every source of metadata, including our own parsing.
+ *
+ * Both cases below are real, found by running the thing. OpenAlex's record for
+ * `10.48550/arXiv.2310.06770` — SWE-bench — carries the title of a different,
+ * much later paper; and its disambiguated author list for SWE-agent contains a
+ * "Carlos Jimenez-Gomez" who does not exist. Either one written into a
+ * reference list is a citation error, and strictly worse than an honest blank.
+ */
+const SWE_BENCH_TEXT = `arXiv:2310.06770v3 [cs.CL] 11 Apr 2024
+SWE-bench: Can Language Models Resolve
+Real-World GitHub Issues?
+Carlos E. Jimenez, John Yang, Alexander Wettig, Shunyu Yao,
+Kexin Pei, Ofir Press, Karthik Narasimhan
+Princeton University
+Abstract
+Language models have outpaced our ability to evaluate them effectively.`;
+
+describe('confirmMetadata', () => {
+	it('accepts a title the paper actually carries', () => {
+		const out = confirmMetadata(
+			{ title: 'SWE-bench: Can Language Models Resolve Real-World GitHub Issues?' },
+			SWE_BENCH_TEXT
+		);
+		expect(out.title).toBe('SWE-bench: Can Language Models Resolve Real-World GitHub Issues?');
+	});
+
+	it('accepts it through the spacing a PDF extraction loses', () => {
+		// Inter-word spaces are positional in a PDF and vanish unpredictably, so
+		// the comparison runs on squashed alphanumerics.
+		const mangled = SWE_BENCH_TEXT.replace('Can Language Models', 'CanLanguageModels');
+		expect(
+			confirmMetadata({ title: 'SWE-bench: Can Language Models Resolve' }, mangled).title
+		).toBeTruthy();
+	});
+
+	it('rejects a title belonging to another paper entirely', () => {
+		const out = confirmMetadata(
+			{ title: 'Persistent memory for AI coding agents: a pre-registered benchmark' },
+			SWE_BENCH_TEXT
+		);
+		expect(out.title).toBe('');
+	});
+
+	it('keeps the authors the paper names and drops the ones it does not', () => {
+		const out = confirmMetadata(
+			{
+				authors: ['Jimenez, Carlos E.', 'John Yang', 'Carlos Jimenez-Gomez', 'Ada Lovelace']
+			},
+			SWE_BENCH_TEXT
+		);
+		expect(out.authors).toEqual(['Jimenez, Carlos E.', 'John Yang']);
+	});
+
+	it('refuses to vouch for a title too short to be evidence', () => {
+		// A three-character "title" would match almost any paper.
+		expect(confirmMetadata({ title: 'SWE' }, SWE_BENCH_TEXT).title).toBe('');
+	});
+});
+
+describe('surnameOf', () => {
+	it('reads both orders an index might write', () => {
+		// OpenAlex returns these two forms side by side in one author list.
+		expect(surnameOf('Jimenez, Carlos E.')).toBe('Jimenez');
+		expect(surnameOf('John Yang')).toBe('Yang');
+	});
+
+	it('is what keeps the inline citation from naming an initial', () => {
+		// `(E. et al., 2023, arXiv:2310.06770)` was the real output.
+		expect(surnameOf('Jimenez, Carlos E.')).not.toBe('E.');
+	});
+
+	it('handles a single name and a compound surname', () => {
+		expect(surnameOf('Plato')).toBe('Plato');
+		expect(surnameOf('Ada van der Waals')).toBe('Waals');
 	});
 });
