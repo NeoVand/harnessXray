@@ -134,11 +134,6 @@
 	let ctxPinned = $state<string | null>(null);
 	const ctxIndex = $derived(ctxStubs.findIndex((s) => s.id === (ctxPinned ?? lastShot?.id)));
 
-	// The gauge reads the call the panel is *showing*, not always the latest.
-	// It sits beside the pager now, and a donut that ignored the pager beside
-	// the control that drives it would be a readout lying about its subject.
-	const shownShot = $derived(ctxIndex >= 0 ? ctxStubs[ctxIndex] : undefined);
-	const contextUsed = $derived(shownShot ? Math.min(1, shownShot.tokens / INPUT_LIMIT) : 0);
 	function ctxStep(by: number) {
 		if (!ctxStubs.length) return;
 		const at = Math.max(
@@ -584,25 +579,12 @@
 													context
 												</span>
 
-												{#if shownShot}
-													<!-- The gauge belongs to the thing it measures. It used to
-											     ride the events bar, where it was the one readout in
-											     the app that described a different panel than the one
-											     it sat on. Here it is a summary of the breakdown
-											     directly below — and it survives this pane being
-											     collapsed, which is when a one-line reading of how
-											     full the window is matters most. -->
-													<span
-														class="flex items-center gap-1.5 text-muted-foreground"
-														{@attach tip(
-															`${shownShot.tokens.toLocaleString()} of ${compact(INPUT_LIMIT)} tokens — ${Math.round(contextUsed * 100)}% of the window${contextUsed >= COMPACT_AT ? '; the harness compacts past here' : ''}`
-														)}
-													>
-														<ContextDonut used={contextUsed} warn={COMPACT_AT} />
-														<span class="hx-num text-[10px]">{compact(shownShot.tokens)}</span>
-													</span>
-												{/if}
-
+												<!-- No gauge here. The panel underneath IS the gauge, in far
+											     more detail, and a donut on the bar of the pane that
+											     already draws the breakdown was the same number said
+											     twice. The one reading worth having away from the
+											     breakdown is the live one, and that lives in the chat
+											     header where the decision it informs gets made. -->
 												{#if ctxStubs.length > 1}
 													<!-- The pager, up here with the panel's other controls,
 												     so paging costs no row inside the panel. -->
