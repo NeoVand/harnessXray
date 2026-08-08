@@ -7,6 +7,7 @@
 	import PageDeck from '../PageDeck.svelte';
 	import { assets, assetVersion, type Asset } from '$lib/storage/assets.svelte';
 	import { svgToDataUrl } from '$lib/paper/svg';
+	import { tip } from '$lib/hooks/tip';
 
 	interface Props {
 		openPath?: string | null;
@@ -114,7 +115,7 @@
 				<button
 					class="hx-eyebrow flex shrink-0 items-center gap-1 transition-colors hover:text-foreground"
 					onclick={() => active && onread?.(active)}
-					title="Open (⏎)"
+					{@attach tip('Open this file  ⏎')}
 				>
 					<HugeiconsIcon icon={ICON.expandView} size={11} strokeWidth={1.5} />
 					open

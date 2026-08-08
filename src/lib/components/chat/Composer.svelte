@@ -8,6 +8,7 @@
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { HugeiconsIcon } from '@hugeicons/svelte';
 	import { ICON } from '$lib/icons';
+	import { tip } from '$lib/hooks/tip';
 	import { attachmentType } from '$lib/xray/filetype';
 
 	let { onopenskills }: { onopenskills?: () => void } = $props();
@@ -174,7 +175,7 @@
 					       text-xs transition-colors hover:bg-muted"
 					style:border-color="color-mix(in oklab, var(--hx-interrupt) 40%, transparent)"
 					onclick={() => session.send(nextScripted)}
-					title="Send the next message exactly as it was recorded"
+					{@attach tip('Send the next message exactly as it was recorded')}
 				>
 					<HugeiconsIcon icon={ICON.run} size={13} strokeWidth={1.5} />
 					<span class="hx-eyebrow shrink-0" style:color="var(--hx-interrupt)">script</span>
@@ -202,7 +203,7 @@
 							       disabled:pointer-events-none disabled:opacity-35"
 							disabled={tutor.used.includes(chip)}
 							onclick={() => tutor.ask(chip)}
-							title="Ask the lab tutor"
+							{@attach tip('Ask the lab tutor')}
 						>
 							{chip}
 						</button>
@@ -239,10 +240,12 @@
 			<DropdownMenu.Trigger
 				class="grid size-7 shrink-0 place-items-center text-muted-foreground transition-colors
 					       hover:text-foreground"
-				title={tutor.active
-					? 'Explain mode is on — questions go to the lab, not the agent'
-					: 'Attach a file or manage skills'}
 				aria-label="Add"
+				{@attach tip(
+					tutor.active
+						? 'Explain mode is on — questions go to the lab, not the agent'
+						: 'Attach a file or manage skills'
+				)}
 			>
 				<!-- The quiet mode lamp: the + takes the lab's colour while questions
 				     are being rerouted, so the composer never lies about who is
@@ -310,8 +313,8 @@
 			<button
 				onclick={() => session.stop()}
 				class="relative grid size-7 shrink-0 place-items-center rounded-full text-foreground"
-				title="Stop (Esc)"
 				aria-label="Stop the agent"
+				{@attach tip('Stop the agent  Esc')}
 			>
 				<span class="ring" aria-hidden="true"></span>
 				<span class="size-2 rounded-[2px] bg-foreground"></span>
@@ -322,8 +325,8 @@
 				disabled={!text.trim() && !session.attachments.length}
 				class="grid size-7 shrink-0 place-items-center text-muted-foreground transition-colors
 					       hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
-				title="Send (↵)"
 				aria-label="Send message"
+				{@attach tip('Send  ↵')}
 			>
 				<HugeiconsIcon icon={ICON.send} size={16} strokeWidth={1.5} />
 			</button>

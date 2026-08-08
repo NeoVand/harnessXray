@@ -3,6 +3,7 @@
 	import type { XrayEvent } from '$lib/xray/events';
 	import { sseEventName } from '$lib/xray/highlight';
 	import JsonCode from './JsonCode.svelte';
+	import { tip } from '$lib/hooks/tip';
 
 	/**
 	 * The literal wire, made explorable.
@@ -101,7 +102,7 @@
 			class="hx-eyebrow ml-auto transition-colors hover:text-foreground"
 			class:text-foreground={literal}
 			onclick={() => (literal = !literal)}
-			title="Show the exact concatenated bytes, unmodified"
+			{@attach tip('Show the exact concatenated bytes, unmodified')}
 		>
 			{literal ? 'frames' : 'literal'}
 		</button>

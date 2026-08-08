@@ -28,6 +28,7 @@
 	import { session } from '$lib/agent/session.svelte';
 	import { HugeiconsIcon } from '@hugeicons/svelte';
 	import { ICON } from '$lib/icons';
+	import { tip } from '$lib/hooks/tip';
 
 	let selectedId = $state<string | null>(null);
 	let settingsOpen = $state(false);
@@ -112,11 +113,16 @@
 		return shotStubs(bus);
 	});
 	const lastShot = $derived(ctxStubs.at(-1));
-	const contextUsed = $derived(lastShot ? Math.min(1, lastShot.tokens / INPUT_LIMIT) : 0);
 
 	/** Which model call the context panel shows; null follows the run. */
 	let ctxPinned = $state<string | null>(null);
 	const ctxIndex = $derived(ctxStubs.findIndex((s) => s.id === (ctxPinned ?? lastShot?.id)));
+
+	// The gauge reads the call the panel is *showing*, not always the latest.
+	// It sits beside the pager now, and a donut that ignored the pager beside
+	// the control that drives it would be a readout lying about its subject.
+	const shownShot = $derived(ctxIndex >= 0 ? ctxStubs[ctxIndex] : undefined);
+	const contextUsed = $derived(shownShot ? Math.min(1, shownShot.tokens / INPUT_LIMIT) : 0);
 	function ctxStep(by: number) {
 		if (!ctxStubs.length) return;
 		const at = Math.max(
@@ -187,7 +193,8 @@
 		<button
 			class="flex items-center gap-2 transition-opacity hover:opacity-70"
 			onclick={() => (aboutOpen = true)}
-			title="About harnessXray"
+			aria-label="About harnessXray"
+			{@attach tip('About harnessXray — what this lab is and how it works')}
 		>
 			<HugeiconsIcon icon={ICON.agent} size={18} strokeWidth={1.5} />
 			<span class="hx-wordmark text-[15px]">harness<em>Xray</em></span>
@@ -215,7 +222,7 @@
 				<button
 					class="hx-eyebrow text-muted-foreground transition-colors hover:text-foreground"
 					onclick={exitReplay}
-					title="Leave replay mode and start a fresh live chat"
+					{@attach tip('Leave replay mode and start a fresh live chat')}
 				>
 					exit
 				</button>
@@ -226,8 +233,8 @@
 			<button
 				class="text-muted-foreground transition-colors hover:text-foreground"
 				onclick={session.newThread.bind(session)}
-				title="New chat (⌘N)"
 				aria-label="New chat"
+				{@attach tip('New chat  ⌘N')}
 			>
 				<HugeiconsIcon icon={ICON.newChat} size={15} strokeWidth={1.5} />
 			</button>
@@ -236,8 +243,8 @@
 				class="text-muted-foreground transition-colors hover:text-foreground"
 				style:color={historyOpen ? 'var(--hx-accent)' : undefined}
 				onclick={() => (historyOpen = !historyOpen)}
-				title="History"
 				aria-label="History"
+				{@attach tip(historyOpen ? 'Hide saved chats' : 'Saved chats on this device')}
 			>
 				<HugeiconsIcon icon={ICON.history} size={15} strokeWidth={1.5} />
 			</button>
@@ -246,8 +253,10 @@
 				class="text-muted-foreground transition-colors hover:text-foreground"
 				style:color={bookPage ? 'var(--hx-accent)' : undefined}
 				onclick={() => (bookPage = bookPage ? null : 'the-harness')}
-				title="The book — how this harness works"
 				aria-label="The book"
+				{@attach tip(
+					bookPage ? 'Close the book' : 'The book — ten chapters on how this harness works'
+				)}
 			>
 				<HugeiconsIcon icon={ICON.help} size={15} strokeWidth={1.5} />
 			</button>
@@ -258,8 +267,8 @@
 			<button
 				class="text-muted-foreground transition-colors hover:text-foreground"
 				onclick={() => theme.cycle()}
-				title="{theme.spec.label} · next: {theme.next.label}"
 				aria-label="Theme: {theme.spec.label}. Switch to {theme.next.label}"
+				{@attach tip(`${theme.spec.label} · next: ${theme.next.label}`)}
 			>
 				<ThemeIcon id={theme.current} />
 			</button>
@@ -269,8 +278,8 @@
 				target="_blank"
 				rel="noreferrer noopener"
 				class="text-muted-foreground transition-colors hover:text-foreground"
-				title="Source on GitHub"
 				aria-label="Source on GitHub"
+				{@attach tip('Source on GitHub')}
 			>
 				<HugeiconsIcon icon={ICON.github} size={15} strokeWidth={1.5} />
 			</a>
@@ -278,8 +287,8 @@
 			<button
 				class="text-muted-foreground transition-colors hover:text-foreground"
 				onclick={() => (settingsOpen = true)}
-				title="Settings (⌘,)"
 				aria-label="Settings"
+				{@attach tip('Settings — model, API key, step ceiling  ⌘,')}
 			>
 				<HugeiconsIcon icon={ICON.settings} size={15} strokeWidth={1.5} />
 			</button>
@@ -304,7 +313,7 @@
 									class="text-muted-foreground transition-colors hover:text-foreground"
 									onclick={() => (historyOpen = false)}
 									aria-label="Close history"
-									title="Close"
+									{@attach tip('Close')}
 								>
 									<HugeiconsIcon icon={ICON.close} size={13} strokeWidth={1.5} />
 								</button>
@@ -336,7 +345,7 @@
 												       group-hover:text-muted-foreground/70 hover:!text-[var(--hx-error)]"
 												onclick={() => session.deleteThread(t.id)}
 												aria-label="Delete chat"
-												title="Delete this chat"
+												{@attach tip('Delete this chat')}
 											>
 												<HugeiconsIcon icon={ICON.clear} size={12} strokeWidth={1.5} />
 											</button>
@@ -432,7 +441,8 @@
 													       hover:text-foreground"
 															style:color={showFrames ? 'var(--hx-accent)' : undefined}
 															onclick={() => (showFrames = !showFrames)}
-															title="Raw SSE frames — every token exactly as it arrived"
+															aria-label="Raw SSE frames"
+															{@attach tip('Raw SSE frames — every token exactly as it arrived')}
 														>
 															<HugeiconsIcon icon={ICON.frame} size={11} strokeWidth={1.5} />
 															{frameCount}
@@ -444,18 +454,6 @@
 														hidden={hiddenKinds}
 														label="event kinds"
 													/>
-
-													{#if lastShot}
-														<!-- A readout, not a control — the panel it used to open
-												     is permanently below. -->
-														<span
-															class="flex items-center gap-1.5"
-															title="context used — decomposed in the panel below"
-														>
-															<ContextDonut used={contextUsed} warn={COMPACT_AT} />
-															<span class="hx-num text-[10px]">{compact(lastShot.tokens)}</span>
-														</span>
-													{/if}
 												</span>
 											</div>
 											<div class="h-full">
@@ -487,6 +485,26 @@
 													<HugeiconsIcon icon={ICON.context} size={12} strokeWidth={1.5} />
 													context
 												</span>
+
+												{#if shownShot}
+													<!-- The gauge belongs to the thing it measures. It used to
+											     ride the events bar, where it was the one readout in
+											     the app that described a different panel than the one
+											     it sat on. Here it is a summary of the breakdown
+											     directly below — and it survives this pane being
+											     collapsed, which is when a one-line reading of how
+											     full the window is matters most. -->
+													<span
+														class="flex items-center gap-1.5 text-muted-foreground"
+														{@attach tip(
+															`${shownShot.tokens.toLocaleString()} of ${compact(INPUT_LIMIT)} tokens — ${Math.round(contextUsed * 100)}% of the window${contextUsed >= COMPACT_AT ? '; the harness compacts past here' : ''}`
+														)}
+													>
+														<ContextDonut used={contextUsed} warn={COMPACT_AT} />
+														<span class="hx-num text-[10px]">{compact(shownShot.tokens)}</span>
+													</span>
+												{/if}
+
 												{#if ctxStubs.length > 1}
 													<!-- The pager, up here with the panel's other controls,
 												     so paging costs no row inside the panel. -->
@@ -497,12 +515,20 @@
 															onclick={() => ctxStep(-1)}
 															disabled={ctxIndex <= 0}
 															aria-label="Previous model call"
+															{@attach tip('The model call before this one')}
 														>
 															<span class="inline-block rotate-180">
 																<HugeiconsIcon icon={ICON.next} size={11} strokeWidth={1.5} />
 															</span>
 														</button>
-														<span class="hx-num text-[10px]">
+														<span
+															class="hx-num text-[10px]"
+															{@attach tip(
+																ctxPinned
+																	? 'Pinned to one model call — page to the end to follow the run again'
+																	: 'Following the run — the latest model call'
+															)}
+														>
 															{ctxIndex < 0 ? ctxStubs.length : ctxIndex + 1}/{ctxStubs.length}
 														</span>
 														<button
@@ -511,6 +537,7 @@
 															onclick={() => ctxStep(1)}
 															disabled={ctxIndex === ctxStubs.length - 1 || ctxIndex < 0}
 															aria-label="Next model call"
+															{@attach tip('The model call after this one')}
 														>
 															<HugeiconsIcon icon={ICON.next} size={11} strokeWidth={1.5} />
 														</button>
@@ -525,8 +552,10 @@
 																: undefined}
 															onclick={() => (contextView = 'pieces')}
 															aria-pressed={contextView === 'pieces'}
-															title="Pieces — the request cut into system prompt, schemas and messages"
 															aria-label="Pieces view"
+															{@attach tip(
+																'Pieces — the request cut into system prompt, schemas and messages'
+															)}
 														>
 															<HugeiconsIcon icon={ICON.state} size={13} strokeWidth={1.5} />
 														</button>
@@ -535,8 +564,8 @@
 															style:color={contextView === 'raw' ? 'var(--hx-accent)' : undefined}
 															onclick={() => (contextView = 'raw')}
 															aria-pressed={contextView === 'raw'}
-															title="Raw — the exact request body, whole"
 															aria-label="Raw view"
+															{@attach tip('Raw — the exact request body, whole')}
 														>
 															<HugeiconsIcon icon={ICON.code} size={13} strokeWidth={1.5} />
 														</button>
@@ -546,8 +575,8 @@
 															disabled={session.busy ||
 																session.compacting ||
 																session.messages.length < 3}
-															title="Fold the earlier conversation into a summary"
 															aria-label="Compact the conversation"
+															{@attach tip('Fold the earlier conversation into a summary')}
 														>
 															<HugeiconsIcon icon={ICON.compact} size={13} strokeWidth={1.5} />
 														</button>

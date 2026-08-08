@@ -3,6 +3,7 @@
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { HugeiconsIcon } from '@hugeicons/svelte';
 	import { ICON } from '$lib/icons';
+	import { tip } from '$lib/hooks/tip';
 
 	/**
 	 * Narrowing what a panel shows.
@@ -39,8 +40,8 @@
 <DropdownMenu.Root>
 	<DropdownMenu.Trigger
 		class="flex items-center gap-1 transition-colors hover:text-foreground"
-		title={active ? `${hidden.size} hidden — click to change` : `Filter ${label}`}
 		aria-label="Filter"
+		{@attach tip(active ? `${hidden.size} hidden — click to change` : `Filter ${label}`)}
 	>
 		<span class="flex items-center gap-1" style:color={active ? 'var(--hx-interrupt)' : undefined}>
 			<HugeiconsIcon icon={ICON.filter} size={12} strokeWidth={1.5} />
