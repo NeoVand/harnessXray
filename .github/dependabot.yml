@@ -1,0 +1,55 @@
+# Dependency updates, opened as PRs.
+#
+# The agent harness is the subject of this app, not just a dependency: when
+# deepagents changes its prompts, its tool schemas or its middleware, the
+# X-ray's readings change with it — and several of them are recovered by
+# matching strings the harness emits, so an upgrade can quietly blank a panel
+# rather than fail. Weekly PRs make that visible while the diff is small.
+#
+# Grouped, because the LangChain packages move together and eight separate PRs
+# for one coordinated release is noise. deepagents stays on its own, since it
+# is the one that needs a human to look at the run afterwards.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      deepagents:
+        patterns:
+          - deepagents
+      langchain:
+        patterns:
+          - '@langchain/*'
+          - langchain
+          - langsmith
+      svelte:
+        patterns:
+          - svelte
+          - '@sveltejs/*'
+          - vite
+          - '@vitejs/*'
+          - vitest
+          - '@vitest/*'
+      tooling:
+        patterns:
+          - eslint
+          - '@eslint/*'
+          - 'eslint-*'
+          - prettier
+          - 'prettier-*'
+          - typescript
+          - 'typescript-*'
+          - globals
+          - '@types/*'
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
