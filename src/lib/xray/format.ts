@@ -5,7 +5,7 @@ import { subagentIcon } from '$lib/agent/subagent-meta';
 
 /** One glyph per capture kind, so a run is scannable without reading labels. */
 export const KIND_ICON: Record<EventKind, IconValue> = {
-	http_request: ICON.next,
+	http_request: ICON.request,
 	http_sse_frame: ICON.frame,
 	http_response: ICON.model,
 	http_error: ICON.alert,
@@ -22,7 +22,7 @@ export const KIND_ICON: Record<EventKind, IconValue> = {
 	paper_fetched: ICON.file,
 	interrupt: ICON.pause,
 	resume: ICON.run,
-	node: ICON.graph,
+	node: ICON.node,
 	compaction: ICON.compact,
 	rewind: ICON.branch,
 	upload: ICON.upload,

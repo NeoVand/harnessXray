@@ -20,6 +20,7 @@ import {
 	Alert01Icon,
 	ArrowDown01Icon,
 	ArrowRight01Icon,
+	ArrowUpRight01Icon,
 	ArrowShrink02Icon,
 	Attachment01Icon,
 	BrainIcon,
@@ -69,7 +70,8 @@ import {
 	Tick01Icon,
 	ViewIcon,
 	ViewOffIcon,
-	WorkflowSquare01Icon,
+	Share02Icon,
+	ChartRelationshipIcon,
 	Wrench01Icon
 } from '@hugeicons/core-free-icons';
 
@@ -86,6 +88,12 @@ export const ICON = {
 	send: SentIcon,
 	more: MoreHorizontalIcon,
 	next: ArrowRight01Icon,
+	/**
+	 * A request leaving. Distinct from `next` on purpose: that chevron is on
+	 * every pager and stepper in the app, so sharing it made the single most
+	 * common row on the timeline look like a navigation control.
+	 */
+	request: ArrowUpRight01Icon,
 	expand: ArrowDown01Icon,
 	expandView: FullScreenIcon,
 	download: Download01Icon,
@@ -124,7 +132,16 @@ export const ICON = {
 	agent: AiBrain01Icon,
 	model: BrainIcon,
 	tool: Wrench01Icon,
-	graph: WorkflowSquare01Icon,
+	/**
+	 * The assembled machine, and one of its nodes firing.
+	 *
+	 * Two entries, not one. They shared a glyph, so a `node` row on the timeline
+	 * and the tab showing the whole topology drew the same picture — the reading
+	 * "this is a graph thing" arrived, the reading "which graph thing" never did.
+	 * A hub with satellites for the whole; a node with its relationships for one.
+	 */
+	graph: Share02Icon,
+	node: ChartRelationshipIcon,
 	branch: GitBranchIcon,
 	state: Layers01Icon,
 	memory: Database01Icon,
