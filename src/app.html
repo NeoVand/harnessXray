@@ -15,6 +15,15 @@
 	</head>
 	<body data-sveltekit-preload-data="hover">
 		<script>
+			// LangChain's dependency stack probes `process` in ways the build's
+			// `define: {'process.env': ...}` cannot reach — a path polyfill calls
+			// `process.cwd()` bare, others read `process.platform`. Browsers have
+			// no `process`, so the first agent turn of a *production* build died
+			// with ReferenceError while dev (whose CJS prebundle shims it) worked.
+			// The stub makes those probes read undefined-ish instead of throwing.
+			globalThis.process ??= { env: {}, versions: {}, platform: '', cwd: () => '/' };
+		</script>
+		<script>
 			// Before first paint, or the app flashes one theme and snaps to another.
 			// Kept in sync with THEMES in src/lib/state/theme.svelte.ts — this is the
 			// one place that cannot import it, because it has to run before any
