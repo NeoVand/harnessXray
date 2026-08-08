@@ -1,9 +1,6 @@
 <script lang="ts">
 	import { session } from '$lib/agent/session.svelte';
 	import { bus } from '$lib/xray/bus.svelte';
-	import { toolMeta } from '$lib/agent/tool-meta';
-	import { crew } from '$lib/xray/crew';
-	import { tip } from '$lib/hooks/tip';
 	import {
 		hookOf,
 		layoutDag,
@@ -27,7 +24,11 @@
 	 * wrote, and clicking jumps the timeline to the last thing it did. The map
 	 * and the territory are the same object.
 	 */
-	let { onjump }: { onjump?: (eventId: string) => void } = $props();
+	let {
+		onjump,
+		/** The tools node was clicked; the inspector should show the tools tab. */
+		onopentools
+	}: { onjump?: (eventId: string) => void; onopentools?: () => void } = $props();
 
 	let ids = $state<string[]>([]);
 	let edgesIn = $state<EdgeIn[]>([]);
@@ -136,11 +137,18 @@
 		if (eventId) onjump?.(eventId);
 	}
 
-	/** Every plain node jumps — except tools, which discloses its box. */
+	/**
+	 * Every plain node jumps — except tools, which hands off to the tools tab.
+	 *
+	 * The box used to open here as a 236px overlay parked on the drawing, which
+	 * was the largest thing ever covering the graph and still too small to show a
+	 * schema's cost. It has a tab of its own now, so this node's job is to point
+	 * at it: the affordance survives, the overlay does not.
+	 */
 	function activate(id: string) {
 		if (tail(id) === 'tools') {
-			toolboxOpen = !toolboxOpen;
 			hover = null;
+			onopentools?.();
 		} else {
 			jump(id);
 		}
@@ -208,47 +216,6 @@
 	   on the wire — not off our own registry — because the wire is the only
 	   account the model itself sees. Call counts fold from tool_start events,
 	   and a row jumps to that tool's most recent call. */
-	let toolboxOpen = $state(false);
-	const toolsNode = $derived(graph.nodes.find((n) => tail(n.id) === 'tools' && !n.members.length));
-	const toolbox = $derived.by(() => {
-		void bus.version;
-		let names: string[] = [];
-		for (let i = bus.events.length - 1; i >= 0; i--) {
-			const e = bus.events[i];
-			if (e.kind === 'http_request' && e.url.includes('/responses')) {
-				const raw = (e.body as { tools?: unknown } | null)?.tools;
-				if (Array.isArray(raw)) {
-					names = raw
-						.map((t) => {
-							const o = t as { name?: string; function?: { name?: string } };
-							return o.name ?? o.function?.name ?? '';
-						})
-						.filter(Boolean);
-					break;
-				}
-			}
-		}
-		const calls: Record<string, { n: number; last: string }> = {};
-		for (const e of bus.events) {
-			if (e.kind !== 'tool_start') continue;
-			const c = (calls[e.name] ??= { n: 0, last: '' });
-			c.n++;
-			c.last = e.id;
-		}
-		return { names, calls };
-	});
-
-	/* The crew, nested under the one tool that dispatches it. `task` is the only
-	   row in the box that is really a door to five more things, and the roster
-	   behind it is not the one this app declared — the harness appends a
-	   general-purpose clone carrying every tool the main agent has. Open by
-	   default: the whole point is that nobody knew it was there. */
-	let crewOpen = $state(true);
-	const roster = $derived.by(() => {
-		void bus.version;
-		return crew(bus);
-	});
-
 	/* ── fill the pane ──────────────────────────────────────────────────────
 	   The drawing is ~240px of natural size, and this pane gets projected in
 	   classrooms — so the svg scales UP to whichever of the pane's dimensions
@@ -281,15 +248,20 @@
 	   card on the lowest node can never grow the scrollable height — that grew
 	   a scrollbar, which shrank the pane, which rescaled the graph under the
 	   pointer. Hover must never move the thing being hovered. */
-	const CARD_W = 224;
-	function cardPos(n: LaidNode, estH = 84): { left: number; top: number } {
+	// Narrow on purpose. The card is an annotation on a drawing, not a panel:
+	// at 224px it covered a third of the pane and hid the very edges you were
+	// tracing. It hugs its content now and tops out here.
+	const CARD_W = 168;
+	function cardPos(n: LaidNode, estH = 56): { left: number; top: number } {
 		const right = ox + (n.x + n.w + PAD) * scale + 8;
 		const left =
 			right + CARD_W <= paneW ? right : Math.max(4, ox + (n.x + PAD) * scale - CARD_W - 8);
-		const top = Math.max(
-			4,
-			Math.min(oy + (n.y + PAD) * scale - scrollY, Math.max(4, paneH - estH))
-		);
+		// Centred on the node, not aligned to its top edge — and clamped only to
+		// keep it on screen. The old rule pinned `top` to at most `paneH - estH`,
+		// which for any node in the lower half of a tall graph stranded the card
+		// near the ceiling, describing something the pointer was nowhere near.
+		const mid = oy + (n.y + n.h / 2 + PAD) * scale - scrollY;
+		const top = Math.max(4, Math.min(mid - estH / 2, Math.max(4, paneH - estH - 4)));
 		return { left, top };
 	}
 </script>
@@ -555,142 +527,32 @@
 				</div>
 			</div>
 
-			{#if card && !toolboxOpen}
+			{#if card}
 				{@const pos = cardPos(card.node)}
+				<!-- Two lines, frosted, hugging its text. It was three stacked lines in
+				     a fixed 224px box on an opaque background — a panel parked over the
+				     drawing rather than a label attached to a node. -->
 				<div
-					class="hx-rule pointer-events-none absolute z-10 border bg-background px-2.5 py-2"
-					style:width="{CARD_W}px"
+					class="hx-rule hx-frost pointer-events-none absolute z-10 rounded border px-2 py-1.5
+					       shadow-[0_6px_18px_-12px_rgb(0_0_0/0.5)]"
+					style:max-width="{CARD_W}px"
 					style:left="{pos.left}px"
 					style:top="{pos.top}px"
 				>
-					<p class="truncate font-mono text-[11px] leading-tight">{card.name}</p>
-					<p class="hx-eyebrow mt-1 flex items-center gap-1.5">
-						<span class="inline-block size-1.5 rounded-full" style:background={card.color}></span>
-						{card.kindLabel}
+					<p class="flex items-center gap-1.5">
+						<span class="inline-block size-1.5 shrink-0 rounded-full" style:background={card.color}
+						></span>
+						<span class="truncate font-mono text-[10.5px] leading-tight">{card.name}</span>
 					</p>
-					<p class="hx-num mt-1.5 text-[10px] text-muted-foreground">
+					<p class="hx-num mt-0.5 pl-3 text-[9.5px] whitespace-nowrap text-muted-foreground">
+						{card.kindLabel}
 						{#if card.visits > 0}
-							×{card.visits}
-							{card.visits === 1 ? 'visit' : 'visits'}
-							{#if card.seen}· {card.seen}{/if}
+							· ×{card.visits}{#if card.seen}
+								· {card.seen}{/if}
 						{:else}
-							not visited this session
+							· unvisited
 						{/if}
 					</p>
-				</div>
-			{/if}
-
-			{#if toolboxOpen && toolsNode}
-				{@const pos = cardPos(toolsNode, 300)}
-				<div
-					class="hx-rule absolute z-20 border bg-background"
-					style:width="236px"
-					style:left="{pos.left}px"
-					style:top="{pos.top}px"
-				>
-					<p class="hx-eyebrow flex items-baseline justify-between px-2.5 pt-2">
-						the toolbox
-						<span class="hx-num text-[9px] text-muted-foreground">
-							{toolbox.names.length || ''}
-						</span>
-					</p>
-					{#if toolbox.names.length === 0}
-						<p class="max-w-[24ch] px-2.5 py-2 text-[10px] leading-relaxed text-muted-foreground">
-							Read off the wire, so it needs a wire: after the first message, the full tool list of
-							the latest request appears here.
-						</p>
-					{:else}
-						<div class="mt-1.5 max-h-52 overflow-y-auto pb-1">
-							{#each toolbox.names as name (name)}
-								{@const meta = toolMeta(name)}
-								{@const c = toolbox.calls[name]}
-								{@const isTask = name === 'task' && roster.length > 0}
-								<button
-									class="flex w-full items-baseline gap-2 px-2.5 py-1 text-left transition-colors
-									       hover:bg-muted/60 disabled:cursor-default disabled:hover:bg-transparent"
-									disabled={!c && !isTask}
-									onclick={() => (isTask ? (crewOpen = !crewOpen) : c && onjump?.(c.last))}
-									{@attach tip(isTask ? 'the crew it can dispatch — click to fold' : meta.blurb)}
-								>
-									<span
-										class="inline-block size-1.5 shrink-0 translate-y-[-1px] rounded-full"
-										style:background={meta.origin === 'ours'
-											? 'var(--hx-tool)'
-											: 'var(--muted-foreground)'}
-										style:opacity={c ? 1 : 0.45}
-									></span>
-									<span
-										class="min-w-0 flex-1 truncate font-mono text-[10.5px]"
-										class:text-muted-foreground={!c}
-									>
-										{name}
-									</span>
-									{#if isTask}
-										<span class="hx-num shrink-0 text-[9px] text-muted-foreground">
-											{roster.length}{crewOpen ? ' ▾' : ' ▸'}
-										</span>
-									{/if}
-									{#if c}
-										<span class="hx-num shrink-0 text-[9px]" style:color="var(--hx-tool)">
-											×{c.n}
-										</span>
-									{/if}
-								</button>
-
-								{#if isTask && crewOpen}
-									<!-- The roster, indented under the tool that dispatches it.
-									     Read off the task schema on the wire, so it lists what the
-									     MODEL may choose rather than what this app declared — which is
-									     how the general-purpose clone becomes visible at all. -->
-									{#each roster as m (m.name)}
-										<button
-											class="flex w-full items-baseline gap-2 py-[3px] pr-2.5 pl-6 text-left
-											       transition-colors hover:bg-muted/60 disabled:cursor-default
-											       disabled:hover:bg-transparent"
-											disabled={!m.calls.n}
-											onclick={() => m.calls.n && onjump?.(m.calls.last)}
-											{@attach tip(
-												m.origin === 'harness'
-													? `${m.description || 'appended by the harness'} — you never declared this one: createDeepAgent adds it unless generalPurposeSubagent is disabled, and hands it the main agent's whole tool set.`
-													: m.description
-											)}
-										>
-											<span
-												class="inline-block size-1 shrink-0 translate-y-[-1px] rounded-full"
-												style:background={m.origin === 'ours'
-													? 'var(--hx-subagent)'
-													: 'var(--hx-interrupt)'}
-												style:opacity={m.calls.n ? 1 : 0.45}
-											></span>
-											<span
-												class="min-w-0 flex-1 truncate font-mono text-[10px]"
-												class:text-muted-foreground={!m.calls.n}
-											>
-												{m.name}
-											</span>
-											{#if m.tools.known}
-												<span class="hx-num shrink-0 text-[9px] text-muted-foreground/60">
-													{m.tools.count}t
-												</span>
-											{/if}
-											{#if m.calls.n}
-												<span class="hx-num shrink-0 text-[9px]" style:color="var(--hx-subagent)">
-													×{m.calls.n}
-												</span>
-											{/if}
-										</button>
-									{/each}
-								{/if}
-							{/each}
-						</div>
-						<p
-							class="hx-rule border-t px-2.5 py-1.5 text-[9px] leading-relaxed text-muted-foreground/70"
-						>
-							ochre — written for this agent · grey — the harness's · a row jumps to its last call{#if roster.some((m) => m.origin === 'harness')}
-								· <span style:color="var(--hx-interrupt)">amber</span> — a subagent the harness added,
-								not this app{/if}
-						</p>
-					{/if}
 				</div>
 			{/if}
 		</div>
@@ -698,7 +560,7 @@
 		<p class="mt-1.5 text-[10px] text-muted-foreground">
 			<span style:color="var(--hx-interrupt)">⇢ dashed</span> — conditional, decided at runtime · loops
 			return on the right rail · dot-rows are the middleware onion, click to open · click a node to jump
-			the timeline · click tools for the toolbox
+			the timeline · click tools for the tools tab
 		</p>
 	{/if}
 </div>
