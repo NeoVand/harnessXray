@@ -36,6 +36,22 @@ export interface CrewMember {
 	tools: { count: number; known: boolean };
 	/** Dispatches so far this run, and the last one, for jumping the timeline. */
 	calls: { n: number; last: string };
+	/** Tool names it carries — known for ours, empty for the harness's clone. */
+	toolNames: string[];
+	/** Its own system prompt, for the ones this app wrote. */
+	prompt: string;
+	/**
+	 * The asymmetry, measured.
+	 *
+	 * `spent` is input tokens billed on model calls made INSIDE its own lanes;
+	 * `returned` is the characters of the reply that reached the parent. The gap
+	 * between them is the entire argument for subagents, and it is the one claim
+	 * the book makes that the app could state but never show.
+	 */
+	spent: number;
+	returned: number;
+	/** True when concurrent dispatches made some spend unattributable. */
+	spentAmbiguous: boolean;
 }
 
 // Widened to plain strings on purpose: the roster is whatever the wire says,
@@ -45,6 +61,12 @@ export interface CrewMember {
 const OURS: ReadonlySet<string> = new Set<string>(SUBAGENTS.map((s) => s.name));
 const OUR_TOOL_COUNT: ReadonlyMap<string, number> = new Map<string, number>(
 	SUBAGENTS.map((s) => [s.name, s.tools.length])
+);
+const OUR_TOOL_NAMES: ReadonlyMap<string, string[]> = new Map<string, string[]>(
+	SUBAGENTS.map((s) => [s.name, s.tools.map((t) => (t as { name?: string }).name ?? '?')])
+);
+const OUR_PROMPT: ReadonlyMap<string, string> = new Map<string, string>(
+	SUBAGENTS.map((s) => [s.name, String((s as { systemPrompt?: string }).systemPrompt ?? '')])
 );
 
 /** `- name: description`, one per line, indented by the template literal. */
@@ -112,13 +134,53 @@ export function crew(bus: EventBus): CrewMember[] {
 	const roster = names.length ? names : [...described.keys()];
 
 	const calls: Record<string, { n: number; last: string }> = {};
+	const returned: Record<string, number> = {};
+
+	/**
+	 * What a subagent spent, attributed by its dispatch WINDOW.
+	 *
+	 * The obvious approach does not work, and the reason is worth knowing: the
+	 * model — and therefore the instrumented fetch inside it — is constructed once
+	 * with `scope: 'main'`, so every wire event in the run is main-scoped however
+	 * deep in the graph it originated. The subagent lanes on the timeline come
+	 * from LangGraph's stream namespaces, not from the wire, so there is no scope
+	 * on an `http_response` to attribute by.
+	 *
+	 * What IS true is that `task` is awaited: model calls landing between a
+	 * dispatch and its result were made by that subagent. Exact while dispatches
+	 * are sequential, which is what this app's prompts require for the gated ones.
+	 * When two overlap the window is genuinely ambiguous, so those tokens go to
+	 * neither and the whole reading is flagged instead of quietly guessed at.
+	 */
+	const spent: Record<string, number> = {};
+	let ambiguous = false;
+	/** Dispatches currently open, oldest first — `task` ids to subagent names. */
+	const openCalls: { id: string; name: string }[] = [];
+
 	for (const e of bus.events) {
-		if (e.kind !== 'tool_start' || e.name !== 'task') continue;
-		const type = (e.args as { subagent_type?: unknown } | null)?.subagent_type;
-		if (typeof type !== 'string') continue;
-		const c = (calls[type] ??= { n: 0, last: '' });
-		c.n++;
-		c.last = e.id;
+		if (e.kind === 'tool_start' && e.name === 'task') {
+			const type = (e.args as { subagent_type?: unknown } | null)?.subagent_type;
+			if (typeof type !== 'string') continue;
+			const c = (calls[type] ??= { n: 0, last: '' });
+			c.n++;
+			c.last = e.id;
+			openCalls.push({ id: e.toolCallId, name: type });
+			continue;
+		}
+		if (e.kind === 'tool_end' && e.name === 'task') {
+			const at = openCalls.findIndex((o) => o.id === e.toolCallId);
+			const hit = at >= 0 ? openCalls.splice(at, 1)[0] : openCalls.shift();
+			if (hit) returned[hit.name] = (returned[hit.name] ?? 0) + e.chars;
+			continue;
+		}
+		if (e.kind === 'http_response' && e.rawUsage && openCalls.length) {
+			const u = e.rawUsage as { input_tokens?: number };
+			if (openCalls.length === 1) {
+				spent[openCalls[0].name] = (spent[openCalls[0].name] ?? 0) + (u.input_tokens ?? 0);
+			} else {
+				ambiguous = true;
+			}
+		}
 	}
 
 	// general-purpose was handed `defaultTools` — the main agent's whole set — so
@@ -136,7 +198,12 @@ export function crew(bus: EventBus): CrewMember[] {
 			tools: ours
 				? { count: declared ?? 0, known: declared !== undefined }
 				: { count: mainToolCount, known: mainToolCount > 0 },
-			calls: calls[name] ?? { n: 0, last: '' }
+			calls: calls[name] ?? { n: 0, last: '' },
+			toolNames: OUR_TOOL_NAMES.get(name) ?? [],
+			prompt: OUR_PROMPT.get(name) ?? '',
+			spent: spent[name] ?? 0,
+			returned: returned[name] ?? 0,
+			spentAmbiguous: ambiguous
 		};
 	});
 }

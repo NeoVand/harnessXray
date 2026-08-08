@@ -18,6 +18,7 @@
 	import { replay } from '$lib/xray/replay.svelte';
 	import { exitReplay } from '$lib/lab/demo';
 	import ContextDonut from '$lib/components/xray/ContextDonut.svelte';
+	import RunPanel from '$lib/components/xray/RunPanel.svelte';
 	import FilterMenu from '$lib/components/xray/FilterMenu.svelte';
 	import { bus } from '$lib/xray/bus.svelte';
 	import { KIND_COLOR } from '$lib/xray/format';
@@ -55,7 +56,17 @@
 	// opened and closed — that unmounts the whole component, and local state
 	// would snap back on every close. Graph first: it is the fastest-moving
 	// panel, and the default view should be the one that is alive.
-	let inspectorBottom = $state<'graph' | 'tools' | 'skills' | 'memory' | 'ledger'>('graph');
+	let inspectorBottom = $state<'graph' | 'tools' | 'subagents' | 'skills' | 'memory'>('graph');
+
+	/**
+	 * The middle pane's second reading.
+	 *
+	 * The ledger used to sit in the inspector's dashboard row, competing with the
+	 * graph for a slot nobody wanted it in — it answers the same question the
+	 * timeline does ("what did this run do") in a different unit, so it belongs
+	 * beside the timeline rather than beside the topology.
+	 */
+	let midView = $state<'events' | 'ledger'>('events');
 
 	const frameCount = $derived.by(() => {
 		void bus.version;
@@ -439,47 +450,66 @@
 												class="hx-rule hx-frost absolute inset-x-0 top-0 z-20 flex h-8 items-center
 										       gap-3.5 border-y px-3"
 											>
-												<span
-													class="hx-eyebrow flex h-full items-center gap-1.5"
-													style:color="var(--hx-accent)"
-												>
-													<HugeiconsIcon icon={ICON.time} size={12} strokeWidth={1.5} />
-													events
-												</span>
-												<span class="ml-auto flex items-center gap-3 text-muted-foreground">
-													{#if frameCount}
-														<button
-															class="hx-eyebrow flex items-center gap-1 transition-colors
+												{#each [{ id: 'events', label: 'events', icon: ICON.time }, { id: 'ledger', label: 'ledger', icon: ICON.tokens }] as v (v.id)}
+													<button
+														class="hx-eyebrow flex h-full items-center gap-1.5 transition-colors
 													       hover:text-foreground"
-															style:color={showFrames ? 'var(--hx-accent)' : undefined}
-															onclick={() => (showFrames = !showFrames)}
-															aria-label="Raw SSE frames"
-															{@attach tip('Raw SSE frames — every token exactly as it arrived')}
-														>
-															<HugeiconsIcon icon={ICON.frame} size={11} strokeWidth={1.5} />
-															{frameCount}
-														</button>
-													{/if}
+														style:color={midView === v.id ? 'var(--hx-accent)' : undefined}
+														onclick={() => (midView = v.id as 'events' | 'ledger')}
+														{@attach tip(
+															v.id === 'events'
+																? 'Every event in the run, as it happened'
+																: 'The same run in money — which kind of token took it'
+														)}
+													>
+														<HugeiconsIcon icon={v.icon} size={12} strokeWidth={1.5} />
+														{v.label}
+													</button>
+												{/each}
+												<span class="ml-auto flex items-center gap-3 text-muted-foreground">
+													{#if midView === 'events'}
+														{#if frameCount}
+															<button
+																class="hx-eyebrow flex items-center gap-1 transition-colors
+														       hover:text-foreground"
+																style:color={showFrames ? 'var(--hx-accent)' : undefined}
+																onclick={() => (showFrames = !showFrames)}
+																aria-label="Raw SSE frames"
+																{@attach tip('Raw SSE frames — every token exactly as it arrived')}
+															>
+																<HugeiconsIcon icon={ICON.frame} size={11} strokeWidth={1.5} />
+																{frameCount}
+															</button>
+														{/if}
 
-													<FilterMenu
-														options={kindOptions}
-														hidden={hiddenKinds}
-														label="event kinds"
-													/>
+														<FilterMenu
+															options={kindOptions}
+															hidden={hiddenKinds}
+															label="event kinds"
+														/>
+													{/if}
 												</span>
 											</div>
 											<div class="h-full">
-												<EventTimeline
-													{selectedId}
-													{showFrames}
-													hidden={hiddenKinds}
-													topPad="32px"
-													onselect={select}
-													onopenasset={(p) => {
-														openPath = p;
-														if (p.endsWith('.pdf')) readPath = p;
-													}}
-												/>
+												{#if midView === 'ledger'}
+													<!-- pt-8 rather than the timeline's topPad: the ledger is a fixed
+													     readout, not a scroller sliding under the bar. -->
+													<div class="h-full pt-8">
+														<RunPanel />
+													</div>
+												{:else}
+													<EventTimeline
+														{selectedId}
+														{showFrames}
+														hidden={hiddenKinds}
+														topPad="32px"
+														onselect={select}
+														onopenasset={(p) => {
+															openPath = p;
+															if (p.endsWith('.pdf')) readPath = p;
+														}}
+													/>
+												{/if}
 											</div>
 										</div>
 									</Resizable.Pane>

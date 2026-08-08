@@ -135,7 +135,6 @@
 						       hover:bg-muted/50"
 						onclick={() => toggle(r.name)}
 						aria-expanded={isOpen}
-						{@attach tip(r.meta.blurb || 'the schema the model is shown')}
 					>
 						<span
 							class="shrink-0"
