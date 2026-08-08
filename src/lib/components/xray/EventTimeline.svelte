@@ -15,6 +15,7 @@
 	import { HugeiconsIcon } from '@hugeicons/svelte';
 	import { ICON } from '$lib/icons';
 	import { tip } from '$lib/hooks/tip';
+	import { isEvicted, EVICT_HELP } from '$lib/agent/eviction';
 
 	interface Props {
 		selectedId: string | null;
@@ -143,6 +144,10 @@
 			{@const e = r.e}
 			{@const active = e.id === selectedId}
 			{@const skillRow = (e.kind === 'tool_start' || e.kind === 'tool_end') && !!e.skill}
+			<!-- A file the HARNESS parked, not one the agent wrote. Same fs_write
+			     event; only the path distinguishes them, and without the caption it
+			     reads as the agent creating a file for no reason. -->
+			{@const evictRow = e.kind === 'fs_write' && isEvicted(e.path)}
 			{#if r.laneStart}
 				<div
 					class="flex items-center gap-1.5 border-b
@@ -187,10 +192,14 @@
 				<span class="min-w-0">
 					<span
 						class="hx-eyebrow"
-						title={skillRow ? SKILL_READ_HELP : KIND_HELP[e.kind]}
-						style:color={active ? KIND_COLOR[e.displayKind as DisplayKind] : undefined}
+						title={skillRow ? SKILL_READ_HELP : evictRow ? EVICT_HELP : KIND_HELP[e.kind]}
+						style:color={evictRow
+							? 'var(--hx-interrupt)'
+							: active
+								? KIND_COLOR[e.displayKind as DisplayKind]
+								: undefined}
 					>
-						{skillRow ? 'skill' : KIND_LABEL[e.kind]}
+						{skillRow ? 'skill' : evictRow ? 'evicted' : KIND_LABEL[e.kind]}
 					</span>
 					<span class="block truncate text-xs text-foreground/85">{summarise(e)}</span>
 				</span>

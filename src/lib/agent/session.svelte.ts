@@ -19,6 +19,7 @@ import { sources } from './sources';
 import { replay } from '$lib/xray/replay.svelte';
 import type { Todo, ToolStart as ToolStartEvent } from '$lib/xray/events';
 import type { IdbStore, IdbCheckpointSaver } from './persistence';
+import { EVICT_DEFAULT_TOKENS } from './eviction';
 import {
 	DEFAULT_INTERRUPT_ON,
 	type Decision,
@@ -126,6 +127,7 @@ const THREADS_KEY = 'hx:threads';
  */
 const DEFAULT_STEP_CEILING = 250;
 const CEILING_KEY = 'hx:step-ceiling';
+const EVICT_KEY = 'hx:evict-tokens';
 
 /** Pull display text from a message chunk. v1 content is typed blocks, not a string. */
 function textOf(msg: Record<string, unknown>): string {
@@ -169,6 +171,16 @@ class Session {
 	/** Super-step budget per invocation — the runaway guard, user-tunable. */
 	stepCeiling = $state(DEFAULT_STEP_CEILING);
 	/**
+	 * Tool-result size, in tokens, past which the filesystem middleware parks the
+	 * result in a file and hands the model a pointer instead.
+	 *
+	 * Exposed because at the framework default (20,000 tokens, ~80KB) it never
+	 * fires here — our own `fetch_paper` caps at 60,000 chars — so a real harness
+	 * behaviour sat armed and undemonstrable. Turn it down and the next paper
+	 * evicts, in front of the class. See eviction.ts.
+	 */
+	evictTokens = $state(EVICT_DEFAULT_TOKENS);
+	/**
 	 * The last run stopped without finishing, and a Continue resumes it.
 	 * 'ceiling' is the step guard; 'network' is a dropped connection mid-run.
 	 * Either way the checkpoint holds everything and resuming is one
@@ -205,12 +217,19 @@ class Session {
 			sources.setScope(this.threadId);
 			const stored = Number(localStorage.getItem(CEILING_KEY));
 			if (Number.isFinite(stored) && stored >= 50) this.stepCeiling = Math.min(stored, 2000);
+			const evict = Number(localStorage.getItem(EVICT_KEY));
+			if (Number.isFinite(evict) && evict >= 500) this.evictTokens = Math.min(evict, 200_000);
 		}
 	}
 
 	setStepCeiling(n: number) {
 		this.stepCeiling = Math.max(50, Math.min(2000, Math.round(n) || DEFAULT_STEP_CEILING));
 		if (browser) localStorage.setItem(CEILING_KEY, String(this.stepCeiling));
+	}
+
+	setEvictTokens(n: number) {
+		this.evictTokens = Math.max(500, Math.min(200_000, Math.round(n) || EVICT_DEFAULT_TOKENS));
+		if (browser) localStorage.setItem(EVICT_KEY, String(this.evictTokens));
 	}
 
 	/**
@@ -441,7 +460,10 @@ class Session {
 		// The skill library is part of the signature because SkillsMiddleware
 		// scans once and caches the result in a closure. A skill added to a live
 		// agent would simply never be seen.
-		const signature = `${this.model}:${keys.tail}:${JSON.stringify(this.interruptOn)}:${skills.signature}:${replay.active ? `replay:${replay.fixtureName}` : 'live'}`;
+		// evictTokens is in the signature because the threshold is captured by the
+		// filesystem middleware when it is constructed — changing it on a live
+		// agent would be silently ignored, which is the worst kind of setting.
+		const signature = `${this.model}:${keys.tail}:${JSON.stringify(this.interruptOn)}:${skills.signature}:${this.evictTokens}:${replay.active ? `replay:${replay.fixtureName}` : 'live'}`;
 		if (this.#agent && this.#agentKey === signature) return this.#agent;
 
 		const {
@@ -449,7 +471,8 @@ class Session {
 			StateBackend,
 			StoreBackend,
 			CompositeBackend,
-			createSummarizationMiddleware
+			createSummarizationMiddleware,
+			createFilesystemMiddleware
 		} = await import('deepagents/browser');
 		const { IdbCheckpointSaver, IdbStore } = await import('./persistence');
 
@@ -507,6 +530,15 @@ class Session {
 			// Stating the number keeps the gauge in the UI and the moment it fires
 			// describing the same limit.
 			middleware: [
+				// The filesystem layer, named explicitly for one reason: the eviction
+				// threshold. Naming it here REPLACES the default instance rather than
+				// adding a second, exactly as with the summarizer below — so the
+				// backend must be the same factory the others get, or they disagree
+				// about what exists. Everything else keeps the framework's defaults.
+				createFilesystemMiddleware({
+					backend,
+					toolTokenLimitBeforeEvict: this.evictTokens
+				}),
 				createSummarizationMiddleware({
 					backend,
 					trigger: { type: 'tokens', value: Math.round(INPUT_LIMIT * COMPACT_AT) },

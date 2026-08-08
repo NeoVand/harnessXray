@@ -3,6 +3,8 @@
 	import { HugeiconsIcon } from '@hugeicons/svelte';
 	import { ICON } from '$lib/icons';
 	import { fileType } from '$lib/xray/filetype';
+	import { isEvicted, EVICT_HELP } from '$lib/agent/eviction';
+	import { tip } from '$lib/hooks/tip';
 
 	/**
 	 * A real tree, not a list of full paths.
@@ -90,6 +92,17 @@
 					<HugeiconsIcon icon={ICON.expand} size={10} strokeWidth={1.5} />
 				</span>
 				<span class="font-mono text-[11px] text-muted-foreground">{child.name}</span>
+				{#if isEvicted(child.path + '/')}
+					<!-- Not the agent's doing. Without this the folder reads as a
+					     directory it chose to create, which is exactly backwards. -->
+					<span
+						class="hx-eyebrow shrink-0 text-[8px]"
+						style:color="var(--hx-interrupt)"
+						{@attach tip(EVICT_HELP)}
+					>
+						the harness
+					</span>
+				{/if}
 			</button>
 			{#if open}
 				{@render branch(child, depth + 1)}
