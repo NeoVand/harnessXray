@@ -101,7 +101,11 @@
 		     would collide on name+args and throw during mount. -->
 		{#each actions as a, ai (a.name + JSON.stringify(a.args) + ai)}
 			<div class="mb-2">
-				<p class="flex items-baseline gap-1.5 font-mono text-[11px]">
+				<!-- items-center, not items-baseline: an inline SVG's baseline is its
+				     bottom edge, so baseline alignment sits the glyph a couple of
+				     pixels high against the tool name. Every other icon-and-label row
+				     in the app centres for the same reason. -->
+				<p class="flex items-center gap-1.5 font-mono text-[11px]">
 					<HugeiconsIcon icon={toolMeta(a.name).icon} size={12} strokeWidth={1.5} />
 					{a.name}
 				</p>

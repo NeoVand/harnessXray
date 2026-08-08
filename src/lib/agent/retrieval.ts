@@ -239,17 +239,38 @@ export interface ExtractedFigure {
 }
 
 /**
- * Resolve a figure src against the page it appeared on — browser semantics.
+ * Resolve a figure src against the page it appeared on.
  *
- * The srcs are relative paths that already carry the versioned directory
- * ("2602.22296v1/x1.png") while the page URL is version-less. Appending a
- * slash to the page URL kept the version-less id as a directory and 404'd
- * every figure; the browser rule — strip the last path segment, then resolve
- * — lands on the real asset. Exported pure, so the geometry stays pinned by
- * a test instead of by luck.
+ * arXiv's LaTeXML pages come in two shapes and only one of them works under
+ * plain browser semantics, which is why extraction silently produced nothing
+ * for a whole class of papers:
+ *
+ *   src "2602.22296v1/x1.png" on page /html/2602.22296v1  — repeats the
+ *       versioned directory. Browser semantics (drop the last segment, then
+ *       resolve) is exactly right.
+ *   src "x1.png" or "pic/image.png" on page /html/2401.02385 — relative to the
+ *       paper's own directory. Browser semantics drops "2401.02385" as though
+ *       it were a filename and asks for /html/x1.png, which does not exist.
+ *
+ * So the last path segment is a directory unless the src already names it. Both
+ * shapes verified live against arxiv.org: every case below returns 200
+ * image/png, and the old rule returned nothing at all for the second.
+ *
+ * Exported pure so the geometry stays pinned by a test instead of by luck.
  */
 export function resolveFigureUrl(src: string, pageUrl: string): string {
-	return new URL(src, pageUrl).href;
+	if (/^https?:/i.test(src)) return src;
+	const page = new URL(pageUrl);
+	// Version-insensitively, because the page is routinely version-less while the
+	// src names "…v1" — that mismatch is the whole reason the two shapes exist.
+	const bare = (seg: string) => seg.replace(/v\d+$/, '');
+	const last = page.pathname.replace(/\/+$/, '').split('/').pop() ?? '';
+	const first = src.replace(/^\.?\//, '').split('/')[0];
+	const dir =
+		bare(first) === bare(last)
+			? page.pathname.replace(/[^/]*$/, '') // the src carries the directory
+			: page.pathname.replace(/\/*$/, '/'); // the page IS the directory
+	return new URL(src, new URL(dir, page.origin)).href;
 }
 
 /**
