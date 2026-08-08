@@ -379,6 +379,55 @@
 			background: var(--background);
 		}
 	}
+
+	/*
+	   The tooltip bubble (one per page, driven by $lib/hooks/tip).
+
+	   Set like a readout, not like a product tooltip: mono, hairline, frosted,
+	   the same materials as the panel chrome it explains. A solid dark pill with
+	   an arrow would be the only object in the app that looks like it came from
+	   somewhere else.
+
+	   It is positioned with `transform` rather than `top`/`left` so moving it
+	   between anchors stays on the compositor, and it is laid out at all times
+	   so its size can be measured before it is placed — only opacity changes.
+	*/
+	.hx-tip {
+		position: fixed;
+		top: 0;
+		left: 0;
+		z-index: 60;
+		max-width: 20rem;
+		padding: 0.25rem 0.5rem;
+		border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+		border-radius: 3px;
+		background: color-mix(in oklab, var(--popover) 88%, transparent);
+		backdrop-filter: blur(10px) saturate(1.4);
+		-webkit-backdrop-filter: blur(10px) saturate(1.4);
+		box-shadow: 0 6px 18px -10px rgb(0 0 0 / 0.55);
+		color: var(--popover-foreground);
+		font-family: var(--font-mono);
+		font-size: 0.6875rem;
+		line-height: 1.5;
+		text-wrap: pretty;
+		/* Never a hit target: the bubble can overlap the control it describes. */
+		pointer-events: none;
+		opacity: 0;
+		transition: opacity 90ms ease-out;
+	}
+	.hx-tip[data-open] {
+		opacity: 1;
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.hx-tip {
+			transition: none;
+		}
+	}
+	@supports not (backdrop-filter: blur(1px)) {
+		.hx-tip {
+			background: var(--popover);
+		}
+	}
 }
 
 /* ── Scrollbars ──────────────────────────────────────────────────────────

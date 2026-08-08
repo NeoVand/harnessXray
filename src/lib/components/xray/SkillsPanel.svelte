@@ -4,6 +4,7 @@
 	import { bus } from '$lib/xray/bus.svelte';
 	import { HugeiconsIcon } from '@hugeicons/svelte';
 	import { ICON } from '$lib/icons';
+	import { tip } from '$lib/hooks/tip';
 
 	/**
 	 * Which skills the run is carrying, and what they cost.
@@ -50,7 +51,7 @@
 		<button
 			class="hx-eyebrow ml-auto flex items-center gap-1 transition-colors hover:text-foreground"
 			onclick={() => onmanage?.()}
-			title="Open the skill library"
+			{@attach tip('Open the skill library')}
 		>
 			<HugeiconsIcon icon={ICON.settings} size={11} strokeWidth={1.5} />
 			manage

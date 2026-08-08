@@ -9,6 +9,7 @@
 	import { session } from '$lib/agent/session.svelte';
 	import { HugeiconsIcon } from '@hugeicons/svelte';
 	import { ICON, type IconValue } from '$lib/icons';
+	import { tip } from '$lib/hooks/tip';
 
 	interface Props {
 		/** A figure clicked in the timeline; the files pane focuses on it. */
@@ -43,11 +44,34 @@
 	 */
 	type Bottom = 'graph' | 'skills' | 'memory' | 'ledger';
 
-	const BOTTOM_TABS: { id: Bottom; label: string; icon: IconValue }[] = [
-		{ id: 'graph', label: 'graph', icon: ICON.graph },
-		{ id: 'skills', label: 'skills', icon: ICON.skill },
-		{ id: 'memory', label: 'memory', icon: ICON.memory },
-		{ id: 'ledger', label: 'ledger', icon: ICON.tokens }
+	// The hint is what the tab *shows*, not what it is called — the label
+	// already says that, and a tooltip repeating the word under the pointer
+	// teaches nobody anything.
+	const BOTTOM_TABS: { id: Bottom; label: string; icon: IconValue; hint: string }[] = [
+		{
+			id: 'graph',
+			label: 'graph',
+			icon: ICON.graph,
+			hint: 'The assembled machine — nodes and edges read from the running graph'
+		},
+		{
+			id: 'skills',
+			label: 'skills',
+			icon: ICON.skill,
+			hint: 'The markdown manuals the agent can open, and what each one costs'
+		},
+		{
+			id: 'memory',
+			label: 'memory',
+			icon: ICON.memory,
+			hint: 'The store that outlives this chat — everything under /memories/'
+		},
+		{
+			id: 'ledger',
+			label: 'ledger',
+			icon: ICON.tokens,
+			hint: 'Tokens and dollars, per turn and for the whole run'
+		}
 	];
 
 	const counts = $derived({
@@ -97,6 +121,7 @@
 						       hover:text-foreground"
 						style:color={bottom === t.id ? 'var(--hx-accent)' : undefined}
 						onclick={() => (bottom = t.id)}
+						{@attach tip(t.hint)}
 					>
 						<HugeiconsIcon icon={t.icon} size={12} strokeWidth={1.5} />
 						{t.label}

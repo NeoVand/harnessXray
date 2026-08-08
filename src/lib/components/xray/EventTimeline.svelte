@@ -14,6 +14,7 @@
 	import { explanations, explain } from '$lib/lab/sidecar.svelte';
 	import { HugeiconsIcon } from '@hugeicons/svelte';
 	import { ICON } from '$lib/icons';
+	import { tip } from '$lib/hooks/tip';
 
 	interface Props {
 		selectedId: string | null;
@@ -227,8 +228,8 @@
 							style:color={!rawMode ? 'var(--hx-accent)' : undefined}
 							onclick={() => (rawMode = false)}
 							aria-pressed={!rawMode}
-							title="Detail — the payload, decomposed"
 							aria-label="Detail view"
+							{@attach tip('Detail — the payload, decomposed')}
 						>
 							<HugeiconsIcon icon={ICON.state} size={12} strokeWidth={1.5} />
 						</button>
@@ -237,8 +238,8 @@
 							style:color={rawMode ? 'var(--hx-accent)' : undefined}
 							onclick={() => (rawMode = true)}
 							aria-pressed={rawMode}
-							title="Raw — the literal wire, frame by frame"
 							aria-label="Raw view"
+							{@attach tip('Raw — the literal wire, frame by frame')}
 						>
 							<HugeiconsIcon icon={ICON.code} size={12} strokeWidth={1.5} />
 						</button>
@@ -246,7 +247,9 @@
 							<button
 								class="hx-eyebrow flex items-center gap-1 transition-colors hover:text-foreground"
 								onclick={() => explain(e)}
-								title="Have the lab explain this event — one small luna call, outside the agent"
+								{@attach tip(
+									'Have the lab explain this event — one small luna call, outside the agent'
+								)}
 							>
 								<HugeiconsIcon icon={ICON.sparkle} size={11} strokeWidth={1.5} />
 								explain
