@@ -37,6 +37,7 @@ import {
 	PlusSignIcon,
 	TextAlignLeftIcon,
 	Clock01Icon,
+	Pulse01Icon,
 	ComputerIcon,
 	Database01Icon,
 	Delete02Icon,
@@ -155,6 +156,15 @@ export const ICON = {
 	frame: FlashIcon,
 	message: Message01Icon,
 	tokens: ChartLineData01Icon,
+	/**
+	 * The run as it happened, in order.
+	 *
+	 * A heartbeat, not a clock — `history` is the clock, and the two sat side by
+	 * side meaning very different things: one is other conversations, the other
+	 * is this one's pulse. It also reads as kin to `wire` (the same trace, boxed),
+	 * which is the right family resemblance.
+	 */
+	events: Pulse01Icon,
 	time: Clock01Icon,
 	run: PlayIcon,
 	pause: PauseIcon,

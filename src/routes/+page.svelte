@@ -500,7 +500,7 @@
 												class="hx-rule hx-frost absolute inset-x-0 top-0 z-20 flex h-8 items-center
 										       gap-3.5 border-y px-3"
 											>
-												{#each [{ id: 'events', label: 'events', icon: ICON.time }, { id: 'ledger', label: 'ledger', icon: ICON.tokens }] as v (v.id)}
+												{#each [{ id: 'events', label: 'events', icon: ICON.events }, { id: 'ledger', label: 'ledger', icon: ICON.tokens }] as v (v.id)}
 													<button
 														class="hx-eyebrow flex h-full items-center gap-1.5 transition-colors
 													       hover:text-foreground"
