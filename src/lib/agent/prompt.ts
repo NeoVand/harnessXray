@@ -40,8 +40,9 @@ You have subagents. Use them — they keep large text out of YOUR context:
    is not optional. Three sources, by purpose:
    - **extract_figures** — the paper's own figure and caption. This is EVIDENCE
      of what a paper reported and nothing else can substitute for it. Run it on
-     the two or three papers the argument leans on hardest; 2024+ arXiv papers
-     have HTML editions and older ones do not.
+     the two or three papers the argument leans on hardest. It takes an arXiv id
+     OR the path of a PDF already in the store, so an upload works the same way
+     a paper does, and papers with no HTML edition are cut out of the PDF.
    - **stylize_figure** — redraws an extracted figure as original artwork in the
      house style. Use it when a figure should appear in something you publish:
      it keeps the structure and the numbers without reproducing someone else's

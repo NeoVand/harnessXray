@@ -274,6 +274,45 @@ export function resolveFigureUrl(src: string, pageUrl: string): string {
 }
 
 /**
+ * Put one figure in the asset store and announce it.
+ *
+ * Both extraction paths end here, so a figure from a 2024 HTML edition and a
+ * figure cropped out of a 1997 PDF are the same kind of thing downstream: same
+ * store, same `source: 'extracted'` provenance, same timeline row with a
+ * preview. `list_figures` and the report-writer's checklist never have to know
+ * which route a picture took.
+ */
+async function saveFigure(fig: {
+	path: string;
+	dataUrl: string;
+	bytes: number;
+	arxivId: string;
+	caption: string;
+}): Promise<ExtractedFigure> {
+	const { assets, thumbnail } = await import('$lib/storage/assets.svelte');
+	const { bus } = await import('$lib/xray/bus.svelte');
+	await assets.put({
+		path: fig.path,
+		dataUrl: fig.dataUrl,
+		kind: 'image',
+		bytes: fig.bytes,
+		createdAt: Date.now(),
+		meta: { arxivId: fig.arxivId, caption: fig.caption, source: 'extracted' }
+	});
+	bus.emit({
+		kind: 'figure_extracted',
+		scope: 'main',
+		arxivId: fig.arxivId,
+		path: fig.path,
+		caption: fig.caption,
+		preview: await thumbnail(fig.dataUrl, 320),
+		bytes: fig.bytes,
+		label: fig.path
+	});
+	return { path: fig.path, caption: fig.caption, bytes: fig.bytes };
+}
+
+/**
  * Lift the real figures out of a paper's HTML edition.
  *
  * `htmlToText` deliberately drops everything that is not prose; this walks the
@@ -318,8 +357,7 @@ export async function fetchPaperFigures(
 	if (!nodes.length)
 		return { figures: [], note: `The HTML edition of arXiv:${id} contains no figures.` };
 
-	const { assets, toBase64, thumbnail } = await import('$lib/storage/assets.svelte');
-	const { bus } = await import('$lib/xray/bus.svelte');
+	const { toBase64 } = await import('$lib/storage/assets.svelte');
 	const slug = id.replace(/\//g, '-').replace(/\./g, '-');
 
 	const figures: ExtractedFigure[] = [];
@@ -347,26 +385,9 @@ export async function fetchPaperFigures(
 			const buf = await imgRes.arrayBuffer();
 			const dataUrl = `data:${mime};base64,${toBase64(buf)}`;
 			const path = `/figures/${slug}-fig${figures.length + 1}.${ext}`;
-
-			await assets.put({
-				path,
-				dataUrl,
-				kind: 'image',
-				bytes: buf.byteLength,
-				createdAt: Date.now(),
-				meta: { arxivId: id, caption, source: 'extracted' }
-			});
-			bus.emit({
-				kind: 'figure_extracted',
-				scope: 'main',
-				arxivId: id,
-				path,
-				caption,
-				preview: await thumbnail(dataUrl, 320),
-				bytes: buf.byteLength,
-				label: path
-			});
-			figures.push({ path, caption, bytes: buf.byteLength });
+			figures.push(
+				await saveFigure({ path, dataUrl, bytes: buf.byteLength, arxivId: id, caption })
+			);
 		} catch (e) {
 			// One unfetchable figure should not sink the rest — but its reason
 			// must survive, or the failure reads as superstition.
@@ -380,6 +401,129 @@ export async function fetchPaperFigures(
 				figures: [],
 				note: `Found ${nodes.length} figures in arXiv:${id} but none could be downloaded (first error: ${firstFailure || 'none had a usable src'}).`
 			};
+}
+
+/** A stored data URL back to bytes. */
+function bytesOf(dataUrl: string): ArrayBuffer {
+	const bin = atob(dataUrl.slice(dataUrl.indexOf(',') + 1));
+	const out = new Uint8Array(bin.length);
+	for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+	return out.buffer;
+}
+
+/** The PDF bytes for a paper: the copy we already kept, or a fresh download. */
+async function pdfBytesFor(id: string): Promise<ArrayBuffer> {
+	const { assets } = await import('$lib/storage/assets.svelte');
+	const stored = await assets.get(`/papers/${id.replace(/\//g, '-')}.pdf`);
+	// fetch_paper keeps the PDF it downloaded, so a paper already read costs
+	// nothing to extract from — and cannot be rate-limited on the second ask.
+	if (stored?.dataUrl) return bytesOf(stored.dataUrl);
+
+	let res: Response;
+	try {
+		res = await labFetch(`https://arxiv.org/pdf/${id}`);
+	} catch {
+		throw new Error(
+			`arxiv.org refused the connection while fetching the PDF of ${id} — usually rate ` +
+				`limiting after many parallel fetches. Wait a moment and retry.`
+		);
+	}
+	if (!res.ok) throw new Error(`Could not download the PDF of arXiv:${id} (HTTP ${res.status}).`);
+	return res.arrayBuffer();
+}
+
+/**
+ * Figures out of anything: an arXiv id, or a PDF already in the store.
+ *
+ * Two routes, tried in the order of how good the result is. arXiv's HTML
+ * edition holds the publisher's own image files and its own `<figcaption>`, so
+ * when it exists nothing beats it. It exists for 2024+ papers only, which used
+ * to be the end of the story — a pre-2024 paper, a legacy id, or a PDF someone
+ * dragged into the app all got a refusal.
+ *
+ * The PDF route covers the rest by cropping the rendered page around each
+ * caption. It is a redrawing of the page rather than the original asset, which
+ * is why it is second — but it works on vector figures, on scanned-era layouts,
+ * and on any file at all, and it recovers the paper's real caption either way.
+ */
+export async function extractFigures(
+	source: string,
+	max = 6
+): Promise<{ figures: ExtractedFigure[]; note: string; via: 'html' | 'pdf' | 'none' }> {
+	const raw = source.trim().replace(/^arxiv:/i, '');
+
+	// A path means a file already in the store — an upload, or a paper we kept.
+	// There is no arXiv id to attribute to, so the file's own name stands in.
+	if (raw.startsWith('/')) {
+		const { assets } = await import('$lib/storage/assets.svelte');
+		const asset = await assets.get(raw);
+		if (!asset)
+			return { figures: [], note: `No file at ${raw}. Check list_figures or ls.`, via: 'none' };
+		if (asset.kind !== 'pdf')
+			return {
+				figures: [],
+				note: `${raw} is not a PDF — figures can only be cut out of a PDF.`,
+				via: 'none'
+			};
+		const id =
+			String(asset.meta?.arxivId ?? '') || (raw.split('/').pop() ?? raw).replace(/\.pdf$/i, '');
+		return fromPdf(bytesOf(asset.dataUrl), id, max);
+	}
+
+	const html = await fetchPaperFigures(raw, max);
+	if (html.figures.length) return { ...html, via: 'html' };
+
+	try {
+		const out = await fromPdf(await pdfBytesFor(raw), raw, max);
+		// The HTML attempt's reason still matters when the PDF found nothing
+		// either — otherwise the model is told only about the second failure.
+		if (!out.figures.length) return { ...out, note: `${html.note} ${out.note}`.trim() };
+		return out;
+	} catch (e) {
+		const why = e instanceof Error ? e.message : String(e);
+		return { figures: [], note: `${html.note} ${why}`.trim(), via: 'none' };
+	}
+}
+
+/** The PDF route: crop each caption's figure out of the rendered page. */
+async function fromPdf(
+	bytes: ArrayBuffer,
+	id: string,
+	max: number
+): Promise<{ figures: ExtractedFigure[]; note: string; via: 'pdf' | 'none' }> {
+	const { extractPdfFigures } = await import('./pdf-figures');
+	const { figures: found, skipped, scanned } = await extractPdfFigures(bytes, { max });
+	if (!found.length) {
+		return {
+			figures: [],
+			note: scanned
+				? `Found figure captions on ${scanned} page(s) of ${id} but could not cut out a figure: ` +
+					`${skipped.slice(0, 3).join('; ')}.`
+				: `No figure captions were found in the text layer of ${id} — it may be a scanned PDF, ` +
+					`or its figures may be labelled in a way this cannot read.`,
+			via: 'none'
+		};
+	}
+
+	const slug = id.replace(/\//g, '-').replace(/\./g, '-');
+	const out: ExtractedFigure[] = [];
+	for (const f of found) {
+		const n = f.label.match(/\d+/)?.[0] ?? String(out.length + 1);
+		out.push(
+			await saveFigure({
+				path: `/figures/${slug}-fig${n}.png`,
+				dataUrl: f.dataUrl,
+				bytes: f.bytes,
+				arxivId: id,
+				caption: f.caption
+			})
+		);
+	}
+	return {
+		figures: out,
+		note: skipped.length ? `Skipped: ${skipped.slice(0, 3).join('; ')}.` : '',
+		via: 'pdf'
+	};
 }
 
 /** Strip an arXiv LaTeXML page down to readable text, keeping section structure. */

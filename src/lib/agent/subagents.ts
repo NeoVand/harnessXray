@@ -46,9 +46,10 @@ export const SUBAGENTS = [
 1. fetch_paper for the id you were given.
 2. Write your notes to the exact path fetch_paper gives you — do not invent one.
    Record claim, method, evidence, limitations.
-3. If the paper is 2024+ and one figure carries its central result, you may
-   extract_figures and record that figure's path and caption in your notes.
-   At most two; skip decorative ones.
+3. If one figure carries the paper's central result, extract_figures and record
+   that figure's path and caption in your notes. At most two; skip decorative
+   ones. It works on any paper — new ones give the publisher's own image files,
+   older ones are cut out of the PDF page around the caption.
 4. Reply with at most 200 words: the paper's central claim, what it actually
    demonstrates, and the one caveat a reviewer should know. If you extracted
    figures, END the reply with one line per figure, exactly:
