@@ -15,6 +15,8 @@
 	import { HugeiconsIcon } from '@hugeicons/svelte';
 	import { ICON } from '$lib/icons';
 	import { tip } from '$lib/hooks/tip';
+	import { isEvicted, EVICT_HELP } from '$lib/agent/eviction';
+	import { INHERITANCE_HELP, NOT_INHERITED } from '$lib/agent/subagent-state';
 
 	interface Props {
 		selectedId: string | null;
@@ -48,6 +50,8 @@
 		/** First row of a consecutive subagent stretch — gets the lane header. */
 		laneStart: boolean;
 		laneLabel: string;
+		/** First time this lane opens in the run — the only row that explains it. */
+		laneFirst: boolean;
 	}
 
 	/**
@@ -62,13 +66,25 @@
 		void bus.version; // the log is a plain array; this is the reactive edge
 		const out: Row[] = [];
 		let prevScope = '';
+		// A lane opens every time the timeline re-enters it, which for one subagent
+		// is many times over a run. The header repeats because the indent has to;
+		// the *explanation* must not, or it becomes wallpaper.
+		//
+		// A plain record rather than a Set: this is scratch, rebuilt from scratch
+		// on every derivation and never read reactively, so a SvelteSet would buy
+		// a proxy nobody observes.
+		const explained: Record<string, true> = {};
 		for (const e of bus.events) {
 			if ((!showFrames && e.kind === 'http_sse_frame') || hidden.has(e.displayKind)) continue;
 			const sub = e.scope !== 'main';
+			const laneStart = sub && e.scope !== prevScope;
+			const laneFirst = laneStart && !explained[e.scope];
+			if (laneFirst) explained[e.scope] = true;
 			out.push({
 				e,
 				sub,
-				laneStart: sub && e.scope !== prevScope,
+				laneStart,
+				laneFirst,
 				laneLabel: e.lane ?? (sub ? e.scope.slice(4).split(':')[0] : '')
 			});
 			prevScope = e.scope;
@@ -143,16 +159,45 @@
 			{@const e = r.e}
 			{@const active = e.id === selectedId}
 			{@const skillRow = (e.kind === 'tool_start' || e.kind === 'tool_end') && !!e.skill}
+			<!-- A file the HARNESS parked, not one the agent wrote. Same fs_write
+			     event; only the path distinguishes them, and without the caption it
+			     reads as the agent creating a file for no reason. -->
+			{@const evictRow = e.kind === 'fs_write' && isEvicted(e.path)}
 			{#if r.laneStart}
 				<div
-					class="flex items-center gap-1.5 border-b
-					       border-[color-mix(in_oklab,var(--border)_45%,transparent)] py-1 pl-5"
+					class="flex min-w-0 items-center gap-1.5 border-b
+					       border-[color-mix(in_oklab,var(--border)_45%,transparent)] py-1 pr-3 pl-5"
 				>
 					<HugeiconsIcon icon={ICON.subagent} size={11} strokeWidth={1.5} />
-					<span class="hx-eyebrow" style:color="var(--hx-subagent)">
+					<span class="hx-eyebrow shrink-0" style:color="var(--hx-subagent)">
 						{r.laneLabel || 'subagent'}
 					</span>
-					<span class="hx-eyebrow text-muted-foreground/60">— its own context window</span>
+					<!-- What actually crossed the boundary. The harness filters state on
+					     the way in (EXCLUDED_STATE_KEYS: messages, todos,
+					     structuredResponse, skillsMetadata, memoryContents), so a
+					     subagent inherits the FILES and nothing else — which is both why
+					     these things coordinate through the filesystem and why a custom
+					     subagent has no skills unless it names its own directory. All of
+					     that was already visible as an absence in the context panel and
+					     explained nowhere. -->
+					<!-- One caption, not two: the lane header is a single non-wrapping
+					     row, and stacking the boundary note beside "its own context
+					     window" pushed it past the pane and gave the timeline a
+					     horizontal scrollbar. The first opening says what crossed the
+					     boundary; every re-entry says the shorter thing. Both truncate,
+					     so neither can widen the pane again. -->
+					{#if r.laneFirst}
+						<span
+							class="hx-eyebrow min-w-0 truncate text-muted-foreground/60"
+							{@attach tip(INHERITANCE_HELP)}
+						>
+							inherits files · not {NOT_INHERITED.join(', ')}
+						</span>
+					{:else}
+						<span class="hx-eyebrow min-w-0 truncate text-muted-foreground/60">
+							— its own context window
+						</span>
+					{/if}
 				</div>
 			{/if}
 			<!-- The lane indent is a margin, so width must give those 12px back —
@@ -187,10 +232,14 @@
 				<span class="min-w-0">
 					<span
 						class="hx-eyebrow"
-						title={skillRow ? SKILL_READ_HELP : KIND_HELP[e.kind]}
-						style:color={active ? KIND_COLOR[e.displayKind as DisplayKind] : undefined}
+						title={skillRow ? SKILL_READ_HELP : evictRow ? EVICT_HELP : KIND_HELP[e.kind]}
+						style:color={evictRow
+							? 'var(--hx-interrupt)'
+							: active
+								? KIND_COLOR[e.displayKind as DisplayKind]
+								: undefined}
 					>
-						{skillRow ? 'skill' : KIND_LABEL[e.kind]}
+						{skillRow ? 'skill' : evictRow ? 'evicted' : KIND_LABEL[e.kind]}
 					</span>
 					<span class="block truncate text-xs text-foreground/85">{summarise(e)}</span>
 				</span>

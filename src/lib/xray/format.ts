@@ -1,5 +1,6 @@
 import type { DisplayKind, EventKind, XrayEvent } from './events';
 import { ICON, type IconValue } from '$lib/icons';
+import { isEvicted } from '$lib/agent/eviction';
 
 /** One glyph per capture kind, so a run is scannable without reading labels. */
 export const KIND_ICON: Record<EventKind, IconValue> = {
@@ -106,7 +107,12 @@ export function summarise(e: XrayEvent): string {
 				? `${e.statusChanged[0].content.slice(0, 30)} → ${e.statusChanged[0].to}`
 				: `${e.todos.length} items planned`;
 		case 'fs_write':
-			return `${e.op} ${e.path}`;
+			// An eviction is not a write the agent chose to make, so it does not get
+			// described as one. The size is the point: it is what the model was
+			// spared, and it is the only number that explains why this happened.
+			return isEvicted(e.path)
+				? `${bytes(e.bytes)} of tool result parked — the model got a pointer`
+				: `${e.op} ${e.path}`;
 		case 'interrupt':
 			return `paused — ${e.actions.map((a) => a.name).join(', ')}`;
 		case 'resume':

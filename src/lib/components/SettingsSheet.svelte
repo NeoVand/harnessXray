@@ -10,6 +10,7 @@
 	import { bus } from '$lib/xray/bus.svelte';
 	import { replay, parseFixture } from '$lib/xray/replay.svelte';
 	import { exportCurrentRun, enterReplay, exitReplay, loadBundledDemo } from '$lib/lab/demo';
+	import { EVICT_DEFAULT_TOKENS, CHARS_PER_TOKEN } from '$lib/agent/eviction';
 
 	let usage = $state('—');
 	let resetting = $state(false);
@@ -227,6 +228,34 @@
 					<span class="text-[11px] leading-snug text-muted-foreground">
 						super-steps per run — the runaway-loop guard. Every middleware hook counts as one, so a
 						model→tools cycle costs several. Hitting it pauses with a Continue button.
+					</span>
+				</div>
+			</section>
+
+			<!-- Large-result eviction -->
+			<section>
+				<p class="hx-eyebrow mb-3 flex items-center gap-1.5">
+					<HugeiconsIcon icon={ICON.files} size={12} strokeWidth={1.5} />
+					evict tool results over
+				</p>
+				<div class="flex items-center gap-2.5">
+					<input
+						type="number"
+						min="500"
+						max="200000"
+						step="500"
+						value={session.evictTokens}
+						onchange={(e) => session.setEvictTokens(Number(e.currentTarget.value))}
+						class="hx-rule hx-field w-24 rounded-md border bg-transparent px-2.5 py-1.5
+						       font-mono text-xs"
+					/>
+					<span class="text-[11px] leading-snug text-muted-foreground">
+						tokens (≈{Math.round((session.evictTokens * CHARS_PER_TOKEN) / 1024)} KB). Past this, the
+						harness parks the whole result in
+						<span class="font-mono">/large_tool_results/</span>
+						and hands the model a pointer instead. The framework default is
+						{EVICT_DEFAULT_TOKENS.toLocaleString()}, which this agent's tools never reach — turn it
+						down to watch it happen.
 					</span>
 				</div>
 			</section>

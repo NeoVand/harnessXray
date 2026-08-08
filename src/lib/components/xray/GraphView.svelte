@@ -2,6 +2,8 @@
 	import { session } from '$lib/agent/session.svelte';
 	import { bus } from '$lib/xray/bus.svelte';
 	import { toolMeta } from '$lib/agent/tool-meta';
+	import { crew } from '$lib/xray/crew';
+	import { tip } from '$lib/hooks/tip';
 	import {
 		hookOf,
 		layoutDag,
@@ -234,6 +236,17 @@
 			c.last = e.id;
 		}
 		return { names, calls };
+	});
+
+	/* The crew, nested under the one tool that dispatches it. `task` is the only
+	   row in the box that is really a door to five more things, and the roster
+	   behind it is not the one this app declared — the harness appends a
+	   general-purpose clone carrying every tool the main agent has. Open by
+	   default: the whole point is that nobody knew it was there. */
+	let crewOpen = $state(true);
+	const roster = $derived.by(() => {
+		void bus.version;
+		return crew(bus);
 	});
 
 	/* ── fill the pane ──────────────────────────────────────────────────────
@@ -591,12 +604,13 @@
 							{#each toolbox.names as name (name)}
 								{@const meta = toolMeta(name)}
 								{@const c = toolbox.calls[name]}
+								{@const isTask = name === 'task' && roster.length > 0}
 								<button
 									class="flex w-full items-baseline gap-2 px-2.5 py-1 text-left transition-colors
 									       hover:bg-muted/60 disabled:cursor-default disabled:hover:bg-transparent"
-									disabled={!c}
-									onclick={() => c && onjump?.(c.last)}
-									title={meta.blurb}
+									disabled={!c && !isTask}
+									onclick={() => (isTask ? (crewOpen = !crewOpen) : c && onjump?.(c.last))}
+									{@attach tip(isTask ? 'the crew it can dispatch — click to fold' : meta.blurb)}
 								>
 									<span
 										class="inline-block size-1.5 shrink-0 translate-y-[-1px] rounded-full"
@@ -611,18 +625,70 @@
 									>
 										{name}
 									</span>
+									{#if isTask}
+										<span class="hx-num shrink-0 text-[9px] text-muted-foreground">
+											{roster.length}{crewOpen ? ' ▾' : ' ▸'}
+										</span>
+									{/if}
 									{#if c}
 										<span class="hx-num shrink-0 text-[9px]" style:color="var(--hx-tool)">
 											×{c.n}
 										</span>
 									{/if}
 								</button>
+
+								{#if isTask && crewOpen}
+									<!-- The roster, indented under the tool that dispatches it.
+									     Read off the task schema on the wire, so it lists what the
+									     MODEL may choose rather than what this app declared — which is
+									     how the general-purpose clone becomes visible at all. -->
+									{#each roster as m (m.name)}
+										<button
+											class="flex w-full items-baseline gap-2 py-[3px] pr-2.5 pl-6 text-left
+											       transition-colors hover:bg-muted/60 disabled:cursor-default
+											       disabled:hover:bg-transparent"
+											disabled={!m.calls.n}
+											onclick={() => m.calls.n && onjump?.(m.calls.last)}
+											{@attach tip(
+												m.origin === 'harness'
+													? `${m.description || 'appended by the harness'} — you never declared this one: createDeepAgent adds it unless generalPurposeSubagent is disabled, and hands it the main agent's whole tool set.`
+													: m.description
+											)}
+										>
+											<span
+												class="inline-block size-1 shrink-0 translate-y-[-1px] rounded-full"
+												style:background={m.origin === 'ours'
+													? 'var(--hx-subagent)'
+													: 'var(--hx-interrupt)'}
+												style:opacity={m.calls.n ? 1 : 0.45}
+											></span>
+											<span
+												class="min-w-0 flex-1 truncate font-mono text-[10px]"
+												class:text-muted-foreground={!m.calls.n}
+											>
+												{m.name}
+											</span>
+											{#if m.tools.known}
+												<span class="hx-num shrink-0 text-[9px] text-muted-foreground/60">
+													{m.tools.count}t
+												</span>
+											{/if}
+											{#if m.calls.n}
+												<span class="hx-num shrink-0 text-[9px]" style:color="var(--hx-subagent)">
+													×{m.calls.n}
+												</span>
+											{/if}
+										</button>
+									{/each}
+								{/if}
 							{/each}
 						</div>
 						<p
 							class="hx-rule border-t px-2.5 py-1.5 text-[9px] leading-relaxed text-muted-foreground/70"
 						>
-							ochre — written for this agent · grey — the harness's · a row jumps to its last call
+							ochre — written for this agent · grey — the harness's · a row jumps to its last call{#if roster.some((m) => m.origin === 'harness')}
+								· <span style:color="var(--hx-interrupt)">amber</span> — a subagent the harness added,
+								not this app{/if}
 						</p>
 					{/if}
 				</div>
