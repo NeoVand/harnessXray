@@ -23,6 +23,28 @@ filesystem it writes, and the graph it runs on.
 
 <br>
 
+## Start here
+
+Open the [live lab](https://neovand.github.io/harnessXray/) and click **“or
+replay the bundled demo — no key needed”** on the empty state. It runs a full
+recorded session: the harness really executes, and only its network calls answer
+from the recording. Three things worth doing on the first visit:
+
+1. **Watch the context fill.** The gauge on the context bar is the live request.
+   Open the panel under it and every row — system prompt, each tool schema, each
+   message — is a real cost, apportioned from the tokens the provider billed.
+2. **Find a subagent.** On the events timeline they run in their own indented
+   lane. Everything in that lane was paid for once, inside a context window that
+   was then thrown away; only the small reply came back to the parent.
+3. **Open the book.** The `⌐` button in the header docks a ten-chapter field
+   guide, and every chapter ends by pointing at the panel where that idea is
+   happening on screen right now.
+
+Then, if you want to run it for real, click the gear and paste an OpenAI key. It
+is held in your browser and sent only to `api.openai.com`.
+
+<br>
+
 ## The one design rule
 
 **The agent is unmodified and unaware it is observed.** Nothing is passed _into_
@@ -41,26 +63,65 @@ much less than a readout of what did.
 
 ## What you can see
 
-|             |                                                                                                                                                                                                                                                                                                                                                                                                    |
-| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Events**  | Every event in the run, filterable by kind, with subagent lanes indented under the parent run. Click a row and its payload unfolds in place — decomposed, or as the raw SSE frames exactly as they arrived.                                                                                                                                                                                        |
-| **Context** | The outgoing request decomposed. The assembled system prompt split back into the bands each middleware contributed — yours, the base prompt, plan, filesystem, subagents, skills, memory — every tool schema itemised, every row's cost apportioned from the tokens the provider actually billed, and the cached prefix shaded in. A pager walks call by call; a raw view shows the request whole. |
-| **Plan**    | `write_todos` as the agent maintains it, turn over turn.                                                                                                                                                                                                                                                                                                                                           |
-| **Files**   | The agent's virtual filesystem (a checkpointed state channel) with a glance preview, and a docked reader for actually reading — markdown with maths and real figures, PDFs rendered page by page.                                                                                                                                                                                                  |
-| **Graph**   | The compiled LangGraph topology, read from the run rather than drawn from hope: run counts on every node, conditional edges dashed, the middleware onion collapsed into dot-rows you can open. Click a node to jump the timeline; click `tools` to open the toolbox and see every tool the agent is actually carrying.                                                                             |
-| **Skills**  | Which skills are _loaded_ versus actually _read_ — the gap is the entire argument for progressive disclosure.                                                                                                                                                                                                                                                                                      |
-| **Memory**  | The long-term store, next to a filesystem that outlives the turn but not the thread — so the difference in lifetime is visible rather than asserted.                                                                                                                                                                                                                                               |
-| **Ledger**  | What each turn cost, how long it took, and how much of the input was a cache hit.                                                                                                                                                                                                                                                                                                                  |
+**Events** — every event in the run, filterable by kind, with subagent lanes
+indented under the parent. Click a row and its payload unfolds in place, either
+decomposed or as the raw SSE frames exactly as they arrived.
+
+**Context** — the outgoing request, taken apart. The assembled system prompt is
+split back into the bands each middleware contributed (yours, the base prompt,
+plan, filesystem, subagents, skills, memory), every tool schema is itemised, and
+every row's cost is apportioned from the tokens the provider actually billed,
+with the cached prefix shaded in. A pager walks call by call; a raw view shows
+the request whole.
+
+**Plan** — `write_todos` as the agent maintains it, turn over turn.
+
+**Files** — the agent's virtual filesystem, which is really a checkpointed state
+channel, with a glance preview and a docked reader for actually reading it:
+markdown with maths and real figures, PDFs page by page.
+
+**Graph** — the compiled LangGraph topology, read from the run rather than drawn
+from hope. Run counts on every node, conditional edges dashed, the middleware
+onion collapsed into dot-rows you can open. Click a node to jump the timeline;
+click `tools` for every tool the agent is actually carrying.
+
+**Skills** — which skills are _loaded_ versus actually _read_. The gap between
+those two numbers is the entire argument for progressive disclosure.
+
+**Memory** — the long-term store, sitting next to a filesystem that outlives the
+turn but not the thread, so the difference in lifetime is visible rather than
+asserted.
+
+**Ledger** — what each turn cost, how long it took, and how much of the input
+was a cache hit.
 
 <br>
 
 ## The lab teaches
 
-**The book.** The `⌐` button docks a ten-chapter illustrated field guide — the
-harness, the filesystem, tools, the plan, subagents, skills, memory, middleware,
-gates, and how to build your own — each one plate, one schematic, and a few
-paragraphs, no code required. Every chapter ends by pointing at the live panel
-where that concept is happening right now.
+**The book.** The `⌐` button docks a ten-chapter illustrated field guide. Each
+chapter is one plate, one schematic and a few short sections — no code required —
+and each ends by pointing at the live panel where that idea is happening right
+now. The curriculum, in order:
+
+1. **What a harness is** — an agent is a loop around an ordinary model, and the
+   code running that loop owns everything you think of as the agent.
+2. **A filesystem with no disk** — files as a checkpointed state channel, and why
+   that beats a real disk.
+3. **The model asks, the harness does** — what a tool actually is, and what every
+   schema costs on every single request.
+4. **A to-do list the harness owns** — the plan as state, and the last-write-wins
+   edge that makes agents look forgetful.
+5. **Subagents spend their own context** — pay tens of thousands of tokens once,
+   in a window you then throw away.
+6. **Skills are files** — progressive disclosure, and the arithmetic that makes
+   twenty skills nearly free.
+7. **Memory has two lifetimes** — the checkpointer and the store, and why mixing
+   them up hurts.
+8. **The middleware onion** — the mechanism behind almost everything above.
+9. **Gates: stopping to ask a human** — how an interrupt really works, and why
+   gating reads is worse than not gating at all.
+10. **Building your own** — the assembly call, and the judgement that transfers.
 
 **Explain mode.** The `+` menu reroutes the composer to the lab itself: ask how
 the run worked and a tutor answers from a digest of the actual event log, in
@@ -122,6 +183,8 @@ bundled demo plays from the empty state — on the live site too.
 
 There is no server. Your OpenAI key is held in your browser and sent only to
 `api.openai.com`.
+
+Node 22 or newer (that is what CI builds with):
 
 ```sh
 npm install
@@ -188,3 +251,16 @@ where they live:
 ## Built by
 
 [Neo Mohsenvand](https://github.com/NeoVand) · [LinkedIn](https://www.linkedin.com/in/mohsenvand/)
+
+<br>
+
+## License
+
+[MIT](LICENSE). Use it, teach from it, take it apart.
+
+One carve-out: `.agents/skills/` is vendored, not written here — seventeen
+authoring skills pulled from `langchain-ai/langchain-skills`, `openai/skills`
+and `huntabyte/shadcn-svelte`, each recorded with its source and content hash in
+[`skills-lock.json`](skills-lock.json). They are development aids for working on
+this repository, they ship in no build, and they stay under their own upstream
+terms. The MIT grant covers the rest.
