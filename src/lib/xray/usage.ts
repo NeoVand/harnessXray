@@ -50,11 +50,27 @@ export interface RunTotals {
 	imageUsd: number;
 	/**
 	 * The bill, cut into buckets that do not overlap and do sum to `costUsd`.
-	 * Ordered by spend, because the point of the breakdown is which kind of
-	 * token is actually taking the money — and it is almost never the one people
-	 * expect.
+	 *
+	 * In canonical order — the two meters, dearest kind first within each — and
+	 * *not* sorted by spend, because the panel draws these same buckets twice
+	 * (once by money, once by count) and two bars can only be compared if their
+	 * segments appear in the same order in both.
 	 */
 	kinds: KindTotal[];
+	/** The same buckets, grouped into the meters they are billed on. */
+	meters: Meter[];
+}
+
+/** One meter: a family of token kinds billed together, with its own subtotal. */
+export interface Meter {
+	id: 'input' | 'output' | 'image';
+	label: string;
+	/** Billed tokens — the disjoint sum of `rows`, so it never double-counts. */
+	tokens: number;
+	usd: number;
+	rows: KindTotal[];
+	/** Counted but deliberately unpriced, with the reason. Image prompts only. */
+	unpriced?: { tokens: number; note: string };
 }
 
 interface RawUsage {
@@ -82,7 +98,8 @@ export function runTotals(bus: EventBus, model: string): RunTotals {
 		imageIn: 0,
 		imageOut: 0,
 		imageUsd: 0,
-		kinds: []
+		kinds: [],
+		meters: []
 	};
 
 	// Disjoint token counts, accumulated across the run so the breakdown is
@@ -142,50 +159,92 @@ export function runTotals(bus: EventBus, model: string): RunTotals {
 	const visible = Math.max(0, t.output - t.reasoning);
 	const usd = (n: number, kind: TokenKind) => (n * rateOf(model, kind)) / 1_000_000;
 
-	t.kinds = (
-		[
-			{ kind: 'reasoning', tokens: t.reasoning, usd: usd(t.reasoning, 'reasoning') },
-			{ kind: 'output', tokens: visible, usd: usd(visible, 'output') },
-			{ kind: 'fresh', tokens: fresh, usd: usd(fresh, 'fresh') },
-			{ kind: 'cacheWrite', tokens: cacheWrite, usd: usd(cacheWrite, 'cacheWrite') },
-			{ kind: 'cached', tokens: t.cached, usd: usd(t.cached, 'cached') },
-			{ kind: 'image', tokens: t.imageOut, usd: t.imageUsd }
-		] as const
-	)
-		.map((k) => ({
-			...k,
-			rate: k.kind === 'image' ? IMAGE_OUT_RATE : rateOf(model, k.kind)
-		}))
-		.filter((k) => k.tokens > 0)
-		.sort((a, b) => b.usd - a.usd);
+	const row = (kind: TokenKind, tokens: number): KindTotal => ({
+		kind,
+		tokens,
+		usd: usd(tokens, kind),
+		rate: rateOf(model, kind)
+	});
+
+	// Dearest first inside each meter, so the spend bar opens with the expensive
+	// kinds and the token bar shows those same leading segments as slivers. The
+	// two bars trading places is the whole reading.
+	const inputRows = [
+		row('cacheWrite', cacheWrite),
+		row('fresh', fresh),
+		row('cached', t.cached)
+	].filter((r) => r.tokens > 0);
+	const outputRows = [row('reasoning', t.reasoning), row('output', visible)].filter(
+		(r) => r.tokens > 0
+	);
+	const imageRows: KindTotal[] = t.imageOut
+		? [{ kind: 'image', tokens: t.imageOut, usd: t.imageUsd, rate: IMAGE_OUT_RATE }]
+		: [];
+
+	const meters: Meter[] = [
+		{
+			id: 'input' as const,
+			label: 'input',
+			tokens: t.input,
+			usd: sum(inputRows),
+			rows: inputRows
+		},
+		{
+			id: 'output' as const,
+			label: 'output',
+			tokens: t.output,
+			usd: sum(outputRows),
+			rows: outputRows
+		},
+		{
+			id: 'image' as const,
+			label: 'image',
+			tokens: t.imageOut,
+			usd: t.imageUsd,
+			rows: imageRows,
+			// Stated rather than silently dropped: only the output rate was ever
+			// verified, and inventing an input rate to make a column add up would
+			// be the exact species of plausible-but-wrong number this app exists
+			// to replace.
+			...(t.imageIn ? { unpriced: { tokens: t.imageIn, note: 'prompt, rate unverified' } } : {})
+		}
+	].filter((m) => m.rows.length > 0);
+
+	t.meters = meters;
+	t.kinds = meters.flatMap((m) => m.rows);
 
 	return t;
 }
 
+const sum = (rows: KindTotal[]) => rows.reduce((n, r) => n + r.usd, 0);
+
 /** Human labels for the buckets. Kept next to the maths, not in the markup. */
 export const TOKEN_LABEL: Record<TokenKind | 'image', string> = {
+	cacheWrite: 'written to cache',
+	fresh: 'new',
+	cached: 're-sent from cache',
+	output: 'visible',
 	reasoning: 'reasoning',
-	output: 'output · visible',
-	fresh: 'input · new',
-	cacheWrite: 'input · cache write',
-	cached: 'input · cached',
-	image: 'image · output'
+	image: 'generated'
 };
 
 /**
- * Bucket colours, borrowed from the event palette so a kind reads the same here
- * as it does on the timeline: model-coloured for what the model generated,
- * state-coloured for what caching did, tool-coloured for the picture a tool
- * made. Named TOKEN_* rather than KIND_* because `KIND_COLOR` in format.ts is
- * the *event* palette, and two things called KIND_COLOR is one too many.
+ * Bucket colours — the ledger's own family, declared in layout.css.
+ *
+ * Explicitly NOT the event palette. That one is tuned so nine kinds can sit
+ * quietly on a timeline at a single lightness, which makes neighbouring hues
+ * indistinguishable the moment they become adjacent segments of one bar. Here
+ * each meter gets a hue and each kind's lightness carries its rate. Named
+ * TOKEN_* rather than KIND_* because `KIND_COLOR` in format.ts is the event
+ * palette, and two things called KIND_COLOR is one too many.
  */
 export const TOKEN_COLOR: Record<TokenKind | 'image', string> = {
-	reasoning: 'var(--hx-model)',
-	output: 'var(--hx-user)',
-	fresh: 'var(--hx-subagent)',
-	cacheWrite: 'var(--hx-interrupt)',
-	cached: 'var(--hx-state)',
-	image: 'var(--hx-tool)'
+	cacheWrite: 'var(--hx-tok-write)',
+	fresh: 'var(--hx-tok-new)',
+	cached: 'var(--hx-tok-cached)',
+	output: 'var(--hx-tok-out)',
+	reasoning: 'var(--hx-tok-reason)',
+	image: 'var(--hx-tok-image)'
 };
 
 export function money(usd: number): string {

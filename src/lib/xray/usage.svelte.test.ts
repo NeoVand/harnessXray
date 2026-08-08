@@ -173,10 +173,51 @@ describe('the ledger breakdown', () => {
 			image: 4_000
 		});
 
-		// Sorted by spend, because which kind takes the money is the question the
-		// panel exists to answer.
-		const spends = t.kinds.map((k) => k.usd);
-		expect([...spends].sort((a, b) => b - a)).toEqual(spends);
+		// Canonical order, NOT sorted by spend: the panel draws these same buckets
+		// twice — once by money, once by count — and two bars are only comparable
+		// if their segments appear in the same order in both.
+		expect(t.kinds.map((k) => k.kind)).toEqual([
+			'cacheWrite',
+			'fresh',
+			'cached',
+			'reasoning',
+			'output',
+			'image'
+		]);
+	});
+
+	it('groups the buckets into meters whose subtotals do not double-count', () => {
+		const bus = new EventBus();
+		exchange(bus, 'https://api.openai.com/v1/responses', {
+			input_tokens: 20_000,
+			input_tokens_details: { cached_tokens: 15_000, cache_write_tokens: 1_000 },
+			output_tokens: 2_000,
+			output_tokens_details: { reasoning_tokens: 1_500 }
+		});
+		exchange(bus, 'https://api.openai.com/v1/images/generations', {
+			input_tokens: 100,
+			output_tokens: 4_000
+		});
+
+		const t = runTotals(bus, 'gpt-5.6-terra');
+		expect(t.meters.map((m) => m.id)).toEqual(['input', 'output', 'image']);
+
+		for (const m of t.meters) {
+			// Each meter's token count is the disjoint sum of its own rows, so no
+			// token is counted under two labels.
+			expect(m.tokens).toBe(m.rows.reduce((n, r) => n + r.tokens, 0));
+			expect(m.usd).toBeCloseTo(
+				m.rows.reduce((n, r) => n + r.usd, 0),
+				10
+			);
+		}
+		expect(t.meters.reduce((n, m) => n + m.usd, 0)).toBeCloseTo(t.costUsd, 10);
+
+		// The image prompt is reported as counted-but-unpriced rather than folded
+		// into a total at a rate nobody verified.
+		const image = t.meters.find((m) => m.id === 'image');
+		expect(image?.unpriced?.tokens).toBe(100);
+		expect(t.meters.find((m) => m.id === 'input')?.unpriced).toBeUndefined();
 	});
 
 	it('omits buckets a run never touched', () => {
