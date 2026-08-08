@@ -105,6 +105,42 @@
 			{/if}
 		</span>
 
+		<!-- Whose plan. Always shown, because a list with no owner reads as "the
+		     agent's" and a subagent's private plan is a different object. With more
+		     than one track these are also the switch. -->
+		{#each tracks as t (t.scope)}
+			{@const here = t.agent === track?.agent}
+			<button
+				class="flex shrink-0 items-center gap-1 transition-colors hover:text-foreground"
+				class:cursor-default={tracks.length === 1}
+				style:color={here
+					? t.scope === 'main'
+						? 'var(--hx-accent)'
+						: 'var(--hx-subagent)'
+					: 'var(--muted-foreground)'}
+				style:opacity={here ? 1 : 0.55}
+				onclick={() => {
+					agent = t.agent;
+					back = 0;
+					open.clear();
+				}}
+				{@attach tip(
+					t.scope === 'main'
+						? 'The parent agent’s plan'
+						: `${t.agent}’s own plan — todos do not cross the subagent boundary, so the parent never saw this one`
+				)}
+			>
+				<HugeiconsIcon
+					icon={t.scope === 'main' ? ICON.agent : subagentIcon(t.agent)}
+					size={11}
+					strokeWidth={1.5}
+				/>
+				{#if here}
+					<span class="hx-eyebrow">{t.agent}</span>
+				{/if}
+			</button>
+		{/each}
+
 		<span class="ml-auto flex items-center gap-2.5 text-muted-foreground">
 			{#if revisions.length > 1}
 				<!-- The revision stepper, the same shape the context panel uses for
@@ -124,7 +160,10 @@
 						class="hx-num text-[10px] transition-colors hover:text-foreground"
 						style:color={latest ? undefined : 'var(--hx-interrupt)'}
 						onclick={() => (back = 0)}
-						{@attach tip(latest ? 'The current plan' : 'Back to the current plan')}
+						{@attach tip(
+							`${revisions.length} calls to write_todos — each one replaced the whole list. ` +
+								(latest ? 'This is the current plan.' : 'Click for the current plan.')
+						)}
 					>
 						{rev?.n ?? 0}/{revisions.length}
 					</button>
@@ -140,10 +179,13 @@
 				</span>
 			{/if}
 			{#if rev}
+				<!-- Padded past the glyph: an 11px icon is a hard target, and this one
+				     is the only way from a revision back to the call that wrote it. -->
 				<button
-					class="hx-eyebrow transition-colors hover:text-foreground"
+					class="-my-1 -mr-1 px-1 py-1 transition-colors hover:text-foreground"
 					onclick={() => onjump?.(rev.id)}
-					{@attach tip('The write_todos call that produced this list')}
+					aria-label="Show this write in the timeline"
+					{@attach tip('Show the write_todos call that produced this list, in the timeline')}
 				>
 					<HugeiconsIcon icon={ICON.wire} size={11} strokeWidth={1.5} />
 				</button>
@@ -154,48 +196,13 @@
 	<div class="min-h-0 flex-1 overflow-y-auto px-3 pt-9 pb-3">
 		{#if !track || !rev}
 			<p class="text-xs leading-relaxed text-muted-foreground">
-				No plan yet. The agent writes one with <span class="font-mono">write_todos</span> — a tool the
-				harness provides, not one we wrote. Every call replaces the whole list, so this panel keeps each
-				one.
+				No plan yet — the agent writes one with <span class="font-mono">write_todos</span>.
 			</p>
 		{:else}
-			{#if tracks.length > 1}
-				<!-- One track per namespace. A subagent's plan is not a view of the
-				     parent's — `todos` is excluded from what crosses the boundary, so
-				     it planned into an empty channel of its own. -->
-				<div class="mb-2 flex flex-wrap items-center gap-1">
-					{#each tracks as t (t.scope)}
-						<button
-							class="hx-rule flex items-center gap-1 rounded border px-1.5 py-[3px] text-[9.5px]
-							       transition-colors hover:bg-muted/60"
-							class:bg-muted={t.agent === track.agent}
-							style:border-color={t.agent === track.agent ? 'var(--hx-accent)' : undefined}
-							onclick={() => {
-								agent = t.agent;
-								back = 0;
-								open.clear();
-							}}
-						>
-							<span style:color={t.scope === 'main' ? 'var(--hx-accent)' : 'var(--hx-subagent)'}>
-								<HugeiconsIcon
-									icon={t.scope === 'main' ? ICON.agent : subagentIcon(t.agent)}
-									size={10}
-									strokeWidth={1.5}
-								/>
-							</span>
-							<span class="font-mono">{t.agent}</span>
-							<span class="hx-num text-muted-foreground/60">{t.revisions.length}</span>
-						</button>
-					{/each}
-				</div>
-			{/if}
-
 			<p class="hx-eyebrow mb-2 flex flex-wrap items-baseline gap-x-2">
 				<span>{done} of {rev.items.length} complete</span>
 				{#if !latest}
-					<span style:color="var(--hx-interrupt)">
-						· revision {rev.n}, not the current plan
-					</span>
+					<span style:color="var(--hx-interrupt)">· rev {rev.n}</span>
 				{/if}
 			</p>
 
@@ -323,41 +330,44 @@
 				{/each}
 			</ul>
 
-			{#if rev.dropped.length || rev.retired.length}
-				<!-- What this particular write deleted. A plan that replaces itself
-				     wholesale looks identical to a plan being followed unless the
-				     removals are printed beside the arrivals. -->
-				<div class="mt-2">
-					<p class="hx-eyebrow mb-1 text-muted-foreground/60">this write also removed</p>
-					<ul class="space-y-0.5">
-						{#each rev.dropped as d (d)}
-							<li class="flex items-baseline gap-1.5 text-[10px] leading-relaxed">
-								<span class="shrink-0" style:color="var(--hx-interrupt)">−</span>
-								<span class="min-w-0 text-muted-foreground line-through">{d}</span>
-							</li>
-						{/each}
-						{#each rev.retired as d (d)}
-							<li class="flex items-baseline gap-1.5 text-[10px] leading-relaxed">
-								<span class="shrink-0 text-muted-foreground/50">−</span>
-								<span class="min-w-0 text-muted-foreground/60 line-through">{d}</span>
-								<span class="hx-eyebrow shrink-0 text-[8.5px]" style:color="var(--hx-fs)">done</span
-								>
-							</li>
-						{/each}
-					</ul>
-				</div>
-			{/if}
+			<!-- What this write deleted, in the same list it deleted them from. A
+			     minus and a strikethrough say it; a caption would only repeat them. -->
+			{#each rev.dropped as d (d)}
+				<p
+					class="flex items-baseline gap-1.5 px-1 text-xs leading-relaxed"
+					{@attach tip('Removed by this write_todos, unfinished')}
+				>
+					<span class="shrink-0" style:color="var(--hx-interrupt)">−</span>
+					<span class="min-w-0 text-muted-foreground/70 line-through">{d}</span>
+				</p>
+			{/each}
+			{#each rev.retired as d (d)}
+				<p
+					class="flex items-baseline gap-1.5 px-1 text-xs leading-relaxed"
+					{@attach tip('Removed by this write_todos, after completing')}
+				>
+					<span class="shrink-0 text-muted-foreground/40">−</span>
+					<span class="min-w-0 text-muted-foreground/50 line-through">{d}</span>
+				</p>
+			{/each}
 
 			{#if track.dropped.length}
 				<!-- The failure the channel's semantics make easy, and the only thing
 				     in the app that can catch it: an item that left the list without
-				     ever being finished. -->
+				     ever being finished. The heading names it; the tooltip explains it
+				     to whoever wants that, and nobody else has to read it. -->
 				<div
 					class="hx-rule mt-3 rounded border px-2 py-1.5"
 					style:border-color="color-mix(in oklab, var(--hx-interrupt) 40%, transparent)"
 				>
-					<p class="hx-eyebrow mb-1" style:color="var(--hx-interrupt)">
-						left the list unfinished · {track.dropped.length}
+					<p
+						class="hx-eyebrow mb-1"
+						style:color="var(--hx-interrupt)"
+						{@attach tip(
+							'write_todos replaces the whole list, so a call that omits an item deletes it — with no warning anywhere'
+						)}
+					>
+						left unfinished · {track.dropped.length}
 					</p>
 					<ul class="space-y-0.5">
 						{#each track.dropped as d (d.content + d.at)}
@@ -385,23 +395,8 @@
 							</li>
 						{/each}
 					</ul>
-					<p class="mt-1.5 text-[9.5px] leading-relaxed text-muted-foreground/70">
-						A <span class="font-mono">write_todos</span> that omits an item deletes it. No warning is
-						raised anywhere — the channel replaces, it does not merge.
-					</p>
 				</div>
 			{/if}
-
-			<p class="mt-3 text-[10px] leading-relaxed text-muted-foreground/70">
-				{revisions.length}
-				{revisions.length === 1 ? 'write' : 'writes'} of
-				<span class="font-mono">write_todos</span>, each one replacing the whole list.
-				{#if track.scope !== 'main'}
-					This is <span class="font-mono">{track.agent}</span>'s own plan: `todos` does not cross
-					the subagent boundary, so it planned into an empty channel and the parent never saw any of
-					it.
-				{/if}
-			</p>
 		{/if}
 	</div>
 </div>
