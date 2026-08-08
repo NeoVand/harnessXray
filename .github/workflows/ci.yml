@@ -1,0 +1,57 @@
+# Run the checks on every pull request and every push to master.
+#
+# This existed nowhere until now, and the gap kept mattering more. `deploy.yml`
+# builds and publishes on every push and runs no lint, no `svelte-check` and no
+# tests — so a build was the only automated opinion on a change. Twice that was
+# not enough: deepagents 1.12 emptied the plan tab and then the subagent plan
+# lanes with types clean, tests green and the build fine, because a middleware
+# nobody has is a middleware nobody calls.
+#
+# It matters more now for two reasons. Dependabot opens dependency PRs on a
+# schedule, and PRs get merged as soon as they are opened — so nothing else is
+# standing between a bad upgrade and master.
+#
+# Node 22 and the same `cache: npm` as the deploy job, so CI and the published
+# artifact are built by the same toolchain.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+# One run per ref; a newer push supersedes an in-flight one.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: Lint and format
+        run: npm run lint
+
+      # `svelte-check` exits non-zero on errors, so this is a real gate.
+      - name: Types
+        run: npm run check
+
+      # Part of the suite runs in a real browser rather than a DOM shim —
+      # anything touching DOMParser, canvas or pdf.js has to. Chromium only:
+      # nothing here is engine-specific, and three browsers would be three
+      # times the download for the same answer.
+      - name: Install Chromium for the browser test project
+        run: npx playwright install --with-deps chromium
+
+      - name: Tests
+        run: npm run test:unit -- --run
