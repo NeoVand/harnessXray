@@ -59,7 +59,9 @@
 	const GLYPH = {
 		completed: ICON.ok,
 		in_progress: ICON.run,
-		pending: ICON.todo
+		// A hollow ring, not the panel's own checklist glyph: that one means "the
+		// plan" in the header two lines above, and an item is not the plan.
+		pending: ICON.pending
 	} as const;
 	const COLOR = {
 		completed: 'var(--hx-fs)',

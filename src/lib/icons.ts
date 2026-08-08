@@ -24,6 +24,12 @@ import {
 	ArrowShrink02Icon,
 	Attachment01Icon,
 	BrainIcon,
+	BulbIcon,
+	CircleIcon,
+	Compass01Icon,
+	SortByDown01Icon,
+	BlocksIcon,
+	UserIcon,
 	Image01Icon,
 	MagicWand01Icon,
 	PieChartIcon,
@@ -38,7 +44,6 @@ import {
 	TextAlignLeftIcon,
 	Clock01Icon,
 	Pulse01Icon,
-	ComputerIcon,
 	Database01Icon,
 	Delete02Icon,
 	Csv01Icon,
@@ -55,19 +60,15 @@ import {
 	Key01Icon,
 	Layers01Icon,
 	Message01Icon,
-	MoreHorizontalIcon,
 	PackageIcon,
 	PauseIcon,
 	PlayIcon,
 	ArrowTurnBackwardIcon,
 	RoboticIcon,
-	Search01Icon,
 	SentIcon,
 	Settings01Icon,
 	SourceCodeIcon,
 	SparklesIcon,
-	Sun01Icon,
-	Moon02Icon,
 	Tick01Icon,
 	ViewIcon,
 	ViewOffIcon,
@@ -79,15 +80,12 @@ import {
 export const ICON = {
 	// chrome
 	settings: Settings01Icon,
-	light: Sun01Icon,
-	dark: Moon02Icon,
 	key: Key01Icon,
 	show: ViewIcon,
 	hide: ViewOffIcon,
 	clear: Delete02Icon,
 	close: Cancel01Icon,
 	send: SentIcon,
-	more: MoreHorizontalIcon,
 	next: ArrowRight01Icon,
 	/**
 	 * A request leaving. Distinct from `next` on purpose: that chevron is on
@@ -105,6 +103,22 @@ export const ICON = {
 	history: Clock01Icon,
 	todo: CheckListIcon,
 	prompt: TextAlignLeftIcon,
+	/**
+	 * One thing cut into its parts — the request decomposed, the payload
+	 * decomposed. It borrowed `state` before, which is Layers01 and means "graph
+	 * state" everywhere else in this app: a legend lent out is a legend broken.
+	 */
+	pieces: BlocksIcon,
+	/** A turn you took. */
+	user: UserIcon,
+	/**
+	 * Reasoning tokens — billed, usually not shown.
+	 *
+	 * Deliberately not another brain. `model` is the brain, and at 12px a second
+	 * brain would read as an ordinary assistant turn, which is the one thing
+	 * this row is not.
+	 */
+	reasoning: BulbIcon,
 	attach: Attachment01Icon,
 	upload: Upload01Icon,
 	image: Image01Icon,
@@ -151,7 +165,6 @@ export const ICON = {
 	subagent: RoboticIcon,
 	skill: PackageIcon,
 	code: SourceCodeIcon,
-	search: Search01Icon,
 	wire: Activity01Icon,
 	frame: FlashIcon,
 	message: Message01Icon,
@@ -165,11 +178,21 @@ export const ICON = {
 	 * which is the right family resemblance.
 	 */
 	events: Pulse01Icon,
-	time: Clock01Icon,
 	run: PlayIcon,
 	pause: PauseIcon,
-	compute: ComputerIcon,
-	sparkle: SparklesIcon
+	sparkle: SparklesIcon,
+	/**
+	 * The lab tutor, which explains a run rather than performing one.
+	 *
+	 * Not the sparkles: those mean "an image was generated" on the timeline, and
+	 * the explain button sits directly under image rows in the same pane. A
+	 * compass is the right promise anyway — orientation, not creation.
+	 */
+	lab: Compass01Icon,
+	/** A plan item nobody has started. Hollow, so `completed` reads as filled. */
+	pending: CircleIcon,
+	/** Newest first — the filesystem read as writes in order rather than as a tree. */
+	ordered: SortByDown01Icon
 } as const;
 
 export type IconName = keyof typeof ICON;

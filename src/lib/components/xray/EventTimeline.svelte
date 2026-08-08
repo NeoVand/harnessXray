@@ -306,7 +306,7 @@
 							aria-label="Detail view"
 							{@attach tip('Detail — the payload, decomposed')}
 						>
-							<HugeiconsIcon icon={ICON.state} size={12} strokeWidth={1.5} />
+							<HugeiconsIcon icon={ICON.pieces} size={12} strokeWidth={1.5} />
 						</button>
 						<button
 							class="transition-colors hover:text-foreground"
@@ -326,7 +326,7 @@
 									'Have the lab explain this event — one small luna call, outside the agent'
 								)}
 							>
-								<HugeiconsIcon icon={ICON.sparkle} size={11} strokeWidth={1.5} />
+								<HugeiconsIcon icon={ICON.lab} size={11} strokeWidth={1.5} />
 								explain
 							</button>
 						{/if}
@@ -342,7 +342,7 @@
 						{#if ex}
 							<div class="hx-rule mx-3 mt-2 border-b pb-2">
 								<p class="hx-eyebrow mb-1 flex items-center gap-1.5" style:color="var(--hx-state)">
-									<HugeiconsIcon icon={ICON.sparkle} size={11} strokeWidth={1.5} />
+									<HugeiconsIcon icon={ICON.lab} size={11} strokeWidth={1.5} />
 									{ex.status === 'thinking' ? 'explaining…' : 'explained'}
 									<span class="text-muted-foreground/60">— the lab, not the agent</span>
 								</p>

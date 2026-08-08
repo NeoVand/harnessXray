@@ -5,10 +5,15 @@ import {
 	FileDownloadIcon,
 	FileEditIcon,
 	FileSearchIcon,
+	Folder02Icon,
 	Image01Icon,
-	LeftToRightListNumberIcon,
+	LeftToRightBlockQuoteIcon,
 	ListViewIcon,
+	Note01Icon,
+	PaintBoardIcon,
+	PaintBrush01Icon,
 	PencilEdit01Icon,
+	FolderSearchIcon,
 	QuoteDownIcon,
 	RoboticIcon,
 	Search01Icon,
@@ -28,6 +33,14 @@ import type { IconValue } from '$lib/icons';
  * The authoritative list is the live wire payload (Context tab → tool
  * schemas), never this comment: entries below are looked up by name and an
  * unknown name falls back to the generic wrench.
+ *
+ * No two tools share a glyph, and that is a rule rather than an accident. These
+ * rows sit next to each other in the toolbox, in the context panel's schema
+ * band, in a subagent's carrier strip and in a plan item's tool chips — some at
+ * 9px — so a shared symbol makes the one list whose whole job is "*which* tool"
+ * unable to answer. `search_papers` and `grep` are both searching, `ls` and
+ * `list_figures` are both listing, `edit_file` and `edit_image` are both
+ * editing: in each pair the object differs, and the glyph now says which.
  */
 export interface ToolMeta {
 	icon: IconValue;
@@ -44,14 +57,14 @@ const META: Record<string, ToolMeta> = {
 	extract_figures: { icon: Image01Icon, origin: 'ours', blurb: 'real figures from the paper' },
 	list_figures: { icon: ListViewIcon, origin: 'ours', blurb: 'what the asset store holds' },
 	present_outline: {
-		icon: LeftToRightListNumberIcon,
+		icon: LeftToRightBlockQuoteIcon,
 		origin: 'ours',
 		blurb: 'structure, paused for approval'
 	},
 	generate_image: { icon: SparklesIcon, origin: 'ours', blurb: 'gpt-image-2 illustration' },
-	edit_image: { icon: PencilEdit01Icon, origin: 'ours', blurb: 'redraw an existing image' },
+	edit_image: { icon: PaintBrush01Icon, origin: 'ours', blurb: 'redraw an existing image' },
 	stylize_figure: {
-		icon: Image01Icon,
+		icon: PaintBoardIcon,
 		origin: 'ours',
 		blurb: 'redraw a paper figure as original art'
 	},
@@ -59,12 +72,12 @@ const META: Record<string, ToolMeta> = {
 
 	// ── the harness supplies these; we never wrote them ──────────────────────
 	write_todos: { icon: CheckListIcon, origin: 'harness', blurb: 'the plan channel' },
-	ls: { icon: ListViewIcon, origin: 'harness', blurb: 'list the virtual filesystem' },
-	read_file: { icon: FileSearchIcon, origin: 'harness', blurb: 'read from state' },
+	ls: { icon: Folder02Icon, origin: 'harness', blurb: 'list the virtual filesystem' },
+	read_file: { icon: Note01Icon, origin: 'harness', blurb: 'read from state' },
 	write_file: { icon: FileEditIcon, origin: 'harness', blurb: 'write to state' },
 	edit_file: { icon: PencilEdit01Icon, origin: 'harness', blurb: 'string-replace in a file' },
-	glob: { icon: AsteriskIcon, origin: 'harness', blurb: 'match paths by pattern' },
-	grep: { icon: Search01Icon, origin: 'harness', blurb: 'search file contents' },
+	glob: { icon: FolderSearchIcon, origin: 'harness', blurb: 'match paths by pattern' },
+	grep: { icon: FileSearchIcon, origin: 'harness', blurb: 'search file contents' },
 	task: { icon: RoboticIcon, origin: 'harness', blurb: 'delegate to a subagent' }
 };
 
