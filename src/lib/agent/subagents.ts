@@ -117,7 +117,15 @@ trust the tool result.`,
 		skills: [SKILLS_ROOT],
 		// The human approves the prompt this subagent wrote, immediately before it
 		// is sent to a paid API.
-		interruptOn: { generate_image: true }
+		//
+		// Both tools, because both are paid renders. `edit_image` was missing here
+		// while the MAIN agent gated it, and the effect was exactly backwards: the
+		// lane that owns image craft — the only one that actually calls the tool —
+		// was the one that could spend at the image rate without asking. Observed
+		// live: "restyle that banner" dispatched image-smith, which re-rendered a
+		// 1.9MB picture for about twenty cents with no pause. An edit is a fresh
+		// render, not a patch.
+		interruptOn: { generate_image: true, edit_image: true }
 	},
 	{
 		name: 'report-writer',

@@ -86,20 +86,72 @@ export function restoreMath(html: string, nodes: Map<string, string>): string {
 export function linkify(source: string): string {
 	let out = source;
 
-	// arXiv ids — but not ones already inside a link or an image.
+	// arXiv ids — but not ones that are already part of a link, in either half
+	// of it. The lookBEHIND skips a destination, `](arXiv:…`; the lookAHEAD
+	// skips one that is the link *text*, `[arXiv:…](url)`. Without the second, a
+	// citation the model wrote correctly as markdown came back as
+	// `[[arXiv:x](url)](url)` — the one form of citation that got punished for
+	// being right.
 	out = out.replace(
-		new RegExp(String.raw`(?<!\]\()(?<!\/)\barXiv:${ARXIV}\b`, 'gi'),
+		new RegExp(String.raw`(?<!\]\()(?<!\/)\barXiv:${ARXIV}\b(?!\]\()`, 'gi'),
 		(whole, id: string) => `[${whole}](https://arxiv.org/abs/${id})`
 	);
 
 	// Internal paths written as prose or inline code. `hx:` is resolved by the
 	// viewer rather than the browser.
+	//
+	// The path may not END on a dot. `.` has to be in the character class —
+	// every one of these has an extension — but a path is usually the last thing
+	// in its sentence, so a greedy class swallowed the full stop and linked
+	// `/paper/review.md.`, a file that does not exist. A comma or a paren never
+	// had this problem; only the character the extension also uses.
 	out = out.replace(
-		/(?<!\]\()(?<!\/)`?(\/(?:paper|notes|figures|memories)\/[\w./-]+)`?/g,
+		/(?<!\]\()(?<!\/)`?(\/(?:paper|notes|figures|memories)\/[\w./-]*[\w-])`?/g,
 		(whole, path: string) => (whole.startsWith('](') ? whole : `[\`${path}\`](hx:${path})`)
 	);
 
 	return out;
+}
+
+/** Markdown image syntax. Alt runs to the first `]`, destination to the `)`. */
+const IMAGE = /!\[([^\]]*)\]\(([^)\s]+)\)/g;
+
+/**
+ * Linkify the prose and resolve the pictures, without either touching the other.
+ *
+ * Order was the bug. Running `linkify` over the whole document and *then*
+ * rewriting figure paths broke every figure that cited its source — which, in a
+ * document made of paper figures, is all of them. A caption says where the
+ * picture came from:
+ *
+ *     ![Figure 1: … Figure from arXiv:2405.15793.](/figures/2405-15793-fig1.png)
+ *
+ * and linkify rewrites that `arXiv:…` **inside the alt text** into a markdown
+ * link. The `]` it inserts ends the alt early for the figure regex that runs
+ * next, the path is never resolved, and the reader gets a broken image pointing
+ * at a virtual path no server can serve. Uncited figures were untouched, so the
+ * app looked fine: a generated banner rendered and every extracted figure did
+ * not.
+ *
+ * Cutting the images out first fixes both halves. Alt text is a plain attribute
+ * — a link inside it was never meaningful — and a destination is a path rather
+ * than prose, so neither was ever linkify's business.
+ *
+ * `resolve` is passed in rather than imported: this stays a pure string
+ * transform, and the asset store is the caller's problem.
+ */
+export function enrichBody(source: string, resolve: (dest: string) => string): string {
+	let out = '';
+	let last = 0;
+	for (let m: RegExpExecArray | null; (m = IMAGE.exec(source));) {
+		out += linkify(source.slice(last, m.index));
+		out += `![${m[1]}](${resolve(m[2])})`;
+		last = m.index + m[0].length;
+	}
+	// `IMAGE` is a module-level /g regex; leaving lastIndex set would make the
+	// next call start mid-document and silently skip its first figures.
+	IMAGE.lastIndex = 0;
+	return out + linkify(source.slice(last));
 }
 
 /** True for links the app handles itself rather than the browser. */
