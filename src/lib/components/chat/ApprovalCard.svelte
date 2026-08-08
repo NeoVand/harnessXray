@@ -5,6 +5,16 @@
 	import { HugeiconsIcon } from '@hugeicons/svelte';
 	import { ICON } from '$lib/icons';
 	import JsonCode from '../xray/JsonCode.svelte';
+	import { HOUSE_STYLE } from '$lib/agent/tools';
+
+	/**
+	 * The paid image tools, which all render their brief the same way.
+	 *
+	 * For every one of them the prompt IS the decision, and every one is about to
+	 * spend money at the image rate — so none of them may hide behind a truncated
+	 * argument summary.
+	 */
+	const IMAGE_TOOLS = new Set(['generate_image', 'edit_image', 'stylize_figure']);
 
 	/**
 	 * The graph is stopped inside a node, waiting on this.
@@ -91,7 +101,11 @@
 		     would collide on name+args and throw during mount. -->
 		{#each actions as a, ai (a.name + JSON.stringify(a.args) + ai)}
 			<div class="mb-2">
-				<p class="flex items-baseline gap-1.5 font-mono text-[11px]">
+				<!-- items-center, not items-baseline: an inline SVG's baseline is its
+				     bottom edge, so baseline alignment sits the glyph a couple of
+				     pixels high against the tool name. Every other icon-and-label row
+				     in the app centres for the same reason. -->
+				<p class="flex items-center gap-1.5 font-mono text-[11px]">
 					<HugeiconsIcon icon={toolMeta(a.name).icon} size={12} strokeWidth={1.5} />
 					{a.name}
 				</p>
@@ -126,7 +140,7 @@
 						</ol>
 					</div>
 				{/if}
-				{#if a.name === 'generate_image' && !editing}
+				{#if IMAGE_TOOLS.has(a.name) && !editing}
 					<!-- For an image the PROMPT is the decision — it is the whole of
 					     what you are approving, and it is about to be paid for. It used
 					     to arrive as a truncated one-line arg summary with the real text
@@ -135,12 +149,39 @@
 					     as prose, with the parameters that cost money beside it. -->
 					{@const img = a.args as {
 						prompt?: string;
+						note?: string;
+						from?: string;
 						path?: string;
 						size?: string;
 						quality?: string;
 					}}
 					<div class="hx-rule mt-2 rounded border bg-background/60 px-3 py-2">
-						<p class="text-xs leading-relaxed whitespace-pre-wrap">{img.prompt}</p>
+						{#if img.from}
+							<!-- An edit re-renders the whole picture, so which image is being
+							     redrawn is half of what you are approving. -->
+							<p class="hx-eyebrow mb-1.5 flex items-baseline gap-1.5">
+								redrawing
+								<span class="hx-num text-[10px] text-foreground/80">{img.from}</span>
+							</p>
+						{/if}
+						<!-- stylize_figure's prompt is assembled: the house style from code
+						     plus the model's optional note. Showing only the note would mean
+						     approving less than what is sent, which in this app is the one
+						     thing a card may never do — so the constant is shown too, dimmed
+						     to say who wrote it. -->
+						{#if a.name === 'stylize_figure'}
+							<p class="text-xs leading-relaxed whitespace-pre-wrap text-muted-foreground">
+								{HOUSE_STYLE}
+							</p>
+							{#if img.note}
+								<p class="mt-1.5 text-xs leading-relaxed whitespace-pre-wrap">
+									<span class="hx-eyebrow">also</span>
+									{img.note}
+								</p>
+							{/if}
+						{:else}
+							<p class="text-xs leading-relaxed whitespace-pre-wrap">{img.prompt}</p>
+						{/if}
 						{#if img.path || img.size || img.quality}
 							<p class="hx-rule mt-2 flex flex-wrap gap-x-3 gap-y-1 border-t pt-1.5">
 								{#each [['path', img.path], ['size', img.size], ['quality', img.quality]] as [k, v] (k)}
@@ -176,7 +217,7 @@
 					</button>
 					{#if showArgs}
 						<div class="mt-1"><JsonCode source={JSON.stringify(a.args)} /></div>
-					{:else if a.name !== 'present_outline' && a.name !== 'generate_image'}
+					{:else if a.name !== 'present_outline' && !IMAGE_TOOLS.has(a.name)}
 						<p class="mt-0.5 truncate font-mono text-[10px] text-muted-foreground">
 							{argSummary(a.args)}
 						</p>

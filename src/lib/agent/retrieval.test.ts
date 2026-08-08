@@ -78,3 +78,38 @@ describe('authorsLine', () => {
 		expect(authorsLine([])).toBe('unknown');
 	});
 });
+
+describe('resolveFigureUrl — the shape that produced nothing', () => {
+	it('treats the page id as a DIRECTORY when the src does not name it', () => {
+		// Verified live against arxiv.org: both of these return 200 image/png,
+		// and the old browser-semantics rule asked for /html/x1.png — which does
+		// not exist, so extraction quietly yielded no figures for every paper
+		// whose LaTeXML output uses bare relative srcs.
+		expect(resolveFigureUrl('x1.png', 'https://arxiv.org/html/2401.02385')).toBe(
+			'https://arxiv.org/html/2401.02385/x1.png'
+		);
+		expect(resolveFigureUrl('pic/image.png', 'https://arxiv.org/html/2401.02385')).toBe(
+			'https://arxiv.org/html/2401.02385/pic/image.png'
+		);
+	});
+
+	it('keeps working when the page URL already carries a version', () => {
+		expect(resolveFigureUrl('x3.png', 'https://arxiv.org/html/2401.02385v2')).toBe(
+			'https://arxiv.org/html/2401.02385v2/x3.png'
+		);
+	});
+
+	it('does not double the directory when the src repeats a versioned id', () => {
+		// The two rules meet here: the comparison has to ignore the version, or
+		// this lands on /html/2602.22296/2602.22296v1/x1.png.
+		expect(resolveFigureUrl('2602.22296v1/x1.png', 'https://arxiv.org/html/2602.22296')).toBe(
+			'https://arxiv.org/html/2602.22296v1/x1.png'
+		);
+	});
+
+	it('passes absolute URLs through untouched', () => {
+		expect(resolveFigureUrl('https://cdn.example/x.png', 'https://arxiv.org/html/2401.02385')).toBe(
+			'https://cdn.example/x.png'
+		);
+	});
+});

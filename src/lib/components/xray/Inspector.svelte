@@ -4,7 +4,8 @@
 	import FilesPanel from './FilesPanel.svelte';
 	import MemoryPanel from './MemoryPanel.svelte';
 	import SkillsPanel from './SkillsPanel.svelte';
-	import RunPanel from './RunPanel.svelte';
+	import ToolsPanel from './ToolsPanel.svelte';
+	import SubagentsPanel from './SubagentsPanel.svelte';
 	import { skills } from '$lib/agent/skills.svelte';
 	import { session } from '$lib/agent/session.svelte';
 	import { HugeiconsIcon } from '@hugeicons/svelte';
@@ -42,7 +43,10 @@
 	 * was. Below, the dashboards — graph first, because the default view
 	 * should be the one that is alive while a run is going.
 	 */
-	type Bottom = 'graph' | 'skills' | 'memory' | 'ledger';
+	// The ledger moved to the events column, where it shares a switch with the
+	// timeline: both answer "what did this run do", one in events and one in
+	// money, and they were never wanted at the same moment as the graph.
+	type Bottom = 'graph' | 'tools' | 'subagents' | 'skills' | 'memory';
 
 	// The hint is what the tab *shows*, not what it is called — the label
 	// already says that, and a tooltip repeating the word under the pointer
@@ -55,6 +59,18 @@
 			hint: 'The assembled machine — nodes and edges read from the running graph'
 		},
 		{
+			id: 'tools',
+			label: 'tools',
+			icon: ICON.tool,
+			hint: 'Every tool the model was offered, and what each schema costs on every request'
+		},
+		{
+			id: 'subagents',
+			label: 'subagents',
+			icon: ICON.subagent,
+			hint: 'Every subagent the model may dispatch, what each carries, and what it spent'
+		},
+		{
 			id: 'skills',
 			label: 'skills',
 			icon: ICON.skill,
@@ -65,12 +81,6 @@
 			label: 'memory',
 			icon: ICON.memory,
 			hint: 'The store that outlives this chat — everything under /memories/'
-		},
-		{
-			id: 'ledger',
-			label: 'ledger',
-			icon: ICON.tokens,
-			hint: 'Tokens and dollars, per turn and for the whole run'
 		}
 	];
 
@@ -141,12 +151,16 @@
 			>
 				{#if bottom === 'skills'}
 					<SkillsPanel onmanage={onmanageskills} />
+				{:else if bottom === 'tools'}
+					<ToolsPanel {onjump} />
+				{:else if bottom === 'subagents'}
+					<SubagentsPanel {onjump} />
 				{:else if bottom === 'memory'}
 					<MemoryPanel />
-				{:else if bottom === 'ledger'}
-					<RunPanel />
 				{:else}
-					<GraphView {onjump} />
+					<!-- The graph's tools node points here rather than opening its own
+					     overlay: same affordance, no panel parked on the drawing. -->
+					<GraphView {onjump} onopentools={() => (bottom = 'tools')} />
 				{/if}
 			</div>
 		</div>

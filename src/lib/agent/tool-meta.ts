@@ -49,6 +49,12 @@ const META: Record<string, ToolMeta> = {
 		blurb: 'structure, paused for approval'
 	},
 	generate_image: { icon: SparklesIcon, origin: 'ours', blurb: 'gpt-image-2 illustration' },
+	edit_image: { icon: PencilEdit01Icon, origin: 'ours', blurb: 'redraw an existing image' },
+	stylize_figure: {
+		icon: Image01Icon,
+		origin: 'ours',
+		blurb: 'redraw a paper figure as original art'
+	},
 	compact_context: { icon: AsteriskIcon, origin: 'ours', blurb: 'fold the conversation up' },
 
 	// ── the harness supplies these; we never wrote them ──────────────────────

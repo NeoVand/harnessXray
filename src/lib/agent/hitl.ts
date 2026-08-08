@@ -68,6 +68,11 @@ export function reviewFor(req: HITLRequest, actionName: string): ReviewConfig | 
  */
 export const DEFAULT_INTERRUPT_ON: Record<string, boolean> = {
 	generate_image: true,
+	// An edit is a fresh render at the same rate as a generation — the picture is
+	// re-drawn, not patched — so it costs what generating costs and is gated for
+	// the same reason. Gating what is expensive, never what is merely a read.
+	edit_image: true,
+	stylize_figure: true,
 	// The outline is the one decision that steers everything after it, and the
 	// tool runs in the MAIN lane — never inside parallel subagents — so gating
 	// it is safe under the single-store ALS shim.

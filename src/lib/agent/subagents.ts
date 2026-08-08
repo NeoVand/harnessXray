@@ -2,6 +2,7 @@ import {
 	searchPapersTool,
 	fetchPaperTool,
 	generateImageTool,
+	editImageTool,
 	citeTool,
 	bibliographyTool,
 	extractFiguresTool,
@@ -100,10 +101,17 @@ approvals happen one at a time, and the pause is AUTOMATIC: the harness
 interrupts the call and shows the user your brief. Calling the tool is how
 you ask; never ask in prose or wait for a go-ahead before calling. If a
 label comes back misspelled, regenerate ONCE with that word spelled
-letter-by-letter. Reply with the path you saved and one sentence on the
-brief. The saved image lives in the asset store — your ls cannot see it;
+letter-by-letter — or better, call edit_image on the image you just made and
+name the correct spelling, which re-renders that picture instead of gambling
+on a fresh one. Use edit_image for any fix to an image that already exists;
+generate_image is for pictures that do not. Reply with the path you saved and
+one sentence on the brief. The saved image lives in the asset store — your ls cannot see it;
 trust the tool result.`,
-		tools: [generateImageTool, listFiguresTool],
+		// edit_image is image craft, so it belongs to the agent that owns image
+		// craft: fixing a misspelled label is a re-render of its own work, not a
+		// new brief, and regenerating from scratch to fix one word is the waste
+		// this replaces.
+		tools: [generateImageTool, editImageTool, listFiguresTool],
 		middleware: [worldStateMiddleware, oneGatePerTurnMiddleware],
 		skills: [SKILLS_ROOT],
 		// The human approves the prompt this subagent wrote, immediately before it
@@ -120,17 +128,25 @@ trust the tool result.`,
 1. ls /notes/ and read everything there. Then call list_figures — images live
    in the ASSET STORE, not the text filesystem, so ls cannot see them; a
    figure that exists but goes unused is the most common way this step fails.
+   Treat that list as a CHECKLIST, not a suggestion: every figure on it was
+   paid for or fetched on purpose, and the draft is not finished while one is
+   still unplaced. If a figure genuinely does not belong, say which and why in
+   your reply — do not silently drop it.
 2. Write /paper/review.md: title, then the approved sections, then References.
 3. Every factual claim carries an inline citation — get the exact string from
    the cite tool. If cite REFUSES an id, the claim loses its citation and you
    must cut or soften the claim. Never hand-write a citation.
 4. Build the References section from the bibliography tool, verbatim. Do not
    recall references from memory.
-5. If figure paths were given to you (extracted or generated), place them where
-   they earn their keep with ![caption](/figures/….png). Extracted figures keep
-   their caption and gain "Figure from arXiv:<id>". Never invent a figure path.
+5. Place EVERY figure from list_figures with ![caption](/figures/….png), near
+   the claim it supports. Captions carry provenance and it differs by kind:
+   an extracted figure keeps the paper's own caption and gains "Figure from
+   arXiv:<id>"; one ending in -styled is a redrawing, captioned "Redrawn after
+   arXiv:<id>"; a generated illustration needs no attribution. Never invent a
+   figure path, and never place a path list_figures did not show you.
 
-Reply with the path and a one-line description of the structure you chose.`,
+Reply with the path, a one-line description of the structure you chose, and the
+figure paths you placed — or, for any you left out, one clause saying why.`,
 		tools: [searchPapersTool, citeTool, bibliographyTool, listFiguresTool],
 		middleware: [worldStateMiddleware],
 		skills: [SKILLS_ROOT]
@@ -152,6 +168,12 @@ round-trip, and a slow critique is a critique that gets skipped.
    matches the bibliography output; every ![figure](path) appears in
    list_figures (images live in the asset store — ls cannot see them, and an
    empty ls is NOT evidence a figure is missing).
+   Also check the reverse, which is the failure nobody catches: every figure
+   list_figures reports must appear in the draft. An unplaced figure was paid
+   for and wasted, and it is a violation. So is a wrong attribution — an
+   extracted figure needs "Figure from arXiv:<id>", a -styled one needs
+   "Redrawn after …", and a redrawing described as the paper's own figure
+   misrepresents the source.
 4. Spend any remaining budget spot-checking at most TWO claims against their
    /notes/ files — pick the two that would be worst if wrong, and quote the
    note line when you flag a mismatch.

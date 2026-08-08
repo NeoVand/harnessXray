@@ -59,6 +59,29 @@ export function fnv1a(text: string): string {
 	return (h >>> 0).toString(16).padStart(8, '0');
 }
 
+/**
+ * A multipart body, as something readable.
+ *
+ * Text fields keep their values — the prompt is the interesting part of an image
+ * edit and it is short. Blobs are replaced by their type and size, because the
+ * only alternative is a base64 wall that would dwarf every other row in the
+ * log and pin ~1MB per call in memory for the life of the run.
+ */
+function describeForm(form: FormData): { shape: Record<string, unknown>; bytes: number } {
+	const shape: Record<string, unknown> = {};
+	let bytes = 0;
+	for (const [key, value] of form.entries()) {
+		if (typeof value === 'string') {
+			shape[key] = value;
+			bytes += value.length;
+		} else {
+			shape[key] = `<${value.type || 'blob'} · ${Math.round(value.size / 1024)} KB>`;
+			bytes += value.size;
+		}
+	}
+	return { shape, bytes };
+}
+
 export function createInstrumentedFetch(
 	bus: EventBus,
 	scope: Scope = 'main',
@@ -78,6 +101,14 @@ export function createInstrumentedFetch(
 					? input.href
 					: (input as Request).url;
 		const body = typeof init?.body === 'string' ? init.body : undefined;
+		// A multipart body is not a string, and image editing sends one. Left
+		// alone it recorded as `null`, so the one request in the app that carries a
+		// picture was the one request whose payload the X-ray could not show —
+		// which is the opposite of the point. It is described rather than
+		// captured: the fields, and the size of each blob instead of its bytes.
+		// The same reasoning that keeps binaries out of graph state keeps a
+		// megabyte of base64 out of the event log.
+		const form = !body && init?.body instanceof FormData ? describeForm(init.body) : undefined;
 
 		const request = bus.emit({
 			kind: 'http_request',
@@ -85,8 +116,8 @@ export function createInstrumentedFetch(
 			url,
 			method: init?.method ?? 'GET',
 			headers: headerMap(init?.headers),
-			body: body ? safeJson(body) : null,
-			bytes: body?.length ?? 0,
+			body: body ? safeJson(body) : (form?.shape ?? null),
+			bytes: body?.length ?? form?.bytes ?? 0,
 			// Hashed from the literal string, before any parse — see fnv1a.
 			...(body ? { bodyHash: fnv1a(body) } : {}),
 			label: new URL(url, 'http://x').pathname
