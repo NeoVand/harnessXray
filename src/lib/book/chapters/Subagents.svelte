@@ -11,21 +11,44 @@
 	loading="lazy"
 />
 
-<p>
-	The harness's <em>task</em> tool dispatches a <em>subagent</em>: a complete agent run inside one
-	tool call — its own context window, tools, and system prompt. Nothing it does enters the parent's
-	context except its final reply, and that asymmetry is the entire point: a paper-reader burns forty
-	thousand tokens digesting a paper, the parent pays for the two hundred it hands back. The X-ray
-	shows both numbers.
+<p class="lead">
+	Some jobs are expensive to read and cheap to summarise. Digesting a long paper might cost forty
+	thousand tokens; what you actually need from it is two hundred words. Do that in the main
+	conversation and you pay the forty thousand again on every turn that follows.
 </p>
 
 <p>
-	This app defines four, each reply a contract: <em>paper-reader</em> digests one paper into notes
-	and at most 200 words back; <em>image-smith</em> writes the actual image brief and pauses at the
-	gate for your approval; <em>report-writer</em> assembles the review with every citation from the
-	cite tool; <em>critic</em> audits the draft on a six-call budget and returns CLEAN or violations.
-	They coordinate through the filesystem, not conversation — and custom subagents inherit
-	<em>nothing</em>, so each names its skills directory explicitly.
+	The harness's <em>task</em> tool fixes this by starting a whole second agent inside a single tool
+	call. The <em>subagent</em> gets its own context window, its own tools and its own system prompt. It
+	runs its own loop to completion — and then only its final reply comes back. Everything it read, every
+	dead end it walked down, stays in its window and is thrown away with it.
+</p>
+
+<p>
+	That asymmetry is the entire point, and the X-ray shows both numbers: what the subagent spent, and
+	what the parent paid to learn the answer.
+</p>
+
+<h2>The four in this app</h2>
+
+<ul>
+	<li><em>paper-reader</em> digests one paper into notes and hands back at most 200 words.</li>
+	<li>
+		<em>image-smith</em> writes the actual image brief, then stops at a gate for your approval.
+	</li>
+	<li>
+		<em>report-writer</em> assembles the review, taking every citation from the <em>cite</em> tool.
+	</li>
+	<li>
+		<em>critic</em> audits the draft on a budget of six tool calls and returns either CLEAN or a list
+		of violations.
+	</li>
+</ul>
+
+<p>
+	Each one has a <em>reply contract</em> — a stated shape for what comes back. That is the discipline
+	that makes subagents worth having. A subagent that returns "here is everything I found" has moved the
+	cost, not removed it.
 </p>
 
 <img
@@ -36,6 +59,13 @@
 	height="1024"
 	loading="lazy"
 />
+
+<p>
+	Two habits follow. They coordinate through the filesystem rather than conversation: one writes
+	notes, the next reads them. And custom subagents inherit <em>nothing</em> from the parent — not even
+	its skills — so each one has to name its skills directory explicitly. Ours spent weeks unable to re-read
+	a manual it was told to follow, for exactly that reason.
+</p>
 
 <p class="live">
 	See it live: the subagent lanes on the events timeline — the dispatch, everything it did in its

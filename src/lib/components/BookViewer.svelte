@@ -144,6 +144,26 @@
 	.bk :global(p) {
 		margin: 0 0 1.2em;
 	}
+	/* The chapter's opening claim, set one step up and at full contrast. A
+	   reader who bounces off a wall of even grey will read three friendly
+	   sentences, and those three sentences are where the idea actually is. */
+	.bk :global(p.lead) {
+		font-size: 0.95rem;
+		line-height: 1.7;
+		color: var(--foreground);
+		margin-bottom: 1.35em;
+	}
+	/* Subheads exist to make a chapter skimmable and to promise the reader
+	   that the next block is short. They are barely larger than the body —
+	   the h1 is the only loud thing on the page. */
+	.bk :global(h2) {
+		font-size: 0.9rem;
+		font-weight: 620;
+		letter-spacing: -0.005em;
+		line-height: 1.4;
+		color: var(--foreground);
+		margin: 2.1em 0 0.8em;
+	}
 	.bk :global(em) {
 		font-style: normal;
 		font-weight: 550;

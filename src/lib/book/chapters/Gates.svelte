@@ -11,22 +11,42 @@
 	loading="lazy"
 />
 
-<p>
-	Two tools pause for a human here — <em>present_outline</em> because it steers everything after,
-	<em>generate_image</em> because it spends money — and nothing else, on principle: approving reads
-	trains people to click without looking. The mechanics are stranger than they look: an interrupt
-	does not block, the stream simply <em>ends</em>, the graph parks at its checkpoint, and your
-	answer starts a <em>second, complete invocation</em>. Without a checkpointer, human-in-the-loop
-	cannot exist.
+<p class="lead">
+	Sometimes the right move is to stop and ask. This harness stops for exactly two tools:
+	<em>present_outline</em>, because the outline steers everything that comes after it, and
+	<em>generate_image</em>, because it spends real money.
 </p>
 
 <p>
-	The decision is one of three: <em>approve</em> runs the call as written; <em>edit</em> rewrites
-	the arguments first; <em>reject</em> returns your reason to the model as the tool's result — information,
-	not ejection. And the same primitive gives more than pauses: every user message remembers its preceding
-	checkpoint, so editing one re-runs the graph from that exact state. Pause, resume, rewind — three features,
-	one mechanism.
+	Nothing else, and that restraint is deliberate. An agent that asks permission to read a file
+	trains you to click Approve without looking, which is worse than never asking. Gate what is
+	expensive or steering; never gate a read.
 </p>
+
+<h2>What actually happens when it pauses</h2>
+
+<p>
+	The mechanics are stranger than the little card in the conversation suggests. The interrupt does
+	not block and wait — the stream simply <em>ends</em>. The graph parks at its last checkpoint, and
+	as far as the machinery is concerned the run is over. When you answer, a second, completely fresh
+	invocation starts and picks up from that checkpoint.
+</p>
+
+<p>
+	Which is why the checkpointer from chapter 7 is not optional. Without somewhere to park,
+	human-in-the-loop cannot exist at all.
+</p>
+
+<h2>Three ways to answer</h2>
+
+<ul>
+	<li><em>approve</em> runs the call exactly as written.</li>
+	<li><em>edit</em> lets you rewrite the arguments first, then runs it.</li>
+	<li>
+		<em>reject</em> hands your reason back to the model as the tool's result. It is information, not ejection
+		— the model reads why you said no and tries something else.
+	</li>
+</ul>
 
 <img
 	class="plate"
@@ -36,6 +56,12 @@
 	height="1024"
 	loading="lazy"
 />
+
+<p>
+	The same primitive buys more than pauses. Every message you send remembers the checkpoint that
+	came before it, so editing an old message re-runs the graph from exactly that state. Pause,
+	resume, rewind: three features, one mechanism.
+</p>
 
 <p class="live">
 	See it live: the approval card in the conversation when a gated call fires, and the amber

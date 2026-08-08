@@ -11,20 +11,22 @@
 	loading="lazy"
 />
 
-<p>
-	A deep agent is one assembly call handed the parts this book named: a model, your tools, a prompt
-	prefix the harness extends with one fragment per layer, subagents as plain descriptions, skills as
-	a directory of markdown, a backend that decides where files live, a checkpointer that makes it all
-	resumable, and <em>interruptOn</em> naming what a human must see first.
+<p class="lead">
+	Everything in this book assembles in a single call. You hand the harness the parts, and it hands
+	you back the loop from chapter 1.
 </p>
 
-<p>
-	The transferable part is judgment: keep expensive reading in subagents; make awareness push, not
-	pull; let tools fail as <em>text</em>; gate what is costly or steering and nothing that is merely
-	a read; give every subagent a reply contract. And build it so it can be watched — everything this
-	book described was read from the wire and the graph's own channels, the agent never modified and
-	never aware. A harness you can inspect is one you can teach with.
-</p>
+<ul>
+	<li>a model, and the tools you wrote</li>
+	<li>a system prompt, which the harness extends with one fragment per layer</li>
+	<li>subagents, described in plain prose</li>
+	<li>skills, as a directory of markdown</li>
+	<li>a backend, deciding where files actually live</li>
+	<li>a checkpointer, which is what makes any of it resumable</li>
+	<li><em>interruptOn</em>, naming what a human must see first</li>
+</ul>
+
+<p>The assembly is the easy part, and it is not what took us long to learn. This is:</p>
 
 <img
 	class="plate"
@@ -34,6 +36,26 @@
 	height="1024"
 	loading="lazy"
 />
+
+<h2>The part that transfers</h2>
+
+<ul>
+	<li>
+		Keep expensive reading inside subagents — pay the tokens once, in a window you throw away.
+	</li>
+	<li>Make awareness push, not pull. Tell the agent what exists; don't make it go hunting.</li>
+	<li>
+		Let tools fail as text. An error the model can read is a setback; an exception is a crash.
+	</li>
+	<li>Gate what is costly or steering, and nothing that is merely a read.</li>
+	<li>Give every subagent a reply contract, or you have moved the cost instead of removing it.</li>
+</ul>
+
+<p>
+	And build it so it can be watched. Everything this book described was read off the wire and out of
+	the graph's own channels, with the agent unmodified and never told it was being observed. A
+	harness you can see inside is one you can debug, teach with, and eventually trust.
+</p>
 
 <p class="live">
 	See it live: the graph tab in the inspector — the assembled machine, drawn from the running graph
