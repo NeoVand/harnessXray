@@ -83,6 +83,40 @@ describe('the assembled harness', () => {
 		expect(nodes.some((n) => n.endsWith('.after_model'))).toBe(true);
 	});
 
+	it('leaves report-writer able to plan', async () => {
+		// The other half of the same 1.12 deletion. `todoListMiddleware` used to
+		// come free with every subagent via `createSubagentDefaultMiddleware`;
+		// 1.12 removed it there too, so the plan tab lost its subagent lanes at
+		// the same moment it lost the main one — and a live run afterwards
+		// offered exactly one track to switch to.
+		//
+		// Subagent middleware is compiled inside a closure and cannot be read
+		// back off the agent, so the spec is what gets pinned. That is the right
+		// level anyway: the framework no longer supplies this, so our composing
+		// it is the load-bearing part.
+		const writer = SUBAGENTS.find((s) => s.name === 'report-writer');
+		const names = (writer?.middleware ?? []).map((m) => m.name);
+		expect(names).toContain('todoListMiddleware');
+
+		// And it is there for the tool it carries, not for the name.
+		const todo = (writer?.middleware ?? []).find((m) => m.name === 'todoListMiddleware');
+		const tools = ((todo as { tools?: { name: string }[] } | undefined)?.tools ?? []).map(
+			(t) => t.name
+		);
+		expect(tools).toContain('write_todos');
+	});
+
+	it('keeps a planning tool away from the subagents that must not spend calls', async () => {
+		// Not an oversight — a decision, so it gets a test. critic rations six
+		// tool calls and a todo write is one of them; paper-reader and
+		// image-smith are single-purpose by their own prompts.
+		for (const name of ['critic', 'paper-reader', 'image-smith']) {
+			const spec = SUBAGENTS.find((s) => s.name === name);
+			const names = (spec?.middleware ?? []).map((m) => m.name);
+			expect(names, name).not.toContain('todoListMiddleware');
+		}
+	});
+
 	it('draws the same agent before a run as during one', async () => {
 		// `peekAgent` builds a keyless stand-in so the graph tab works before the
 		// first message. It has to carry everything that changes the SHAPE —

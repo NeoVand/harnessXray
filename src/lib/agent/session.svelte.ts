@@ -21,6 +21,7 @@ import { replay } from '$lib/xray/replay.svelte';
 import type { Todo, ToolStart as ToolStartEvent } from '$lib/xray/events';
 import type { IdbStore, IdbCheckpointSaver } from './persistence';
 import { EVICT_DEFAULT_TOKENS } from './eviction';
+import { emptyLanes, laneName, sealLanes } from './lanes';
 import {
 	DEFAULT_INTERRUPT_ON,
 	type Decision,
@@ -195,8 +196,17 @@ class Session {
 	#skillsSeen = '';
 	/** Emitted tool_start rows, so streamed arguments can be folded back in. */
 	#toolStarts = new Map<string, ToolStartEvent>();
-	/** Subgraph namespace → subagent name, paired as dispatches are seen. */
-	#lanes = new Map<string, string>();
+	/** Subgraph namespace → subagent name, paired as dispatches are seen. See lanes.ts. */
+	#lanes = emptyLanes();
+
+	/** Every dispatch on the transcript, oldest first. */
+	*#dispatches() {
+		for (const m of this.messages) for (const t of m.toolCalls) yield t;
+	}
+
+	#sealLanes() {
+		sealLanes(this.#lanes, this.#dispatches());
+	}
 	/**
 	 * The last plan written in each namespace, so a revision is diffed against
 	 * the list it actually replaced rather than against whoever wrote last.
@@ -302,6 +312,10 @@ class Session {
 		if (last) {
 			this.threadId = last.id;
 			this.#restore(last.id);
+			// The reload that started this page session. Every dispatch that came
+			// back with the transcript belongs to a run we did not watch, so none
+			// of them can claim a namespace we are about to see.
+			this.#sealLanes();
 		}
 	}
 
@@ -385,10 +399,12 @@ class Session {
 		// thing that happens in a run, and it is not "unchanged" to a blank log.
 		this.#skillsSeen = '';
 		this.#toolStarts.clear();
-		this.#lanes.clear();
 		this.#planBy.clear();
 		bus.clear();
 		this.#restore(id); // re-seeds #n past the restored ids
+		// After the restore, so it seals THIS thread's dispatches rather than the
+		// ones we just navigated away from.
+		this.#sealLanes();
 	}
 
 	newThread() {
@@ -412,9 +428,9 @@ class Session {
 		this.status = 'idle';
 		this.#skillsSeen = '';
 		this.#toolStarts.clear();
-		this.#lanes.clear();
 		this.#planBy.clear();
 		bus.clear();
+		this.#sealLanes();
 	}
 
 	stop() {
@@ -1151,8 +1167,10 @@ class Session {
 		this.messages = this.messages.slice(0, index);
 		this.pending = null;
 		this.#toolStarts.clear();
-		this.#lanes.clear();
 		this.#planBy.clear();
+		// The rewind already truncated `messages`; sealing now writes off exactly
+		// the dispatches that survived it.
+		this.#sealLanes();
 		compactRequest.pending = false;
 
 		this.messages.push({
@@ -1250,19 +1268,7 @@ class Session {
 	#laneOf(ns: string[]): string | undefined {
 		if (!ns.length) return undefined;
 		const key = ns.join('/');
-		const known = this.#lanes.get(key);
-		if (known) return known;
-		const dispatches: string[] = [];
-		for (const m of this.messages)
-			for (const t of m.toolCalls)
-				if (t.name === 'task') {
-					const type = (t.args as { subagent_type?: string })?.subagent_type;
-					dispatches.push(typeof type === 'string' ? type : '');
-				}
-		const next = dispatches[this.#lanes.size];
-		if (!next) return undefined;
-		this.#lanes.set(key, next);
-		return next;
+		return laneName(this.#lanes, key, this.#dispatches());
 	}
 
 	/** Tool calls and results, as they stream. `ns` is the speaker's path. */
