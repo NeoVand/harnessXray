@@ -172,16 +172,52 @@ describe('layoutDag', () => {
 		expect(layerOf['__end__']).toBe(layerOf['tools']);
 	});
 
-	it('routes loops on a rail right of the content, entering the target side-on', () => {
+	it('routes loops on a rail outside the content, entering the target side-on', () => {
 		const g = layoutDag(REAL_IDS, REAL_EDGES);
 		const model = g.nodes.find((n) => n.id === 'model_request')!;
 		const backs = g.edges.filter((e) => e.route === 'back');
 		expect(backs.length).toBeGreaterThanOrEqual(2);
 		for (const e of backs) {
-			expect(Math.max(...e.points.map((p) => p.x))).toBeGreaterThan(model.x + model.w);
+			const xs = e.points.map((p) => p.x);
+			// Clear of the node it returns to, on whichever side it runs down.
+			const outside = Math.max(...xs) > model.x + model.w || Math.min(...xs) < model.x;
+			expect(outside).toBe(true);
 			const [a, b] = e.points.slice(-2);
 			expect(a.y).toBe(b.y); // final approach is horizontal — the arrow points inward
 		}
+	});
+
+	it('sends two loops into one node down opposite sides, both to its middle', () => {
+		// The real graph loops after_model → model_request and tools →
+		// model_request. Run down the same side they stack their arrowheads a few
+		// pixels apart and the drawing leans; one each way is symmetric about the
+		// node's own centre line, and neither needs an offset to avoid the other.
+		const g = layoutDag(REAL_IDS, REAL_EDGES);
+		const model = g.nodes.find((n) => n.id === 'model_request')!;
+		const into = g.edges.filter((e) => e.route === 'back' && e.to === 'model_request');
+		expect(into).toHaveLength(2);
+
+		const entries = into.map((e) => e.points[e.points.length - 1]);
+		const lefts = entries.filter((p) => p.x === model.x);
+		const rights = entries.filter((p) => p.x === model.x + model.w);
+		expect(lefts).toHaveLength(1);
+		expect(rights).toHaveLength(1);
+		for (const p of entries) expect(p.y).toBe(model.y + model.h / 2);
+	});
+
+	it('sizes a plain node to its label, not to a fixed slab', () => {
+		const g = layoutDag(
+			['__start__', 'tools', 'model_request'],
+			[
+				{ from: '__start__', to: 'model_request', conditional: false },
+				{ from: 'model_request', to: 'tools', conditional: false }
+			]
+		);
+		const w = (id: string) => g.nodes.find((n) => n.id === id)!.w;
+		expect(w('tools')).toBeLessThan(w('model_request'));
+		// Both keep room for a count that has not been drawn yet — sizing to the
+		// live figure would re-lay the graph the moment ×9 became ×10.
+		expect(w('tools')).toBeGreaterThan('tools'.length * 6);
 	});
 
 	it('nests the return rails instead of crossing them', () => {
