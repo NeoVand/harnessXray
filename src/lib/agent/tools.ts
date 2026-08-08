@@ -172,6 +172,131 @@ export const generateImageTool = tool(
 	}
 );
 
+/**
+ * The house style stylize_figure redraws into.
+ *
+ * One sentence, and deliberately not a checklist: the same lesson the
+ * infographic skill is built on is that palette lists and stroke widths produce
+ * clip-art, while a named quality bar produces design. It is stated once here so
+ * every stylised figure in a document matches every other one, which is the
+ * actual point of having a house style rather than a per-call adjective.
+ */
+export const HOUSE_STYLE =
+	'Redraw this as a clean editorial diagram of the quality of a Nature or Quanta ' +
+	'explainer: the same structure, quantities and relationships, redrawn as ' +
+	'original artwork rather than reproduced. Keep every axis label, data label ' +
+	'and legend entry that is legible in the source, spelled exactly as it appears. ' +
+	'Do not invent data points, do not change any value, and do not add decoration ' +
+	'that asserts something the original does not.';
+
+export const editImageTool = tool(
+	async ({ from, prompt, path, size, quality }) => {
+		const { editImage } = await import('./images');
+		try {
+			const img = await editImage({ from, path: path ?? from, prompt, size, quality });
+			return (
+				`Edited ${from} → ${img.path} (${(img.bytes / 1024).toFixed(0)} KB, ${img.quality}).` +
+				(img.replaced ? ' This REPLACED the image that was at that path.' : '') +
+				`\nReference it in markdown as ![caption](${img.path}).` +
+				`\nThe edit is a NEW rendering, not the original pixels — describe it as a redrawn ` +
+				`figure if the source was someone else's artwork.`
+			);
+		} catch (e) {
+			return toolError(e);
+		}
+	},
+	{
+		name: 'edit_image',
+		description:
+			'Change an image that already exists: restyle it, fix a misspelled label, alter a ' +
+			'background, combine an instruction with what is already there. Give the path of an ' +
+			'existing image and say what should be different — the model re-renders the whole ' +
+			'picture, so describe the change, not the entire scene. Omit `path` to overwrite in ' +
+			'place, or give a new one to keep both. For turning a paper figure into something ' +
+			'publishable, prefer stylize_figure — it carries the house style and the attribution.',
+		schema: z.object({
+			from: z
+				.string()
+				.regex(/^\/figures\/[\w-]+\.(png|jpg|jpeg|webp)$/)
+				.describe('An existing image, e.g. /figures/fig1.png. Check list_figures first.'),
+			prompt: z.string().min(8).describe('What should be different. Describe the change.'),
+			path: z
+				.string()
+				.regex(/^\/figures\/[\w-]+\.(png|jpg|jpeg|webp)$/)
+				.optional()
+				.describe('Where to save it. Omit to overwrite `from` in place.'),
+			size: z.enum(['auto', '1024x1024', '1536x1024', '1024x1536']).default('auto'),
+			quality: z.enum(['low', 'medium', 'high']).default('high')
+		})
+	}
+);
+
+export const stylizeFigureTool = tool(
+	async ({ from, path, note }) => {
+		const { editImage } = await import('./images');
+		const { assets } = await import('$lib/storage/assets.svelte');
+		const target = path ?? from.replace(/\.(png|jpg|jpeg|webp)$/, '-styled.png');
+		// Extracted figures record { arxivId, caption, source: 'extracted' }; a
+		// generated one does not, and that difference decides the caption.
+		const meta = (await assets.get(from))?.meta as { arxivId?: string } | undefined;
+		const source = meta?.arxivId ? { arxivId: meta.arxivId } : undefined;
+		try {
+			const img = await editImage({
+				from,
+				path: target,
+				prompt: note ? `${HOUSE_STYLE}\n\nAlso: ${note}` : HOUSE_STYLE,
+				quality: 'high'
+			});
+			// Attribution is read off the source asset rather than left to the model,
+			// which otherwise credits the file PATH — the run that prompted this
+			// suggested 'Redrawn after /figures/….png', which credits nobody.
+			const credit = source?.arxivId
+				? `"Redrawn after arXiv:${source.arxivId}"`
+				: 'no attribution — the source was generated for this document, not taken from a paper';
+			return (
+				`Stylised ${from} → ${img.path} (${(img.bytes / 1024).toFixed(0)} KB). ` +
+				`The original is untouched and still at ${from}.\n` +
+				`Embed the stylised one with ![caption](${img.path}). Caption it ${credit}. ` +
+				`It is original artwork based on the figure rather than the figure itself, which ` +
+				`is exactly what makes it publishable — but for that reason it is NOT evidence: ` +
+				`use the original when the point is what a paper actually reported.`
+			);
+		} catch (e) {
+			return toolError(e);
+		}
+	},
+	{
+		name: 'stylize_figure',
+		description:
+			"Redraw an extracted paper figure as original artwork in this document's house style, " +
+			'preserving its structure, labels and quantities. Use this when a figure from a paper ' +
+			'should appear in a document you are publishing: the redrawing carries the same ' +
+			'information without reproducing copyrighted artwork. Saves alongside the original — ' +
+			'never over it — so the evidence version survives. Caption the result as "Redrawn ' +
+			'after <source>".',
+		schema: z.object({
+			from: z
+				.string()
+				.regex(/^\/figures\/[\w-]+\.(png|jpg|jpeg|webp)$/)
+				.describe('The extracted figure to redraw, e.g. /figures/2401-12345-x1.png'),
+			path: z
+				.string()
+				.regex(/^\/figures\/[\w-]+\.(png|jpg|jpeg|webp)$/)
+				.optional()
+				.describe('Where to save it. Defaults to the source path with -styled appended.'),
+			note: z
+				.string()
+				.optional()
+				.describe(
+					'Only what the house style cannot know: which panel matters, a label to ' +
+						'correct, something to leave out. Do NOT restate a style — no palettes, ' +
+						'no "flat vector", no background or stroke instructions. The house style ' +
+						'is already sent and over-specifying it is what produces clip-art.'
+				)
+		})
+	}
+);
+
 export const compactContextTool = tool(
 	async () => {
 		compactRequest.pending = true;
@@ -331,6 +456,13 @@ export const AGENT_TOOLS = [
 	citeTool,
 	bibliographyTool,
 	extractFiguresTool,
+	// The main agent has no generate_image — designing an illustration is a
+	// briefing job and belongs to image-smith, in its own context window.
+	// Stylising is the opposite kind of work: mechanical, single-shot, with the
+	// house style already in code. Dispatching a subagent to do it would buy a
+	// model round-trip and nothing else, and the figure being redrawn is one the
+	// main agent extracted and is about to place. So it lives here, gated.
+	stylizeFigureTool,
 	listFiguresTool,
 	compactContextTool
 ];
@@ -340,6 +472,8 @@ export const ALL_TOOLS = [
 	searchPapersTool,
 	fetchPaperTool,
 	generateImageTool,
+	editImageTool,
+	stylizeFigureTool,
 	citeTool,
 	bibliographyTool,
 	extractFiguresTool,
