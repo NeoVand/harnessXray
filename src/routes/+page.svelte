@@ -125,6 +125,10 @@
 		return shotStubs(bus);
 	});
 	const lastShot = $derived(ctxStubs.at(-1));
+	/** The live window, for the chat header — always the head, never the pager. */
+	const liveUsed = $derived(lastShot ? Math.min(1, lastShot.tokens / INPUT_LIMIT) : 0);
+	/** Turns you have taken, which is what "how long is this chat" means. */
+	const turns = $derived(session.messages.filter((m) => m.role === 'user').length);
 
 	/** Which model call the context panel shows; null follows the run. */
 	let ctxPinned = $state<string | null>(null);
@@ -250,26 +254,10 @@
 			</span>
 		{/if}
 
+		<!-- New chat and history moved down into the chat column's own header:
+		     they act on the conversation, not on the app, and the app bar is the
+		     wrong distance from the thing they change. -->
 		<div class="ml-auto flex items-center gap-3">
-			<button
-				class="text-muted-foreground transition-colors hover:text-foreground"
-				onclick={session.newThread.bind(session)}
-				aria-label="New chat"
-				{@attach tip('New chat  ⌘N')}
-			>
-				<HugeiconsIcon icon={ICON.newChat} size={15} strokeWidth={1.5} />
-			</button>
-
-			<button
-				class="text-muted-foreground transition-colors hover:text-foreground"
-				style:color={historyOpen ? 'var(--hx-accent)' : undefined}
-				onclick={() => (historyOpen = !historyOpen)}
-				aria-label="History"
-				{@attach tip(historyOpen ? 'Hide saved chats' : 'Saved chats on this device')}
-			>
-				<HugeiconsIcon icon={ICON.history} size={15} strokeWidth={1.5} />
-			</button>
-
 			<button
 				class="text-muted-foreground transition-colors hover:text-foreground"
 				style:color={bookPage ? 'var(--hx-accent)' : undefined}
@@ -324,6 +312,65 @@
 			     of both. -->
 			<Resizable.Pane defaultSize={42} minSize={26}>
 				<div class="relative flex h-full min-h-0 flex-col">
+					<!-- The chat's own header, on the same frosted glass and the same
+					     hairline as every instrument's. The column was the one part of
+					     the app without one, which made it read as background rather
+					     than as a panel — and left its two controls stranded in the app
+					     bar beside settings and the theme, which act on something else
+					     entirely. -->
+					<header
+						class="hx-rule hx-frost absolute inset-x-0 top-10 z-30 flex h-9 items-center gap-3
+						       border-b px-3"
+					>
+						<span
+							class="hx-eyebrow flex h-full items-center gap-1.5"
+							style:color="var(--hx-accent)"
+						>
+							<HugeiconsIcon icon={ICON.message} size={12} strokeWidth={1.5} />
+							chat
+							{#if turns}
+								<span class="hx-num text-[9px] opacity-60">{turns}</span>
+							{/if}
+						</span>
+
+						<span class="ml-auto flex items-center gap-3 text-muted-foreground">
+							{#if lastShot}
+								<!-- How full the window is *now* — the number that decides whether
+								     the next message is worth sending as-is. The context pane's
+								     donut follows its own pager; this one always reads the live
+								     head. -->
+								<span
+									class="flex items-center gap-1.5"
+									{@attach tip(
+										`${lastShot.tokens.toLocaleString()} of ${compact(INPUT_LIMIT)} tokens — ${Math.round(liveUsed * 100)}% of the window${liveUsed >= COMPACT_AT ? '; the harness compacts past here' : ''}`
+									)}
+								>
+									<ContextDonut used={liveUsed} warn={COMPACT_AT} />
+									<span class="hx-num text-[10px]">{compact(lastShot.tokens)}</span>
+								</span>
+							{/if}
+
+							<button
+								class="transition-colors hover:text-foreground"
+								onclick={session.newThread.bind(session)}
+								aria-label="New chat"
+								{@attach tip('New chat  ⌘N')}
+							>
+								<HugeiconsIcon icon={ICON.newChat} size={14} strokeWidth={1.5} />
+							</button>
+
+							<button
+								class="transition-colors hover:text-foreground"
+								style:color={historyOpen ? 'var(--hx-accent)' : undefined}
+								onclick={() => (historyOpen = !historyOpen)}
+								aria-label="History"
+								{@attach tip(historyOpen ? 'Hide saved chats' : 'Saved chats on this device')}
+							>
+								<HugeiconsIcon icon={ICON.history} size={14} strokeWidth={1.5} />
+							</button>
+						</span>
+					</header>
+
 					{#if historyOpen}
 						<!-- An overlay, not a shelf.
 						     It used to be a flex child, so opening it SHOVED the transcript
@@ -332,7 +379,7 @@
 						     the column on the same frosted glass the header and composer
 						     already use, and the transcript passes underneath. -->
 						<div
-							class="hx-rule hx-frost absolute inset-x-0 top-10 z-30 flex max-h-[45%] flex-col
+							class="hx-rule hx-frost absolute inset-x-0 top-[76px] z-30 flex max-h-[45%] flex-col
 							       border-b shadow-[0_10px_30px_-18px_rgb(0_0_0/0.55)]"
 						>
 							<!-- Title and dismiss share a row: closing a panel should not mean
@@ -404,7 +451,7 @@
 							await tick();
 							openPath = p;
 						}}
-						topPad="52px"
+						topPad="88px"
 						bottomPad="{composerH + 8}px"
 					/>
 					<div class="absolute inset-x-0 bottom-0 z-30" bind:clientHeight={composerH}>
