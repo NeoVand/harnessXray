@@ -25,6 +25,14 @@
 		/** Open the skill library. */
 		onmanageskills?: () => void;
 	}
+	/**
+	 * Which reading of the filesystem the top pane shows.
+	 *
+	 * Owned here because the switch lives in this header, one boundary above the
+	 * panel it drives — the same arrangement as the context pane's pieces/raw.
+	 */
+	let files = $state<'tree' | 'log'>('tree');
+
 	let {
 		openPath = $bindable<string | null>(null),
 		bottom = $bindable<Bottom>('graph'),
@@ -111,19 +119,27 @@
 				class="hx-rule hx-frost absolute inset-x-0 top-0 z-20 flex h-9 items-center gap-3.5
 				       border-b px-3"
 			>
-				<span class="hx-eyebrow flex h-full items-center gap-1.5" style:color="var(--hx-accent)">
-					<HugeiconsIcon icon={ICON.files} size={12} strokeWidth={1.5} />
-					files
-					{#if counts.files}
-						<span class="hx-num text-[9px] opacity-60">{counts.files}</span>
-					{/if}
-				</span>
+				{#each [{ id: 'tree', label: 'files', icon: ICON.files, hint: 'The filesystem as the agent organised it' }, { id: 'log', label: 'log', icon: ICON.ordered, hint: 'Every write in order, newest first — and which agent made it' }] as v (v.id)}
+					<button
+						class="hx-eyebrow flex h-full items-center gap-1.5 transition-colors
+						       hover:text-foreground"
+						style:color={files === v.id ? 'var(--hx-accent)' : undefined}
+						onclick={() => (files = v.id as 'tree' | 'log')}
+						{@attach tip(v.hint)}
+					>
+						<HugeiconsIcon icon={v.icon} size={12} strokeWidth={1.5} />
+						{v.label}
+						{#if v.id === 'tree' && counts.files}
+							<span class="hx-num text-[9px] opacity-60">{counts.files}</span>
+						{/if}
+					</button>
+				{/each}
 			</header>
 
 			<!-- No wrapper padding: the tree carries it inside its own scroller,
 			     so file rows slide under the frosted bar instead of clipping. -->
 			<div class="h-full overflow-hidden">
-				<FilesPanel bind:openPath {onread} topPad="36px" />
+				<FilesPanel bind:openPath {onread} topPad="36px" view={files} />
 			</div>
 		</div>
 	</Resizable.Pane>
