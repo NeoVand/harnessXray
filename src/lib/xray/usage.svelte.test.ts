@@ -1,12 +1,21 @@
 import { describe, it, expect } from 'vitest';
 import { EventBus } from './bus.svelte';
 import { runTotals } from './usage';
+import { splitTokens, costOf, rateFor, CACHE_WRITE_RATE } from '$lib/agent/models';
 
 /**
- * The Run panel's arithmetic, pinned. The subtle case is image generation:
- * it shares the wire with the text calls but bills on a different meter, and
- * folding it into the text buckets both mispriced it and let a 120-token
+ * The Run panel's arithmetic, pinned.
+ *
+ * Two things here are easy to get wrong and expensive to get wrong quietly.
+ *
+ * Image generation shares the wire with the text calls but bills on a different
+ * meter; folding it into the text buckets both mispriced it and let a 120-token
  * image prompt overwrite the context gauge.
+ *
+ * And the provider's counts *overlap* — cache reads and cache writes are inside
+ * `input_tokens`, reasoning is inside `output_tokens`. Treating them as siblings
+ * double-counts tokens and, since the rates differ by up to sixty times,
+ * produces a bill that looks plausible and is wrong.
  */
 
 function exchange(bus: EventBus, url: string, usage: unknown) {
@@ -78,5 +87,109 @@ describe('runTotals', () => {
 			output_tokens: 4000
 		});
 		expect(runTotals(bus, 'gpt-5.6-luna').lastInput).toBe(50_000);
+	});
+});
+
+describe('splitTokens', () => {
+	it('resolves the overlapping counts into disjoint buckets', () => {
+		// 1000 input, of which 600 were a cache hit and 150 of the remaining 400
+		// were newly written to cache. Nothing may be counted twice.
+		const s = splitTokens({ input: 1000, cached: 600, output: 50, cacheWrite: 150 });
+		expect(s).toEqual({ fresh: 250, cacheWrite: 150, cached: 600, output: 50 });
+		expect(s.fresh + s.cacheWrite + s.cached).toBe(1000);
+	});
+
+	it('clamps a cache write that claims more than the uncached input', () => {
+		// A bad or unexpected usage object must not produce a negative bucket,
+		// which would read as a discount the invoice never gave.
+		const s = splitTokens({ input: 500, cached: 400, output: 0, cacheWrite: 900 });
+		expect(s.fresh).toBe(0);
+		expect(s.cacheWrite).toBe(100);
+		expect(s.fresh + s.cacheWrite + s.cached).toBe(500);
+	});
+
+	it('clamps cached tokens that exceed the input count', () => {
+		const s = splitTokens({ input: 100, cached: 250, output: 0 });
+		expect(s.cached).toBe(100);
+		expect(s.fresh).toBe(0);
+	});
+});
+
+describe('costOf', () => {
+	it('bills cache writes at the uplifted rate', () => {
+		const r = rateFor('gpt-5.6-terra');
+		const usage = { input: 1000, cached: 600, output: 100, cacheWrite: 150 };
+
+		const expected =
+			(250 * r.in + 150 * r.in * CACHE_WRITE_RATE + 600 * r.cached + 100 * r.out) / 1_000_000;
+		expect(costOf('gpt-5.6-terra', usage)).toBeCloseTo(expected, 10);
+
+		// And the uplift is real money: ignoring it, as this app did until the
+		// rate was checked against the docs, understates the call.
+		const ignoringWrites = costOf('gpt-5.6-terra', { ...usage, cacheWrite: 0 });
+		expect(costOf('gpt-5.6-terra', usage)).toBeGreaterThan(ignoringWrites);
+	});
+
+	it('does not double-charge reasoning, which is already inside output', () => {
+		// The caller passes `output` only. Reasoning is a *breakdown* of it, so a
+		// call whose output is entirely reasoning costs the same as one whose
+		// output is entirely visible text.
+		const a = costOf('gpt-5.6-sol', { input: 10, cached: 0, output: 900 });
+		const b = costOf('gpt-5.6-sol', { input: 10, cached: 0, output: 900 });
+		expect(a).toBe(b);
+		expect(a).toBeCloseTo((10 * 5.0 + 900 * 30.0) / 1_000_000, 10);
+	});
+});
+
+describe('the ledger breakdown', () => {
+	it('splits the bill into buckets that sum to the headline', () => {
+		const bus = new EventBus();
+		exchange(bus, 'https://api.openai.com/v1/responses', {
+			input_tokens: 20_000,
+			input_tokens_details: { cached_tokens: 15_000, cache_write_tokens: 1_000 },
+			output_tokens: 2_000,
+			output_tokens_details: { reasoning_tokens: 1_500 },
+			total_tokens: 22_000
+		});
+		exchange(bus, 'https://api.openai.com/v1/images/generations', {
+			input_tokens: 100,
+			output_tokens: 4_000
+		});
+
+		const t = runTotals(bus, 'gpt-5.6-terra');
+		const sum = t.kinds.reduce((n, k) => n + k.usd, 0);
+		expect(sum).toBeCloseTo(t.costUsd, 10);
+		expect(t.textUsd + t.imageUsd).toBeCloseTo(t.costUsd, 10);
+
+		// Every kind present exactly once, and reasoning separated from the
+		// visible remainder rather than added on top of it.
+		const by = Object.fromEntries(t.kinds.map((k) => [k.kind, k.tokens]));
+		expect(by).toEqual({
+			fresh: 4_000, // 20000 − 15000 cached − 1000 written
+			cacheWrite: 1_000,
+			cached: 15_000,
+			reasoning: 1_500,
+			output: 500, // 2000 output − 1500 reasoning
+			image: 4_000
+		});
+
+		// Sorted by spend, because which kind takes the money is the question the
+		// panel exists to answer.
+		const spends = t.kinds.map((k) => k.usd);
+		expect([...spends].sort((a, b) => b - a)).toEqual(spends);
+	});
+
+	it('omits buckets a run never touched', () => {
+		const bus = new EventBus();
+		exchange(bus, 'https://api.openai.com/v1/responses', {
+			input_tokens: 500,
+			output_tokens: 20
+		});
+		const kinds = runTotals(bus, 'gpt-5.6-luna').kinds.map((k) => k.kind);
+		expect(kinds).toContain('fresh');
+		expect(kinds).toContain('output');
+		expect(kinds).not.toContain('cached');
+		expect(kinds).not.toContain('image');
+		expect(kinds).not.toContain('reasoning');
 	});
 });
