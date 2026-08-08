@@ -194,6 +194,13 @@
 					survives skimming, which is the point when a transcript is mostly
 					long agent prose. The bubble hugs its text, so a short question
 					stays a small object on that side rather than a full-width bar.
+
+					A long one is capped short of the column (see `.turn-mine`) so it
+					stays an object too. That cap is also what lets the text inside go
+					back to reading left-to-right: the ragged edge that says "this is
+					your turn" is the bubble's own left edge against the empty gutter,
+					which does the job without asking anyone to read right-aligned
+					prose.
 				-->
 				<article class="group pt-2 pb-2">
 					<div class="turn-col mx-auto flex w-full max-w-[68ch] flex-col items-end">
@@ -215,12 +222,12 @@
 									}
 									if (e.key === 'Escape') editing = null;
 								}}
-								class="hx-rule hx-field w-full resize-none rounded-lg border bg-background p-2.5
-								       text-right text-[13px] leading-relaxed"
+								class="hx-rule hx-field turn-mine w-full resize-none rounded-lg border bg-background
+								       p-2.5 text-[13px] leading-relaxed"
 								rows="3"></textarea>
 						{:else if m.text}
 							<p
-								class="turn-you w-fit max-w-full rounded-lg border px-3 py-1.5 text-right
+								class="turn-you turn-mine w-fit rounded-lg border px-3 py-1.5
 							          text-[13px] leading-relaxed whitespace-pre-wrap"
 							>
 								{m.text}
@@ -393,7 +400,7 @@
 							<HugeiconsIcon icon={ICON.lab} size={11} strokeWidth={1.5} />
 						</p>
 						<p
-							class="turn-you w-fit max-w-full rounded-lg border px-3 py-1.5 text-right
+							class="turn-you turn-mine w-fit rounded-lg border px-3 py-1.5
 							       text-[13px] leading-relaxed whitespace-pre-wrap"
 						>
 							{entry.text}
@@ -510,6 +517,29 @@
 	}
 	.turn-scroller {
 		scrollbar-gutter: stable;
+	}
+
+	/*
+		Your turn stops short of the column.
+
+		A bubble allowed the full width stops being a bubble: at the point where
+		it reaches both edges it is a shaded paragraph, and the side that was
+		supposed to say who is speaking says nothing. Capping it keeps a gutter
+		open on the left that the agent's prose runs into and yours never does,
+		so the asymmetry is visible on every turn rather than only the short
+		ones.
+
+		It is also what let the text go back to left-aligned. Right-aligning was
+		standing in for the same signal, at the cost of a ragged left margin on
+		every line of your own words; with a hard edge to sit against, the
+		bubble carries the signal by itself and the reading gets easier.
+
+		Percent, not `ch`: this tracks the pane, and the pane is resizable, so
+		the gutter stays proportional instead of vanishing when the column is
+		narrow and gaping when it is wide.
+	*/
+	.turn-mine {
+		max-width: 82%;
 	}
 
 	/*
