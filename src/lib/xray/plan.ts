@@ -73,16 +73,38 @@ const nameOf = (scope: string, lane?: string) =>
 export function plans(bus: EventBus): Track[] {
 	const byScope = new Map<string, Track>();
 
+	/**
+	 * The `write_todos` call still waiting for its channel update.
+	 *
+	 * Runs recorded before plan writes carried their namespace label every
+	 * update `main`, including a subagent's — which is the bug this module
+	 * exists to undo, and it is baked into every log already on disk, the
+	 * bundled demo included. The CALL was always scoped correctly, and the
+	 * channel only ever changes because of one, so the nearest preceding call
+	 * repairs the attribution exactly. Consumed on use, so one call answers for
+	 * one update and a stale pairing cannot drift forward.
+	 */
+	let pending: { scope: string; lane?: string } | null = null;
+
 	for (const e of bus.events) {
+		if (e.kind === 'tool_start' && e.name === 'write_todos') {
+			pending = { scope: e.scope, lane: e.lane };
+			continue;
+		}
 		if (e.kind !== 'todo_update') continue;
-		let track = byScope.get(e.scope);
+		// A correctly-scoped event needs no repair and never gets one.
+		const scope = e.scope !== 'main' ? e.scope : (pending?.scope ?? 'main');
+		const lane = e.scope !== 'main' ? e.lane : (pending?.lane ?? e.lane);
+		pending = null;
+
+		let track = byScope.get(scope);
 		if (!track) {
-			track = { agent: nameOf(e.scope, e.lane), scope: e.scope, revisions: [], dropped: [] };
-			byScope.set(e.scope, track);
+			track = { agent: nameOf(scope, lane), scope, revisions: [], dropped: [] };
+			byScope.set(scope, track);
 		}
 		// A lane label can arrive after the first write in that namespace, since
 		// the name comes from the `task` call that dispatched it.
-		if (track.agent !== 'main' && e.lane) track.agent = e.lane;
+		if (track.agent !== 'main' && lane) track.agent = lane;
 
 		const prev = track.revisions.at(-1)?.items ?? [];
 		const before = new Map(prev.map((t) => [t.content, t.status]));

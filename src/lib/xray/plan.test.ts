@@ -94,6 +94,41 @@ describe('plans', () => {
 		expect(track.dropped).toEqual([]);
 	});
 
+	it('repairs a legacy log where every write was labelled main', () => {
+		// Every run recorded before plan updates carried their namespace — the
+		// bundled demo included — has the subagent's writes folded into the
+		// parent's track. The `write_todos` CALL was always scoped correctly, and
+		// the channel only ever changes because of one, so the nearest preceding
+		// call says who really wrote it.
+		seq = 0;
+		const call = (scope: Scope, lane?: string) =>
+			ev({
+				kind: 'tool_start',
+				name: 'write_todos',
+				args: {},
+				scope,
+				...(lane ? { lane } : {}),
+				displayKind: 'tool'
+			});
+		const tracks = plans(
+			busOf([
+				call('main'),
+				write([todo('review the field')]),
+				call('sub:task:1', 'report-writer'),
+				// Mislabelled `main`, exactly as the old emitter wrote it.
+				write([todo('inspect notes'), todo('assemble')]),
+				call('main'),
+				write([todo('review the field', 'in_progress')])
+			])
+		);
+
+		expect(tracks.map((t) => t.agent)).toEqual(['main', 'report-writer']);
+		expect(tracks[0].revisions).toHaveLength(2);
+		expect(tracks[1].revisions).toHaveLength(1);
+		// And the parent's plan never looked like it lost its items.
+		expect(tracks[0].dropped).toEqual([]);
+	});
+
 	it('gives each namespace its own plan', () => {
 		// `todos` is in EXCLUDED_STATE_KEYS, so a subagent plans into an empty
 		// channel of its own. Folding the two together is what made the panel show
