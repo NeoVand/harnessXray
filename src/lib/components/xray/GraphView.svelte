@@ -165,6 +165,18 @@
 	   leave a card floating over stale coordinates. */
 	let hover = $state<{ id: string; member?: string } | null>(null);
 
+	/**
+	 * The edge under the pointer.
+	 *
+	 * Edges carry the one thing the drawing cannot say for itself: a dashed line
+	 * is a *conditional* edge, decided at runtime by a router rather than
+	 * compiled in. That used to be a sentence permanently parked under the
+	 * graph. Making the edge itself answerable moves the explanation to the
+	 * thing it explains, and takes the sentence off the page.
+	 */
+	let edge = $state<{ from: string; to: string; conditional: boolean } | null>(null);
+	const edgeKey = (e: { from: string; to: string }) => `${e.from}->${e.to}`;
+
 	// Relative time drifts while the pointer rests; a 1s tick only exists
 	// while the card does.
 	let tick = $state(0);
@@ -244,12 +256,15 @@
 	{#if error && !loaded}
 		<p class="text-xs text-muted-foreground">{error}</p>
 	{:else if loaded}
-		<p class="hx-eyebrow mb-2 shrink-0">
-			{ids.length} nodes · {edgesIn.length} edges
-			{#if activity.active}
-				<span class="ml-1.5" style:color="var(--hx-model)">· running {activity.active}</span>
-			{/if}
-		</p>
+		<!-- Node and edge counts used to live here. Nobody can act on either
+		     number, and neither answers a question the drawing does not already
+		     answer better by being looked at. What is worth a line above the graph
+		     is the one thing the drawing cannot show: which node is running now. -->
+		{#if activity.active}
+			<p class="hx-eyebrow mb-2 shrink-0" style:color="var(--hx-model)">
+				running {activity.active}
+			</p>
+		{/if}
 
 		<!-- The measured box is the flexible middle: everything the eyebrow and
 		     legend do not need belongs to the drawing. Auto margins centre the
@@ -270,7 +285,10 @@
 						class="m-auto block"
 						role="img"
 						aria-label="Compiled graph topology"
-						onpointerleave={() => (hover = null)}
+						onpointerleave={() => {
+							hover = null;
+							edge = null;
+						}}
 					>
 						<defs>
 							<marker
@@ -297,15 +315,32 @@
 							</marker>
 						</defs>
 
-						{#each graph.edges as e (`${e.from}->${e.to}`)}
+						{#each graph.edges as e (edgeKey(e))}
+							{@const on = edge ? edgeKey(edge) === edgeKey(e) : false}
 							<path
 								d={roundedPath(e.points, 6)}
 								fill="none"
 								stroke={e.conditional ? 'var(--hx-interrupt)' : 'var(--muted-foreground)'}
-								stroke-opacity={e.conditional ? 0.7 : e.back ? 0.55 : 0.5}
-								stroke-width="1.1"
+								stroke-opacity={on ? 1 : e.conditional ? 0.7 : e.back ? 0.55 : 0.5}
+								stroke-width={on ? 2 : 1.1}
 								stroke-dasharray={e.conditional ? '4 3' : undefined}
 								marker-end={e.conditional ? 'url(#hx-arrow-cond)' : 'url(#hx-arrow)'}
+								class="hx-edge"
+							/>
+							<!-- A 1px line is not a hover target. The fat transparent twin is,
+							     and it is drawn under the nodes so a node always wins the
+							     pointer where the two overlap. -->
+							<path
+								d={roundedPath(e.points, 6)}
+								fill="none"
+								stroke="transparent"
+								stroke-width="9"
+								pointer-events="stroke"
+								class="cursor-help"
+								role="presentation"
+								onpointerenter={() =>
+									(edge = { from: e.from, to: e.to, conditional: !!e.conditional })}
+								onpointerleave={() => (edge = null)}
 							/>
 						{/each}
 
@@ -504,11 +539,17 @@
 		<!-- The readout, not a card.
 		     A floating panel over a drawing is the wrong shape however small you
 		     make it: the thing you want to read is always next to the thing you are
-		     pointing at, so it covers a neighbour, an edge, or the node itself. This
-		     is the legend line doing double duty — it becomes the hover readout and
-		     goes back to being the legend when you leave. Nothing is ever occluded,
-		     and the graph cannot move under the pointer. -->
-		<p class="mt-1.5 min-h-[2.4em] text-[10px] leading-snug text-muted-foreground">
+		     pointing at, so it covers a neighbour, an edge, or the node itself. So
+		     it lives down here instead — and at a FIXED height, because a line that
+		     grows and shrinks as the pointer crosses the graph moves the graph
+		     under the pointer, which is the same fault by another route. The
+		     resting text is short enough to fit the same two lines every hover
+		     needs, now that the dashed edges explain themselves when you touch
+		     them. -->
+		<p
+			class="mt-1.5 h-[2.4em] overflow-hidden text-[10px] leading-snug text-muted-foreground"
+			aria-live="polite"
+		>
 			{#if card}
 				<span class="inline-flex items-baseline gap-1.5">
 					<span
@@ -520,16 +561,24 @@
 				<span class="hx-num">
 					· {card.kindLabel}
 					{#if card.visits > 0}
-						· ×{card.visits}{#if card.seen}
-							· {card.seen}{/if}
+						· ×{card.visits}{#if card.seen}&nbsp;· {card.seen}{/if}
 					{:else}
 						· unvisited
 					{/if}
 				</span>
+			{:else if edge}
+				<span class="font-mono text-[10.5px] text-foreground">
+					{short(edge.from)} → {short(edge.to)}
+				</span>
+				{#if edge.conditional}
+					<span style:color="var(--hx-interrupt)">· conditional</span>
+					<span>— a router decides this one at runtime, every time it is reached</span>
+				{:else}
+					<span>· always — compiled into the graph, taken whenever the source finishes</span>
+				{/if}
 			{:else}
-				<span style:color="var(--hx-interrupt)">⇢ dashed</span> — conditional, decided at runtime · loops
-				return on the right rail · dot-rows are the middleware onion, click to open · click a node to
-				jump the timeline · click tools for the tools tab
+				click a node to jump the timeline · click a chain to open the onion · hover an edge for its
+				rule
 			{/if}
 		</p>
 	{/if}
@@ -576,6 +625,12 @@
 	svg g[role='button']:focus-visible {
 		outline: 1px solid color-mix(in oklab, var(--hx-accent, var(--hx-model)) 60%, transparent);
 		outline-offset: 3px;
+	}
+
+	/* The visible line must never eat the pointer — its fat transparent twin is
+	   the target, and the two are stacked exactly on top of each other. */
+	.hx-edge {
+		pointer-events: none;
 	}
 
 	.hx-node-active > rect {
