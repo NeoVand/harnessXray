@@ -61,20 +61,103 @@ export function rateFor(model: string) {
 }
 
 /**
+ * What a cache write costs, as a multiple of the uncached input rate.
+ *
+ * Free on model families before gpt-5.6; billed from gpt-5.6 onwards, which is
+ * every model this app offers. The docs put it plainly: "On GPT-5.6 models and
+ * later model families, cache writes are billed at 1.25× the uncached input
+ * token rate and reported in `cache_write_tokens`."
+ *
+ * https://developers.openai.com/api/docs/guides/prompt-caching
+ */
+export const CACHE_WRITE_RATE = 1.25;
+
+/**
+ * The five token kinds, and what each one costs per token.
+ *
+ * This is the whole of the pricing model, in one place, because the lesson of
+ * the ledger is that "tokens" is not one thing: a cached input token and a
+ * reasoning token differ by a factor of sixty on the same model. Rates are
+ * relative to the model's own table above.
+ */
+export type TokenKind = 'fresh' | 'cacheWrite' | 'cached' | 'output' | 'reasoning';
+
+export function rateOf(model: string, kind: TokenKind): number {
+	const r = rateFor(model);
+	switch (kind) {
+		case 'fresh':
+			return r.in;
+		case 'cacheWrite':
+			return r.in * CACHE_WRITE_RATE;
+		case 'cached':
+			return r.cached;
+		// Reasoning tokens are billed as output tokens, at the same rate. They are
+		// not a separate line on the bill — only a separate line in the usage
+		// object, which is the only reason we can tell them apart at all.
+		case 'output':
+		case 'reasoning':
+			return r.out;
+	}
+}
+
+/**
  * Cost of one call.
  *
- * Cached input is billed at a different (much lower) rate, so it must be
- * subtracted from the input count rather than counted twice — getting this
- * wrong overstates a long conversation by an order of magnitude, since almost
- * all of its input is cache hits.
+ * Three subset relationships have to be respected or the arithmetic quietly
+ * drifts, and all three are documented provider behaviour rather than guesses:
+ *
+ *   cached ⊆ input          — cache reads are part of the input count, billed
+ *                             at the (much lower) cached rate, so they must be
+ *                             subtracted rather than counted twice. Getting
+ *                             this wrong overstates a long conversation by an
+ *                             order of magnitude, since almost all of its input
+ *                             is cache hits.
+ *   cacheWrite ⊆ input−cached — the newly-seen prefix is processed fresh *and*
+ *                             written to cache, so those same tokens are billed
+ *                             at 1.25× instead of 1×. It is an uplift on tokens
+ *                             you already pay for, not an extra count.
+ *   reasoning ⊆ output      — "they still occupy space in the model's context
+ *                             window and are billed as output tokens", so
+ *                             `output` is already the full generated total.
  */
 export function costOf(
 	model: string,
-	usage: { input: number; cached: number; output: number }
+	usage: { input: number; cached: number; output: number; cacheWrite?: number }
 ): number {
-	const r = rateFor(model);
-	const fresh = Math.max(0, usage.input - usage.cached);
-	return (fresh * r.in + usage.cached * r.cached + usage.output * r.out) / 1_000_000;
+	const s = splitTokens(usage);
+	return (
+		(s.fresh * rateOf(model, 'fresh') +
+			s.cacheWrite * rateOf(model, 'cacheWrite') +
+			s.cached * rateOf(model, 'cached') +
+			s.output * rateOf(model, 'output')) /
+		1_000_000
+	);
+}
+
+/**
+ * The provider's overlapping counts, resolved into disjoint buckets that sum to
+ * the billed total. Exported because both the cost function and the ledger's
+ * breakdown need exactly the same split, and two implementations of this would
+ * be two chances to disagree with the invoice.
+ */
+export function splitTokens(usage: {
+	input: number;
+	cached: number;
+	output: number;
+	cacheWrite?: number;
+}) {
+	const cached = Math.min(usage.cached, usage.input);
+	const uncached = Math.max(0, usage.input - cached);
+	// Clamped rather than trusted: a provider that ever reports a write larger
+	// than the uncached input would otherwise produce a negative fresh bucket
+	// and an invented discount.
+	const cacheWrite = Math.min(usage.cacheWrite ?? 0, uncached);
+	return {
+		fresh: uncached - cacheWrite,
+		cacheWrite,
+		cached,
+		output: usage.output
+	};
 }
 
 export interface ModelOptions {

@@ -1,97 +1,199 @@
 <script lang="ts">
 	import { bus } from '$lib/xray/bus.svelte';
 	import { session } from '$lib/agent/session.svelte';
-	import { runTotals, money, compact } from '$lib/xray/usage';
-	import { RATES_VERIFIED } from '$lib/agent/models';
+	import { runTotals, money, compact, TOKEN_LABEL, TOKEN_COLOR } from '$lib/xray/usage';
+	import { RATES_VERIFIED, CACHE_WRITE_RATE } from '$lib/agent/models';
+	import { tip } from '$lib/hooks/tip';
 
 	/**
-	 * What the run actually cost.
+	 * What the run cost, and which kind of token took the money.
 	 *
-	 * The bar is the point of the panel. On any turn past the first, almost all
-	 * input is a cache hit — you are re-sending the entire conversation every
-	 * time, and only the sliver on the left is new. That is the single most
-	 * useful thing to understand about paying for an agent, and it is invisible
-	 * everywhere else.
+	 * One figure and one table, deliberately — an earlier draft had a bar for
+	 * spend and a second, separate bar for tokens, and two headed sections in one
+	 * small panel read as two panels that had been stapled together.
+	 *
+	 * The figure is the whole argument. The same buckets, in the same order, are
+	 * drawn twice: once by money, once by count. By count almost everything is a
+	 * cache hit, because the entire conversation is re-sent every turn. By money
+	 * almost nothing is. The segments visibly trade places between the two rows,
+	 * and holding both readings at once is the thing worth learning — no single
+	 * number can show it.
+	 *
+	 * The table then reads as a bill: one line per meter with a subtotal, its
+	 * kinds indented beneath at their own rates. The indentation is load-bearing.
+	 * The provider's counts overlap — cache reads and writes are inside
+	 * `input_tokens`, reasoning is inside `output_tokens` — so listing them flat
+	 * would read as additive and double the run. `splitTokens` in models.ts owns
+	 * that resolution for both this panel and the cost function, so they cannot
+	 * drift apart.
 	 */
 	const t = $derived.by(() => {
 		void bus.version;
 		return runTotals(bus, session.model);
 	});
 
-	const freshPct = $derived(t.input ? ((t.input - t.cached) / t.input) * 100 : 0);
 	const toolCalls = $derived.by(() => {
 		void bus.version;
 		return bus.events.filter((e) => e.kind === 'tool_start').length;
 	});
+
+	/** Billed tokens across both meters — the denominator for the token row. */
+	const billedTokens = $derived(t.kinds.reduce((n, k) => n + k.tokens, 0));
+
+	const spendPct = (usd: number) => (t.costUsd > 0 ? (usd / t.costUsd) * 100 : 0);
+	const tokenPct = (n: number) => (billedTokens > 0 ? (n / billedTokens) * 100 : 0);
+
+	/** Rates print as $2.5/M, not $2.500/M — trailing zeros are noise here. */
+	const rate = (n: number) => `$${Number(n.toFixed(4))}/M`;
+
+	const summary = $derived([
+		['calls', String(t.calls + t.imageCalls)],
+		['duration', `${(t.ms / 1000).toFixed(1)}s`],
+		['context now', compact(t.lastInput)],
+		['tool calls', String(toolCalls)],
+		['files', String(session.fileList.length)],
+		['memories', String(session.memories.length)]
+	]);
 </script>
 
-<!-- Headerless on purpose: this panel lives behind the `ledger` tab now, and
-     an internal title bar would name it a second time an inch below the
-     first. The duration joined the totals list instead. -->
-<div class="h-full min-h-0">
-	<div class="h-full px-3 pt-2.5 pb-2.5">
-		{#if t.calls === 0}
+<!-- Headerless on purpose: this panel lives behind the `ledger` tab, and an
+     internal title bar would name it a second time an inch below the first. -->
+<div class="h-full min-h-0 overflow-y-auto">
+	<div class="px-3 pt-3 pb-3">
+		{#if t.kinds.length === 0}
 			<p class="text-xs text-muted-foreground">
-				No model calls yet. Token counts here come from the provider's own usage object on the wire,
-				not from an estimate.
+				No model calls yet. Every count here comes from the provider's own usage object on the wire,
+				never from an estimate.
 			</p>
 		{:else}
-			<!-- headline -->
-			<div class="mb-3 flex items-baseline justify-between">
-				<span class="hx-num text-lg" style:color="var(--hx-model)">{money(t.costUsd)}</span>
-				<span class="hx-num text-[11px] text-muted-foreground">
-					{compact(t.total)} tokens · {t.calls} calls
+			<!-- ── the headline ─────────────────────────────────────────────── -->
+			<div class="mb-3.5 flex items-baseline justify-between gap-2">
+				<span class="hx-num text-[22px] leading-none tracking-tight" style:color="var(--hx-model)">
+					{money(t.costUsd)}
+				</span>
+				<span class="hx-num text-[10px] text-muted-foreground">
+					{compact(billedTokens)} billed tokens
 				</span>
 			</div>
 
-			<!-- fresh vs cached input -->
-			<div class="mb-1 flex h-1.5 overflow-hidden rounded-full bg-muted">
-				<span style:width="{freshPct}%" style:background="var(--hx-model)"></span>
-				<span
-					style:width="{100 - freshPct}%"
-					style:background="var(--hx-state)"
-					style:opacity="0.45"
-				></span>
-			</div>
-			<p class="mb-4 text-[10px] text-muted-foreground">
-				<span style:color="var(--hx-model)">{compact(t.input - t.cached)} new</span>
-				· {compact(t.cached)} cached ({Math.round(100 - freshPct)}% of input re-sent)
-			</p>
+			<!-- ── the figure ───────────────────────────────────────────────────
+			     Two readings of one set of buckets. Same order, same colours, so
+			     the eye can only read the difference in width.
 
-			<dl class="space-y-1 text-[11px]">
-				{#each [['input', compact(t.input)], ['cached', compact(t.cached)], ['cache write', compact(t.cacheWrite)], ['output', compact(t.output)], ['reasoning', compact(t.reasoning)]] as [k, v] (k)}
-					<div class="flex justify-between">
-						<dt class="text-muted-foreground">{k}</dt>
-						<dd class="hx-num">{v}</dd>
+			     Geometry copied from the context panel's group bar — h-2,
+			     rounded-[2px], no track, because the segments always sum to the
+			     whole. The two panels sit in the same column and a bar that was
+			     even a pixel taller read as a different instrument. -->
+			<div class="mb-4 space-y-1.5">
+				{#each [{ id: 'spend', label: 'spend', of: (k: { usd: number }) => spendPct(k.usd) }, { id: 'tokens', label: 'tokens', of: (k: { tokens: number }) => tokenPct(k.tokens) }] as bar (bar.id)}
+					<div class="flex items-center gap-2">
+						<span class="hx-eyebrow w-[38px] shrink-0 text-[9px]">{bar.label}</span>
+						<div class="flex h-2 flex-1 overflow-hidden rounded-[2px]">
+							{#each t.kinds as k (k.kind)}
+								{@const pct = bar.of(k)}
+								<span
+									style:width="{pct}%"
+									style:background={TOKEN_COLOR[k.kind]}
+									{@attach tip(
+										`${TOKEN_LABEL[k.kind]} — ${Math.round(pct)}% of ${bar.label} (${compact(k.tokens)} tokens, ${money(k.usd)})`
+									)}
+								></span>
+							{/each}
+						</div>
 					</div>
 				{/each}
-				{#if t.imageCalls}
-					<!-- A different meter, kept visibly separate: image output is billed
-					     around 30× a text token, and hiding it inside "output" is how a
-					     $0.12 picture looks like a rounding error. -->
-					<div class="flex justify-between">
-						<dt class="text-muted-foreground">image gen</dt>
-						<dd class="hx-num">
-							{t.imageCalls} × · {compact(t.imageOut)} tok · {money(t.imageUsd)}
-						</dd>
-					</div>
-				{/if}
-			</dl>
-
-			<div class="hx-rule mt-3 border-t pt-2.5">
-				<dl class="space-y-1 text-[11px]">
-					{#each [['duration', (t.ms / 1000).toFixed(1) + 's'], ['context now', compact(t.lastInput)], ['tool calls', String(toolCalls)], ['files', String(session.fileList.length)], ['memories', String(session.memories.length)]] as [k, v] (k)}
-						<div class="flex justify-between">
-							<dt class="text-muted-foreground">{k}</dt>
-							<dd class="hx-num">{v}</dd>
-						</div>
-					{/each}
-				</dl>
 			</div>
 
-			<p class="mt-3 text-[10px] leading-relaxed text-muted-foreground/60">
-				Cost uses {session.model} list rates verified {RATES_VERIFIED}. `cache_write_tokens` is read
-				from the wire — LangChain's normalised usage drops it.
+			<!-- ── the bill ─────────────────────────────────────────────────────
+			     One line per meter, its kinds indented beneath. -->
+			<div class="space-y-2.5">
+				{#each t.meters as m (m.id)}
+					<div>
+						<div
+							class="hx-rule flex items-baseline gap-2 border-b pb-1 text-[11px] font-medium
+							       text-foreground"
+						>
+							<span class="min-w-0 flex-1 truncate">{m.label}</span>
+							<span class="hx-num shrink-0 text-muted-foreground">{compact(m.tokens)}</span>
+							<span class="hx-num w-[52px] shrink-0 text-right">{money(m.usd)}</span>
+						</div>
+
+						{#each m.rows as k (k.kind)}
+							<div class="mt-1 flex items-baseline gap-1.5 text-[11px]">
+								<!-- Same swatch as the context panel's legend, down to the
+								     translate: a 1.5px square nudged onto the text baseline. -->
+								<span
+									class="inline-block size-1.5 shrink-0 translate-y-[-1px] rounded-[1px]"
+									style:background={TOKEN_COLOR[k.kind]}
+								></span>
+								<span class="min-w-0 flex-1 truncate text-muted-foreground">
+									{TOKEN_LABEL[k.kind]}
+								</span>
+								<!-- The rate is the entire explanation for why the two bars
+								     disagree, so it sits on the row, not in a footnote. -->
+								<span class="hx-num shrink-0 text-[9px] text-muted-foreground/55">
+									{rate(k.rate)}
+								</span>
+								<span class="hx-num w-[38px] shrink-0 text-right text-muted-foreground">
+									{compact(k.tokens)}
+								</span>
+								<span class="hx-num w-[52px] shrink-0 text-right">{money(k.usd)}</span>
+							</div>
+						{/each}
+
+						{#if m.unpriced}
+							<div class="mt-1 flex items-baseline gap-1.5 text-[11px]">
+								<span class="size-1.5 shrink-0"></span>
+								<span
+									class="min-w-0 flex-1 truncate text-muted-foreground/55"
+									{@attach tip(
+										'Counted on the wire but not priced — only the image output rate was ever verified, and inventing an input rate to make the column add up is exactly the plausible-but-wrong number this app exists to replace.'
+									)}
+								>
+									{m.unpriced.note}
+								</span>
+								<span class="hx-num w-[38px] shrink-0 text-right text-muted-foreground/55">
+									{compact(m.unpriced.tokens)}
+								</span>
+								<span class="hx-num w-[52px] shrink-0 text-right text-muted-foreground/40">—</span>
+							</div>
+						{/if}
+					</div>
+				{/each}
+			</div>
+
+			<!-- ── the notes ────────────────────────────────────────────────────
+			     Two facts that make the table above readable rather than merely
+			     numeric, and only shown when the run actually contains them. -->
+			<div class="mt-3.5 space-y-1 text-[10px] leading-relaxed text-muted-foreground/70">
+				{#if t.cacheWrite}
+					<p>
+						<span style:color="var(--hx-tok-write)">Cache writes</span>
+						are new tokens on their way into the cache, billed at {CACHE_WRITE_RATE}× the uncached
+						rate — dearer than fresh input, and the reason a first turn costs more than it looks.
+					</p>
+				{/if}
+				{#if t.reasoning}
+					<p>
+						<span style:color="var(--hx-tok-reason)">Reasoning</span>
+						is thinking you never see. It bills as output and occupies the window all the same.
+					</p>
+				{/if}
+			</div>
+
+			<!-- ── the run ──────────────────────────────────────────────────── -->
+			<div class="hx-rule mt-3 grid grid-cols-2 gap-x-4 gap-y-1 border-t pt-2.5">
+				{#each summary as [k, v] (k)}
+					<div class="flex items-baseline justify-between gap-2 text-[10px]">
+						<span class="truncate text-muted-foreground">{k}</span>
+						<span class="hx-num shrink-0">{v}</span>
+					</div>
+				{/each}
+			</div>
+
+			<p class="mt-3 text-[10px] leading-relaxed text-muted-foreground/55">
+				{session.model} list rates, verified {RATES_VERIFIED}. `cache_write_tokens` is read off the
+				wire because LangChain's normalised usage drops it.
 			</p>
 		{/if}
 	</div>
