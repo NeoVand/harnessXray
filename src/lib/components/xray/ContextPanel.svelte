@@ -1,13 +1,26 @@
 <script lang="ts">
 	import { SvelteSet } from 'svelte/reactivity';
 	import { bus } from '$lib/xray/bus.svelte';
-	import { shotStubs, shotAt, groupTotals, type PieceGroup } from '$lib/xray/context';
+	import {
+		shotStubs,
+		shotAt,
+		groupTotals,
+		prospectiveShot,
+		type PieceGroup,
+		type ContextShot
+	} from '$lib/xray/context';
+	import { toolSchemas } from '$lib/xray/inventory';
+	import { session } from '$lib/agent/session.svelte';
+	import { SYSTEM_PROMPT } from '$lib/agent/prompt';
+	import { INPUT_LIMIT } from '$lib/agent/models';
 	import { COMPACT_AT } from '$lib/agent/models';
 	import { compact } from '$lib/xray/usage';
 	import { bytes } from '$lib/xray/format';
 	import { pieceIcon } from '$lib/xray/piece-icon';
 	import { HugeiconsIcon } from '@hugeicons/svelte';
 	import { ICON, type IconValue } from '$lib/icons';
+	import EmptyPanel from './EmptyPanel.svelte';
+	import { tip } from '$lib/hooks/tip';
 
 	/**
 	 * The context window, opened up.
@@ -54,10 +67,48 @@
 	});
 
 	const currentId = $derived(pinnedId ?? stubs.at(-1)?.id ?? null);
-	const shot = $derived.by(() => {
+	const sent = $derived.by(() => {
 		void bus.version;
 		return currentId ? shotAt(bus, currentId) : undefined;
 	});
+
+	/**
+	 * The request that has not been sent yet.
+	 *
+	 * "Nothing sent yet" was true of the wire and wrong about the situation. Our
+	 * system prompt and every tool schema exist before anyone types a word, and
+	 * together they are the largest fixed cost in the app — so the panel now opens
+	 * on the bill you have already committed to. It is the same decomposition,
+	 * through the same functions, and it swaps itself for the real thing the
+	 * instant a request goes out.
+	 *
+	 * Loaded in an effect rather than a derived because it needs the compiled
+	 * agent to enumerate middleware tools (the filesystem's seven, `task`,
+	 * `write_todos` are not on the list we passed in). Keyed on the model, since
+	 * changing it in settings changes the limit the gauge is drawn against.
+	 */
+	let prospect = $state<ContextShot | undefined>();
+	$effect(() => {
+		const model = session.model;
+		let live = true;
+		void (async () => {
+			const tools = toolSchemas(await session.peekAgent());
+			if (live)
+				prospect = prospectiveShot({
+					model,
+					systemPrompt: SYSTEM_PROMPT,
+					tools,
+					limit: INPUT_LIMIT
+				});
+		})();
+		return () => {
+			live = false;
+		};
+	});
+
+	const shot = $derived(sent ?? prospect);
+	/** True while showing what *will* be sent rather than what was. */
+	const ahead = $derived(!sent && !!prospect);
 
 	const totals = $derived(shot ? groupTotals(shot) : { system: 0, tools: 0, messages: 0 });
 
@@ -145,11 +196,28 @@
 	<div style:height={topPad}></div>
 
 	{#if !shot}
-		<p class="px-3 py-6 text-xs leading-relaxed text-muted-foreground">
-			Nothing sent yet. Every model call is one assembled string plus a list of tool schemas — this
-			panel takes the last one apart and shows you what it was made of.
-		</p>
+		<EmptyPanel
+			icon={ICON.pieces}
+			color="var(--hx-user)"
+			line="Every model call is one assembled string plus a list of tool schemas."
+		/>
 	{:else}
+		{#if ahead}
+			<!-- Said once, at the top, because every number below it is a forecast.
+			     The harness prepends its own prompt fragments at request time and
+			     stores none of them beforehand, so this is our half of the string
+			     and all of the schemas — understated, never overstated. -->
+			<p
+				class="hx-rule flex items-baseline gap-2 border-b px-3 py-2 text-[10px]"
+				style:background="color-mix(in oklab, var(--hx-accent) 5%, transparent)"
+				{@attach tip(
+					'Our prompt and every tool schema — they exist before anyone types. The harness prepends its own prompt fragments at request time and stores none beforehand, so the real first call is a little larger than this, never smaller.'
+				)}
+			>
+				<span class="hx-eyebrow shrink-0" style:color="var(--hx-accent)">before you send</span>
+				<span class="text-muted-foreground">already committed</span>
+			</p>
+		{/if}
 		<!-- The gauge. Two bars, because they answer different questions: how much
 		     room is left, and what is taking up the room. -->
 		<div class="hx-rule border-b px-3 py-3">

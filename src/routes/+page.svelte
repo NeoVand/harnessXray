@@ -446,6 +446,8 @@
 							await tick();
 							openPath = p;
 						}}
+						onopenpanel={(t) =>
+							(inspectorBottom = t as 'graph' | 'tools' | 'subagents' | 'skills' | 'memory')}
 						topPad="88px"
 						bottomPad="{composerH + 8}px"
 					/>

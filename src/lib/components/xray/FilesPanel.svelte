@@ -3,6 +3,7 @@
 	import { HugeiconsIcon } from '@hugeicons/svelte';
 	import { ICON } from '$lib/icons';
 	import Markdown from '../Markdown.svelte';
+	import EmptyPanel from './EmptyPanel.svelte';
 	import FileTree from './FileTree.svelte';
 	import FileLog from './FileLog.svelte';
 	import PageDeck from '../PageDeck.svelte';
@@ -146,10 +147,14 @@
 
 <div class="flex h-full min-h-0 flex-col">
 	{#if entries.length === 0}
-		<p class="px-3 py-3 text-xs text-muted-foreground" style:margin-top={topPad}>
-			The filesystem is empty. It is not a disk — it is a channel in the graph's state, which is why
-			it survives a reload and can be diffed like any other state.
-		</p>
+		<div style:margin-top={topPad}>
+			<EmptyPanel
+				icon={ICON.files}
+				color="var(--hx-fs)"
+				line="Nothing written yet."
+				hint="A channel in the graph's state, not a disk — which is why it survives a reload."
+			/>
+		</div>
 	{:else}
 		<div class="hx-rule max-h-[42%] shrink-0 overflow-y-auto border-b" style:padding-top={topPad}>
 			{#if view === 'log'}

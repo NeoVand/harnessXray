@@ -8,6 +8,7 @@
 	import ActivityStrip from './ActivityStrip.svelte';
 	import Markdown from '../Markdown.svelte';
 	import ApprovalCard from './ApprovalCard.svelte';
+	import Preamble from './Preamble.svelte';
 	import { HugeiconsIcon } from '@hugeicons/svelte';
 	import { ICON } from '$lib/icons';
 	import { assets, assetVersion } from '$lib/storage/assets.svelte';
@@ -29,8 +30,17 @@
 		/** Room for the frosted composer floating over the scroller's tail —
 		 * measured live by the page, since the composer grows with its text. */
 		bottomPad?: string;
+		/** Open an inspector tab. The preamble's counts are navigation. */
+		onopenpanel?: (tab: string) => void;
 	}
-	let { onopensettings, onread, onpreview, topPad = '0px', bottomPad = '0px' }: Props = $props();
+	let {
+		onopensettings,
+		onread,
+		onpreview,
+		topPad = '0px',
+		bottomPad = '0px',
+		onopenpanel
+	}: Props = $props();
 
 	let viewport = $state<HTMLElement | null>(null);
 	let pinned = $state(true);
@@ -87,11 +97,7 @@
 	<div class="w-full py-3">
 		{#if session.messages.length === 0}
 			<div class="turn-col mx-auto w-full max-w-[68ch] pt-10">
-				<p class="hx-eyebrow mb-3">the harness, live</p>
-				<p class="max-w-[46ch] text-sm leading-relaxed text-muted-foreground">
-					Everything this agent does is dissected on the right — the literal request body, every raw
-					stream frame, the graph it runs on.
-				</p>
+				<Preamble onopen={onopenpanel} />
 
 				{#if replay.active}
 					<p
@@ -129,7 +135,8 @@
 						<p class="mt-2 text-[11px]" style:color="var(--hx-error)">{demoError}</p>
 					{/if}
 				{:else}
-					<ul class="mt-5 space-y-1.5">
+					<p class="hx-eyebrow mt-7 mb-2">try one</p>
+					<ul class="space-y-1.5">
 						{#each SUGGESTIONS as s (s)}
 							<li>
 								<button

@@ -4,6 +4,8 @@
 	import { runTotals, money, compact, TOKEN_LABEL, TOKEN_COLOR } from '$lib/xray/usage';
 	import { RATES_VERIFIED, CACHE_WRITE_RATE } from '$lib/agent/models';
 	import { tip } from '$lib/hooks/tip';
+	import EmptyPanel from './EmptyPanel.svelte';
+	import { ICON } from '$lib/icons';
 
 	/**
 	 * What the run cost, and which kind of token took the money.
@@ -61,10 +63,12 @@
 <div class="h-full min-h-0 overflow-y-auto">
 	<div class="px-3 pt-3 pb-3">
 		{#if t.kinds.length === 0}
-			<p class="text-xs text-muted-foreground">
-				No model calls yet. Every count here comes from the provider's own usage object on the wire,
-				never from an estimate.
-			</p>
+			<EmptyPanel
+				icon={ICON.run}
+				color="var(--hx-model)"
+				line="No model calls yet."
+				hint="Every figure here comes from the provider's own usage object — never an estimate."
+			/>
 		{:else}
 			<!-- ── the headline ─────────────────────────────────────────────── -->
 			<div class="mb-3.5 flex items-baseline justify-between gap-2">

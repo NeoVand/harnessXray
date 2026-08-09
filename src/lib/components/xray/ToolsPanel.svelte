@@ -2,7 +2,11 @@
 	import { untrack } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { bus } from '$lib/xray/bus.svelte';
-	import { shotAt } from '$lib/xray/context';
+	import { shotAt, prospectiveShot } from '$lib/xray/context';
+	import { toolSchemas } from '$lib/xray/inventory';
+	import { session } from '$lib/agent/session.svelte';
+	import { SYSTEM_PROMPT } from '$lib/agent/prompt';
+	import { INPUT_LIMIT } from '$lib/agent/models';
 	import { compact } from '$lib/xray/usage';
 	import { toolMeta, type ToolMeta } from '$lib/agent/tool-meta';
 	import { subagentIcon, subagentColor } from '$lib/agent/subagent-meta';
@@ -117,6 +121,36 @@
 		return (shot?.pieces ?? []).filter((p) => p.group === 'tools');
 	}
 
+	/**
+	 * The toolbox before the first request.
+	 *
+	 * This panel reads the wire on principle — the wire is the only account the
+	 * model itself sees — and the cost of that was an empty box on arrival,
+	 * telling you to come back after sending something. But the compiled agent
+	 * knows its own tools, and that is not our hand-written registry either: it
+	 * is the harness's assembled list, middleware contributions included. So the
+	 * box opens full, marked as a forecast, and the moment a real request exists
+	 * it is replaced by what actually went out.
+	 */
+	let ahead = $state<Piece[]>([]);
+	$effect(() => {
+		const model = session.model;
+		let live = true;
+		void (async () => {
+			const tools = toolSchemas(await session.peekAgent());
+			const shot = prospectiveShot({
+				model,
+				systemPrompt: SYSTEM_PROMPT,
+				tools,
+				limit: INPUT_LIMIT
+			});
+			if (live) ahead = shot.pieces.filter((p) => p.group === 'tools');
+		})();
+		return () => {
+			live = false;
+		};
+	});
+
 	/** The index and the strip, built together in one pass over the carriers. */
 	const model = $derived.by(() => {
 		void bus.version;
@@ -160,14 +194,16 @@
 			}
 		};
 
-		const main = bandOf(mainRequest(bus));
+		// The wire when there is one, the compiled agent until then.
+		const sent = bandOf(mainRequest(bus));
+		const main = sent.length ? sent : ahead;
 		absorb('main', main);
 		carriers.push({
 			key: 'main',
 			label: 'main agent',
 			icon: ICON.agent,
 			color: 'var(--hx-accent)',
-			measured: main.length > 0,
+			measured: sent.length > 0,
 			count: main.length,
 			total: main.reduce((n, p) => n + p.tokens, 0)
 		});
@@ -326,10 +362,21 @@
 			</div>
 
 			{#if current && !current.measured}
+				<!-- Two different unmeasured cases, and they must not share a
+				     sentence. The MAIN agent's list is complete before it runs — read
+				     off the compiled agent, middleware tools included — and only the
+				     token figures are forecasts. A subagent's is genuinely partial
+				     until it is dispatched, because only its own request can say what
+				     it was handed. -->
 				<p class="mb-2 text-[9.5px] leading-relaxed text-muted-foreground/70">
-					Declared in its spec — <span class="font-mono">{carrier}</span> has not run yet, so
-					nothing of its own is on the wire. The harness will add the file tools, the plan and
-					<span class="font-mono">task</span> to this list the moment it does.
+					{#if carrier === 'main' || carrier === 'all'}
+						Read off the compiled agent, before the first request — this is the whole list,
+						middleware tools included. Sizes are estimated until a reply is billed.
+					{:else}
+						Declared in its spec — <span class="font-mono">{carrier}</span> has not run yet, so
+						nothing of its own is on the wire. The harness will add the file tools, the plan and
+						<span class="font-mono">task</span> to this list the moment it does.
+					{/if}
 				</p>
 			{/if}
 

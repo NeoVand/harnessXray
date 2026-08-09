@@ -6,6 +6,7 @@
 	import { toolMeta } from '$lib/agent/tool-meta';
 	import { subagentIcon } from '$lib/agent/subagent-meta';
 	import { HugeiconsIcon } from '@hugeicons/svelte';
+	import EmptyPanel from './EmptyPanel.svelte';
 	import { ICON } from '$lib/icons';
 	import { tip } from '$lib/hooks/tip';
 
@@ -197,9 +198,11 @@
 
 	<div class="min-h-0 flex-1 overflow-y-auto px-3 pt-9 pb-3">
 		{#if !track || !rev}
-			<p class="text-xs leading-relaxed text-muted-foreground">
-				No plan yet — the agent writes one with <span class="font-mono">write_todos</span>.
-			</p>
+			<EmptyPanel
+				icon={ICON.todo}
+				color="var(--hx-state)"
+				line="No plan yet — the agent writes one with write_todos."
+			/>
 		{:else}
 			<p class="hx-eyebrow mb-2 flex flex-wrap items-baseline gap-x-2">
 				<span>{done} of {rev.items.length} complete</span>

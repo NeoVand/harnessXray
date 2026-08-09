@@ -440,6 +440,57 @@ export function shotAt(bus: EventBus, id: string): ContextShot | undefined {
 	return build(e, usageIndex(bus).get(id), turn + 1);
 }
 
+/**
+ * The request that has not been sent yet.
+ *
+ * Before the first message this panel said "nothing sent yet", which was true
+ * of the wire and false about the situation: the model is already going to be
+ * told six thousand characters of our instructions and handed eighteen tool
+ * schemas, and none of that depends on what anyone types. An empty panel hid
+ * the most interesting number in the app — the cost you have already committed
+ * to before saying hello.
+ *
+ * Built through the same `splitSystem` and `toolPieces` the real decomposition
+ * uses, so the two cannot drift apart and describe the same request
+ * differently.
+ *
+ * Honest about what it can and cannot know, which cuts both ways.
+ *
+ * The system prompt here is OURS ONLY. The harness prepends its base prompt and
+ * one fragment per middleware at request time and stores none of it beforehand,
+ * so the assembled string genuinely does not exist yet — measured against the
+ * first real call, this side comes in low (1,517 forecast against 1,803 sent,
+ * the difference being the skills and plan bands).
+ *
+ * The tool schemas go the other way. `z.toJSONSchema` is a more verbose
+ * rendering than the provider's wire format, so their size comes in high. Both
+ * are `measured: false` and the panel says estimate; neither is a number to
+ * quote.
+ */
+export function prospectiveShot(opts: {
+	model: string;
+	systemPrompt: string;
+	tools: unknown[];
+	limit: number;
+}): ContextShot {
+	const pieces = [...splitSystem(opts.systemPrompt), ...toolPieces(opts.tools)];
+	const chars = pieces.reduce((n, p) => n + p.chars, 0);
+	for (const p of pieces) p.tokens = estimate(p.chars);
+	return {
+		id: 'prospective',
+		seq: -1,
+		t: 0,
+		model: opts.model,
+		pieces,
+		chars,
+		tokens: pieces.reduce((n, p) => n + p.tokens, 0),
+		measured: false,
+		cached: 0,
+		limit: opts.limit,
+		turn: 0
+	};
+}
+
 export function groupTotals(shot: ContextShot) {
 	const sum = (g: PieceGroup) =>
 		shot.pieces.filter((p) => p.group === g).reduce((n, p) => n + p.tokens, 0);
