@@ -413,10 +413,30 @@
 	   to the readouts rather than to a marketing page. Tightened tracking and a
 	   lighter weight on the second half so "harness" and "Xray" read as one
 	   object without a colour change doing the work. */
+	/*
+		The wordmark, nudged up a pixel.
+
+		Everything in the header is flex-centred and every BOX lands on the same
+		centre line — measured at 19.5px in a 40px bar, for the glyph, the wordmark,
+		the status dot and the `idle` label alike. It still read as misaligned, and
+		it was: box centring is not optical centring for text.
+
+		JetBrains Mono puts the baseline low in its em box (ascent 14, descent 4 at
+		15px), and the ink of `harnessXray` is not symmetric about that baseline
+		either — cap `X` rises 11.4px, the `y` descends 3.11px. Measured through
+		canvas `TextMetrics`, the ink centres came out: wordmark 20.35, dot 19.50,
+		`IDLE` 19.35. So the name sat about a pixel below its neighbours.
+
+		A pixel is a lot at 40px, and no amount of `line-height` fixes it — the
+		asymmetry is in the font, and leading is distributed evenly above and below
+		whatever value it takes. An explicit optical offset is the right tool, and
+		-1px lands the wordmark's ink on 19.35, exactly where `IDLE` already is.
+	*/
 	.hx-wordmark {
 		font-family: var(--font-mono);
 		font-weight: 600;
 		letter-spacing: -0.035em;
+		transform: translateY(-1px);
 	}
 	.hx-wordmark em {
 		font-style: normal;
