@@ -6,7 +6,6 @@
 	import SkillsPanel from './SkillsPanel.svelte';
 	import ToolsPanel from './ToolsPanel.svelte';
 	import SubagentsPanel from './SubagentsPanel.svelte';
-	import { skills } from '$lib/agent/skills.svelte';
 	import { session } from '$lib/agent/session.svelte';
 	import { HugeiconsIcon } from '@hugeicons/svelte';
 	import { ICON, type IconValue } from '$lib/icons';
@@ -106,8 +105,7 @@
 
 	const counts = $derived({
 		files: session.fileList.length,
-		memories: session.memories.length,
-		skills: skills.active.length
+		memories: session.memories.length
 	});
 </script>
 
@@ -168,9 +166,10 @@
 					>
 						<HugeiconsIcon icon={t.icon} size={12} strokeWidth={1.5} />
 						{t.label}
-						{#if t.id === 'skills' && counts.skills}
-							<span class="hx-num text-[9px] opacity-60">{counts.skills}</span>
-						{:else if t.id === 'memory' && counts.memories}
+						<!-- No count on `skills`: the library is a fixed three and a number
+						     that never changes is furniture. `memories` earns one because it
+						     grows during a run. -->
+						{#if t.id === 'memory' && counts.memories}
 							<span class="hx-num text-[9px] opacity-60">{counts.memories}</span>
 						{/if}
 					</button>

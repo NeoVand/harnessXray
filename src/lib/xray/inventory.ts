@@ -24,6 +24,16 @@ export interface Inventory {
 	subagents: number;
 	skills: number;
 	middleware: number;
+	/**
+	 * Of those, how many actually draw a node.
+	 *
+	 * A middleware with a `before_agent`/`after_model` hook becomes a node on the
+	 * compiled graph; one that only contributes tools or state does its job
+	 * without ever appearing. Nine are installed and six are visible, which reads
+	 * as an inconsistency between the strip and the drawing unless it is stated —
+	 * so it is counted, off the graph's own node names, and said out loud.
+	 */
+	hooks: number;
 	/** Nodes in the compiled graph — the drawing on the right. */
 	nodes: number;
 }
@@ -69,9 +79,17 @@ export async function inventory(): Promise<Inventory | null> {
 	const tools = toolsOf(agent);
 
 	let nodes = 0;
+	let hooks = 0;
 	try {
 		const { readTopology } = await import('$lib/agent/graph');
-		nodes = Object.keys((await readTopology(agent, { xray: true })).nodes).length;
+		const names = Object.keys((await readTopology(agent, { xray: true })).nodes);
+		nodes = names.length;
+		// Read off the same node names the graph draws, so the two can never
+		// disagree: `SkillsMiddleware.before_agent` names one middleware with one
+		// hook. Distinct owners, because a middleware may hook twice.
+		hooks = new Set(
+			names.filter((n) => n.includes('.')).map((n) => n.split('.')[0].split('|').pop())
+		).size;
 	} catch {
 		/* the drawing is a nicety here, not a reason to have no counts */
 	}
@@ -83,6 +101,7 @@ export async function inventory(): Promise<Inventory | null> {
 		subagents: SUBAGENTS.length,
 		skills: skills.active.length,
 		middleware: (o?.middleware ?? []).length,
+		hooks,
 		nodes
 	};
 }

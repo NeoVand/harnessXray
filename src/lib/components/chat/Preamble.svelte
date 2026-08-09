@@ -67,7 +67,10 @@
 						icon: ICON.state,
 						tab: 'graph',
 						color: 'var(--hx-state)',
-						why: 'each one a node on the compiled graph, wrapping the model call'
+						// The number and the drawing disagree on purpose, so say why. A
+						// middleware only becomes a node if it owns a hook; the rest
+						// contribute tools or state and work without appearing.
+						why: `wrapped around the model call — ${inv.hooks} own a hook and draw a node on the graph, the other ${inv.middleware - inv.hooks} work without appearing`
 					},
 					{
 						n: inv.subagents,
@@ -90,13 +93,22 @@
 	);
 </script>
 
-<div class="hx-eq-box pt-6">
+<div class="hx-eq-box">
+	<!--
+		The app's own glyph, at the size the empty panels use and with the same
+		wash. It is the wordmark's icon, so the identity is one thing in three
+		places — header, title card, and every panel waiting for data.
+	-->
+	<span class="hx-mark" style:color="var(--hx-accent)">
+		<HugeiconsIcon icon={ICON.agent} size={40} strokeWidth={1.2} />
+	</span>
+
 	<!--
 		The equation. Mono, because it is a formula and the app's numeric voice is
 		mono everywhere else; and sized to be the largest thing on an empty screen
 		without becoming a splash page.
 	-->
-	<p class="hx-eq">
+	<p class="hx-eq mt-4">
 		<span class="whitespace-nowrap">Agent <span class="hx-eq-op">=</span></span>
 		<span class="whitespace-nowrap">
 			<span style:color="var(--hx-model)">Model</span>
@@ -161,6 +173,13 @@
 	}
 	.hx-eq-box {
 		container-type: inline-size;
+	}
+	/* The same 0.16/0.2 wash the empty panels use, so the mark reads as one
+	   family with them rather than as a logo dropped on top. */
+	.hx-mark {
+		display: block;
+		opacity: 0.5;
+		filter: drop-shadow(0 0 22px currentColor);
 	}
 	.hx-eq-op {
 		color: var(--muted-foreground);
