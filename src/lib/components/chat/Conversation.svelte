@@ -115,7 +115,7 @@
 		class:justify-center={empty}
 	>
 		{#if empty}
-			<div class="turn-col mx-auto w-full max-w-[68ch]">
+			<div class="turn-col mx-auto flex w-full max-w-[68ch] flex-col items-center text-center">
 				<Preamble onopen={onopenpanel} />
 
 				{#if replay.active}
@@ -154,25 +154,26 @@
 						<p class="mt-2 text-[11px]" style:color="var(--hx-error)">{demoError}</p>
 					{/if}
 				{:else}
-					<p class="hx-eyebrow mt-7 mb-2">try one</p>
-					<ul class="space-y-1.5">
+					<!--
+						Chips, not a bulleted list. A list with leading chevrons cannot be
+						centred without the arrows pointing at ragged air, and these are
+						buttons rather than reading matter — the composer already uses this
+						exact shape for the tutor's questions, so the app has one gesture
+						for "a thing you can click to say".
+					-->
+					<p class="hx-eyebrow mt-7 mb-2.5">try one</p>
+					<div class="flex w-full flex-wrap justify-center gap-1.5">
 						{#each SUGGESTIONS as s (s)}
-							<li>
-								<button
-									class="group flex items-start gap-2 text-left text-xs text-muted-foreground
-									       transition-colors hover:text-foreground"
-									onclick={() => session.send(s)}
-								>
-									<span
-										class="translate-y-[3px] opacity-40 transition-opacity group-hover:opacity-100"
-									>
-										<HugeiconsIcon icon={ICON.next} size={11} strokeWidth={1.5} />
-									</span>
-									{s}
-								</button>
-							</li>
+							<button
+								class="hx-rule max-w-full rounded-full border px-3 py-1.5 text-left text-[11px]
+								       leading-snug text-muted-foreground transition-colors hover:bg-muted
+								       hover:text-foreground"
+								onclick={() => session.send(s)}
+							>
+								{s}
+							</button>
 						{/each}
-					</ul>
+					</div>
 				{/if}
 			</div>
 		{/if}

@@ -93,7 +93,7 @@
 	);
 </script>
 
-<div class="hx-eq-box">
+<div class="hx-eq-box flex w-full flex-col items-center text-center">
 	<!--
 		The app's own glyph, at the size the empty panels use and with the same
 		wash. It is the wordmark's icon, so the identity is one thing in three
@@ -108,7 +108,7 @@
 		mono everywhere else; and sized to be the largest thing on an empty screen
 		without becoming a splash page.
 	-->
-	<p class="hx-eq mt-4">
+	<p class="hx-eq mt-4 w-full">
 		<span class="whitespace-nowrap">Agent <span class="hx-eq-op">=</span></span>
 		<span class="whitespace-nowrap">
 			<span style:color="var(--hx-model)">Model</span>
@@ -117,7 +117,7 @@
 		</span>
 	</p>
 
-	<p class="mt-3 max-w-[48ch] text-[13px] leading-relaxed text-muted-foreground">
+	<p class="mt-3 w-full max-w-[46ch] text-[13px] leading-relaxed text-muted-foreground">
 		The model is the part you bring. The <span style:color="var(--hx-accent)">harness</span> is everything
 		else — what it is told, what it may do, what it remembers, when it is stopped. This runs a real one
 		and takes it apart while it works.
@@ -128,7 +128,10 @@
 		idle readout, and the numbers are the content.
 	-->
 	{#if parts.length}
-		<div class="hx-rule mt-6 flex flex-wrap gap-x-5 gap-y-2 border-t pt-3">
+		<div
+			class="hx-rule mt-6 flex w-full max-w-[46ch] flex-wrap justify-center gap-x-5 gap-y-2
+			       border-t pt-3"
+		>
 			{#each parts as p (p.label)}
 				<button
 					class="group flex items-baseline gap-1.5 text-left transition-opacity hover:opacity-100"
