@@ -22,6 +22,23 @@
 	representation that survives scrolling, summarising and forgetting.
 </p>
 
+<h2>The default that disappeared</h2>
+
+<p>
+	None of it is automatic. A harness upgrade moved the plan layer out of the defaults, and the whole
+	mechanism left with it: no <em>write_todos</em>, no todos channel, no plan band in the system
+	prompt, no plan tab. Nothing threw. Types checked, tests passed, the build shipped — and the panel
+	simply had nothing to draw.
+</p>
+
+<p>
+	It happened twice, because the fix was applied in one place. Restoring it for the main agent left
+	the subagents without it, so a report-writer with a five-step job still planned nothing. Both are
+	pinned by a test now, one that names the layer it expects; a missing middleware should fail with
+	the name of the thing that broke rather than leave an empty pane to be discovered in front of a
+	class.
+</p>
+
 <h2>The sharp edge: last write wins</h2>
 
 <p>

@@ -34,10 +34,12 @@
 <ul>
 	<li><em>paper-reader</em> digests one paper into notes and hands back at most 200 words.</li>
 	<li>
-		<em>image-smith</em> writes the actual image brief, then stops at a gate for your approval.
+		<em>image-smith</em> writes the actual image brief, then stops at a gate for your approval — whether
+		it is making a picture or re-rendering one.
 	</li>
 	<li>
-		<em>report-writer</em> assembles the review, taking every citation from the <em>cite</em> tool.
+		<em>report-writer</em> assembles the review, taking every citation from the <em>cite</em> tool and
+		handing it the paper's own sentence to check against the source.
 	</li>
 	<li>
 		<em>critic</em> audits the draft on a budget of six tool calls and returns either CLEAN or a list
@@ -62,9 +64,18 @@
 
 <p>
 	Two habits follow. They coordinate through the filesystem rather than conversation: one writes
-	notes, the next reads them. And custom subagents inherit <em>nothing</em> from the parent — not even
-	its skills — so each one has to name its skills directory explicitly. Ours spent weeks unable to re-read
-	a manual it was told to follow, for exactly that reason.
+	notes, the next reads them. And custom subagents inherit <em>nothing</em> from the parent — not its
+	skills, not its middleware — so each one has to name what it needs explicitly. Ours spent weeks unable
+	to re-read a manual it was told to follow, for exactly that reason, and later spent a week unable to
+	plan for the same one.
+</p>
+
+<p>
+	Coordinating through notes has a cost worth naming. A note is a paraphrase, so a chain of agents
+	passing notes is a chain of summaries of summaries — and a critic reading them is one model
+	checking another model's précis. Whatever must be exact has to travel as the source's own words:
+	this app keeps every fetched paper's full text and checks quotes against it, so the writer can
+	hand a sentence to <em>cite</em> and have the paper itself settle the matter.
 </p>
 
 <p class="live">
