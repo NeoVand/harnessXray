@@ -10,6 +10,7 @@
 	import { HugeiconsIcon } from '@hugeicons/svelte';
 	import { ICON, type IconValue } from '$lib/icons';
 	import { tip } from '$lib/hooks/tip';
+	import OverflowTabs from './OverflowTabs.svelte';
 
 	interface Props {
 		/** A figure clicked in the timeline; the files pane focuses on it. */
@@ -151,29 +152,24 @@
 				class="hx-rule hx-frost absolute inset-x-0 top-0 z-20 flex h-8 items-center gap-3.5
 				       border-y px-3"
 			>
-				{#each BOTTOM_TABS as t (t.id)}
-					<button
-						class="hx-eyebrow flex h-full items-center gap-1.5 transition-colors
-						       hover:text-foreground"
-						style:color={bottom === t.id ? 'var(--hx-accent)' : undefined}
-						onclick={() => {
-							// Reaching the toolbox by its own tab is a fresh visit, not a
-							// replay of the last chip someone clicked three panels ago.
-							toolFocus = null;
-							bottom = t.id;
-						}}
-						{@attach tip(t.hint)}
-					>
-						<HugeiconsIcon icon={t.icon} size={12} strokeWidth={1.5} />
-						{t.label}
-						<!-- No count on `skills`: the library is a fixed three and a number
-						     that never changes is furniture. `memories` earns one because it
-						     grows during a run. -->
-						{#if t.id === 'memory' && counts.memories}
-							<span class="hx-num text-[9px] opacity-60">{counts.memories}</span>
-						{/if}
-					</button>
-				{/each}
+				<!-- Five labels need ~330px and this pane resizes well below that, so the
+				     strip measures itself and puts whatever does not fit behind one
+				     `⋯`. No count on `skills`: the library is a fixed three and a number
+				     that never changes is furniture. `memories` earns one because it
+				     grows during a run. -->
+				<OverflowTabs
+					tabs={BOTTOM_TABS.map((t) => ({
+						...t,
+						badge: t.id === 'memory' ? counts.memories : undefined
+					}))}
+					active={bottom}
+					onselect={(id) => {
+						// Reaching the toolbox by its own tab is a fresh visit, not a
+						// replay of the last chip someone clicked three panels ago.
+						toolFocus = null;
+						bottom = id as Bottom;
+					}}
+				/>
 			</header>
 
 			<div

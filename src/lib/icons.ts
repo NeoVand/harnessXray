@@ -37,6 +37,7 @@ import {
 	Cancel01Icon,
 	ChartLineData01Icon,
 	FullScreenIcon,
+	MoreHorizontalIcon,
 	Download01Icon,
 	BookOpen01Icon,
 	CheckListIcon,
@@ -95,6 +96,8 @@ export const ICON = {
 	request: ArrowUpRight01Icon,
 	expand: ArrowDown01Icon,
 	expandView: FullScreenIcon,
+	/** Whatever did not fit — the overflow menu on a tab strip. */
+	more: MoreHorizontalIcon,
 	download: Download01Icon,
 	help: BookOpen01Icon,
 	ok: Tick01Icon,
