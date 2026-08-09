@@ -12,6 +12,7 @@
 	import { fileType } from '$lib/xray/filetype';
 	import { tip } from '$lib/hooks/tip';
 	import { docZoom } from '$lib/state/doc-zoom.svelte';
+	import * as Resizable from '$lib/components/ui/resizable';
 
 	interface Props {
 		openPath?: string | null;
@@ -164,51 +165,71 @@
 			/>
 		</div>
 	{:else}
-		<div class="hx-rule max-h-[42%] shrink-0 overflow-y-auto border-b" style:padding-top={topPad}>
-			{#if view === 'log'}
-				<FileLog {active} onselect={(p) => (selected = p)} />
-			{:else}
-				<FileTree {entries} {active} onselect={(p) => (selected = p)} />
-			{/if}
-		</div>
+		<!--
+			The split is draggable, and remembered.
 
-		<!-- The preview, with a header on the same glass as every other panel's.
+			It was `max-h-[42%]` against a `flex-1` preview — a ratio someone chose
+			once, for everyone, forever. Which file list you want and how much
+			document you want beside it is not a constant: a tree of four notes wants
+			almost no room, and a long review wants all of it. `autoSaveId` persists
+			the drag the way every other split in the app does, and the handle draws
+			its own hairline so the `border-b` this used to carry is gone.
+		-->
+		<Resizable.PaneGroup direction="vertical" autoSaveId="hx:files-split" class="h-full">
+			<Resizable.Pane defaultSize={38} minSize={10} collapsible collapsedSize={0}>
+				<!-- The padding, not a margin: the list slides UNDER the frosted
+				     FILES/LOG bar, which is the whole reason that bar is frosted. -->
+				<div class="h-full overflow-y-auto" style:padding-top={topPad}>
+					{#if view === 'log'}
+						<FileLog {active} onselect={(p) => (selected = p)} />
+					{:else}
+						<FileTree {entries} {active} onselect={(p) => (selected = p)} />
+					{/if}
+				</div>
+			</Resizable.Pane>
+
+			<Resizable.Handle />
+
+			<Resizable.Pane defaultSize={62} minSize={15}>
+				<!-- The preview, with a header on the same glass as every other panel's.
 		     It floats over the body rather than sitting above it, which is the only
 		     way frost means anything: a document scrolling under the bar is what
 		     the blur is for. -->
-		<div class="relative flex min-h-0 flex-1 flex-col">
-			<div
-				class="hx-rule hx-frost absolute inset-x-0 top-0 z-20 flex h-8 items-center gap-3 border-b
+				<div class="relative flex h-full min-h-0 flex-col">
+					<div
+						class="hx-rule hx-frost absolute inset-x-0 top-0 z-20 flex h-8 items-center gap-3 border-b
 				       px-3"
-			>
-				<!-- Named and coloured the same way the tree names it. The bar said
+					>
+						<!-- Named and coloured the same way the tree names it. The bar said
 				     which path was showing and not what kind of thing it was, so the
 				     one row that is entirely about this file was the one place its
 				     type went unmarked. -->
-				{#if active}
-					{@const type = fileType(active)}
-					<span class="shrink-0" style:color={type.color}>
-						<HugeiconsIcon icon={type.icon} size={12} strokeWidth={1.5} />
-					</span>
-				{/if}
-				<span class="-ml-1.5 min-w-0 flex-1 truncate font-mono text-[11px] text-muted-foreground">
-					{active}
-				</span>
-				<!-- Hand this file to the agent, from where you are already looking at
+						{#if active}
+							{@const type = fileType(active)}
+							<span class="shrink-0" style:color={type.color}>
+								<HugeiconsIcon icon={type.icon} size={12} strokeWidth={1.5} />
+							</span>
+						{/if}
+						<span
+							class="-ml-1.5 min-w-0 flex-1 truncate font-mono text-[11px] text-muted-foreground"
+						>
+							{active}
+						</span>
+						<!-- Hand this file to the agent, from where you are already looking at
 				     it. Stays lit once staged, because the chip it produced is in the
 				     composer at the other end of the window. -->
-				<button
-					class="hx-eyebrow flex shrink-0 items-center gap-1 transition-colors
+						<button
+							class="hx-eyebrow flex shrink-0 items-center gap-1 transition-colors
 					       hover:text-foreground disabled:pointer-events-none"
-					style:color={staged ? 'var(--hx-accent)' : undefined}
-					disabled={staged || attaching}
-					onclick={attach}
-					{@attach tip(staged ? 'Staged in the composer — send to hand it over' : attachHint)}
-				>
-					<HugeiconsIcon icon={staged ? ICON.ok : ICON.attach} size={11} strokeWidth={1.5} />
-					{staged ? 'attached' : attaching ? 'reading…' : 'attach'}
-				</button>
-				<!--
+							style:color={staged ? 'var(--hx-accent)' : undefined}
+							disabled={staged || attaching}
+							onclick={attach}
+							{@attach tip(staged ? 'Staged in the composer — send to hand it over' : attachHint)}
+						>
+							<HugeiconsIcon icon={staged ? ICON.ok : ICON.attach} size={11} strokeWidth={1.5} />
+							{staged ? 'attached' : attaching ? 'reading…' : 'attach'}
+						</button>
+						<!--
 					Text size, for this pane only.
 					
 					Two letters rather than a magnifier: a magnifying glass says "zoom the
@@ -217,55 +238,55 @@
 					nothing is worse than no control. The readout lives in the tooltip so
 					the header keeps three items instead of five.
 				-->
-				{#if isDoc}
-					<span class="flex shrink-0 items-center gap-1.5">
-						<button
-							class="leading-none text-muted-foreground transition-colors hover:text-foreground
+						{#if isDoc}
+							<span class="flex shrink-0 items-center gap-1.5">
+								<button
+									class="leading-none text-muted-foreground transition-colors hover:text-foreground
 							       disabled:pointer-events-none disabled:opacity-30"
-							style:font-size="9px"
-							disabled={!docZoom.canShrink}
-							onclick={() => docZoom.shrink()}
-							aria-label="Smaller text"
-							{@attach tip(`Smaller — now ${docZoom.px}px`)}
-						>
-							A
-						</button>
-						<button
-							class="leading-none text-muted-foreground transition-colors hover:text-foreground
+									style:font-size="9px"
+									disabled={!docZoom.canShrink}
+									onclick={() => docZoom.shrink()}
+									aria-label="Smaller text"
+									{@attach tip(`Smaller — now ${docZoom.px}px`)}
+								>
+									A
+								</button>
+								<button
+									class="leading-none text-muted-foreground transition-colors hover:text-foreground
 							       disabled:pointer-events-none disabled:opacity-30"
-							style:font-size="13px"
-							disabled={!docZoom.canGrow}
-							onclick={() => docZoom.grow()}
-							aria-label="Larger text"
-							{@attach tip(`Larger — now ${docZoom.px}px`)}
+									style:font-size="13px"
+									disabled={!docZoom.canGrow}
+									onclick={() => docZoom.grow()}
+									aria-label="Larger text"
+									{@attach tip(`Larger — now ${docZoom.px}px`)}
+								>
+									A
+								</button>
+							</span>
+						{/if}
+
+						<!-- The panel is for glancing; reading happens in the viewer. -->
+						<button
+							class="hx-eyebrow flex shrink-0 items-center gap-1 transition-colors hover:text-foreground"
+							onclick={() => active && onread?.(active)}
+							{@attach tip('Open this file  ⏎')}
 						>
-							A
+							<HugeiconsIcon icon={ICON.expandView} size={11} strokeWidth={1.5} />
+							open
 						</button>
-					</span>
-				{/if}
+					</div>
 
-				<!-- The panel is for glancing; reading happens in the viewer. -->
-				<button
-					class="hx-eyebrow flex shrink-0 items-center gap-1 transition-colors hover:text-foreground"
-					onclick={() => active && onread?.(active)}
-					{@attach tip('Open this file  ⏎')}
-				>
-					<HugeiconsIcon icon={ICON.expandView} size={11} strokeWidth={1.5} />
-					open
-				</button>
-			</div>
+					{#if attachError}
+						<p
+							class="hx-rule hx-frost absolute inset-x-0 top-8 z-20 border-b px-3 py-1 text-[10px]"
+							style:color="var(--hx-error)"
+						>
+							{attachError}
+						</p>
+					{/if}
 
-			{#if attachError}
-				<p
-					class="hx-rule hx-frost absolute inset-x-0 top-8 z-20 border-b px-3 py-1 text-[10px]"
-					style:color="var(--hx-error)"
-				>
-					{attachError}
-				</p>
-			{/if}
-
-			{#if picture}
-				<!--
+					{#if picture}
+						<!--
 					A viewer, not a page.
 
 					Pictures fit the pane and centre instead of going full-width and
@@ -278,58 +299,60 @@
 					SVG keeps the reader's two fences — sanitised markup in an <img>,
 					white ground because posters are authored against light.
 				-->
-				<button
-					class="flex min-h-0 flex-1 items-center justify-center p-3 pt-11"
-					onclick={() => active && onread?.(active)}
-				>
-					<img
-						src={picture}
-						alt={active}
-						class="hx-rule max-h-full max-w-full rounded border"
-						class:bg-white={isSvg}
-					/>
-				</button>
-			{:else}
-				<!-- pt-11, not py-3: the scroller starts under the frosted bar so the
-				     document passes beneath it rather than stopping short of it. -->
-				<div
-					class="min-h-0 flex-1 overflow-y-auto px-3 pt-11 pb-3"
-					style:--hx-doc-scale={docZoom.scale}
-				>
-					{#if isPdf}
-						<!-- The pages were rendered when the PDF arrived, so showing them
-						     costs nothing and beats a line of text claiming a PDF is here. -->
-						{#if pdfPages.length}
-							<PageDeck
-								pages={pdfPages}
-								max={300}
-								label="Open {active}"
-								onopen={() => active && onread?.(active)}
+						<button
+							class="flex min-h-0 flex-1 items-center justify-center p-3 pt-11"
+							onclick={() => active && onread?.(active)}
+						>
+							<img
+								src={picture}
+								alt={active}
+								class="hx-rule max-h-full max-w-full rounded border"
+								class:bg-white={isSvg}
 							/>
-							<p class="hx-eyebrow mt-1 text-center">
-								{asset ? `${(asset.bytes / 1024 / 1024).toFixed(1)} MB` : ''} · click to read
-							</p>
-						{:else}
-							<button
-								class="hx-rule flex w-full items-center gap-2 rounded border px-3 py-2 text-left
-								       text-xs transition-colors hover:bg-muted"
-								onclick={() => active && onread?.(active)}
-							>
-								<HugeiconsIcon icon={ICON.file} size={14} strokeWidth={1.5} />
-								Read it · {asset ? (asset.bytes / 1024 / 1024).toFixed(1) : '?'} MB
-							</button>
-						{/if}
-					{:else if isSvg}
-						<p class="text-xs text-muted-foreground">
-							This SVG could not be rendered safely — open it to read the source.
-						</p>
-					{:else if isImage}
-						<p class="text-xs text-muted-foreground">Not in the asset store.</p>
+						</button>
 					{:else}
-						<Markdown source={content} onopen={(p) => (selected = p)} />
+						<!-- pt-11, not py-3: the scroller starts under the frosted bar so the
+				     document passes beneath it rather than stopping short of it. -->
+						<div
+							class="min-h-0 flex-1 overflow-y-auto px-3 pt-11 pb-3"
+							style:--hx-doc-scale={docZoom.scale}
+						>
+							{#if isPdf}
+								<!-- The pages were rendered when the PDF arrived, so showing them
+						     costs nothing and beats a line of text claiming a PDF is here. -->
+								{#if pdfPages.length}
+									<PageDeck
+										pages={pdfPages}
+										max={300}
+										label="Open {active}"
+										onopen={() => active && onread?.(active)}
+									/>
+									<p class="hx-eyebrow mt-1 text-center">
+										{asset ? `${(asset.bytes / 1024 / 1024).toFixed(1)} MB` : ''} · click to read
+									</p>
+								{:else}
+									<button
+										class="hx-rule flex w-full items-center gap-2 rounded border px-3 py-2 text-left
+								       text-xs transition-colors hover:bg-muted"
+										onclick={() => active && onread?.(active)}
+									>
+										<HugeiconsIcon icon={ICON.file} size={14} strokeWidth={1.5} />
+										Read it · {asset ? (asset.bytes / 1024 / 1024).toFixed(1) : '?'} MB
+									</button>
+								{/if}
+							{:else if isSvg}
+								<p class="text-xs text-muted-foreground">
+									This SVG could not be rendered safely — open it to read the source.
+								</p>
+							{:else if isImage}
+								<p class="text-xs text-muted-foreground">Not in the asset store.</p>
+							{:else}
+								<Markdown source={content} onopen={(p) => (selected = p)} />
+							{/if}
+						</div>
 					{/if}
 				</div>
-			{/if}
-		</div>
+			</Resizable.Pane>
+		</Resizable.PaneGroup>
 	{/if}
 </div>
