@@ -42,6 +42,9 @@
 		onopenpanel
 	}: Props = $props();
 
+	/** Nothing said yet — the title card shows, centred in the column. */
+	const empty = $derived(session.messages.length === 0);
+
 	let viewport = $state<HTMLElement | null>(null);
 	let pinned = $state(true);
 	let demoError = $state('');
@@ -73,10 +76,20 @@
 		await session.editAndResend(id, text);
 	}
 
+	/**
+	 * Three openers that exercise what this agent is actually for.
+	 *
+	 * The old set asked it to introspect its own prompt and to count words in
+	 * Moby-Dick — questions any chat window answers, which taught nothing about a
+	 * harness and left the instruments nearly idle. These run the real pipeline,
+	 * cheapest first: a search and a fan-out of paper-readers; a PDF cracked open
+	 * for its figures; and the whole thing, which pauses at `present_outline` for
+	 * approval before it spends anything on drafting.
+	 */
 	const SUGGESTIONS = [
-		'What tools do you have, and what is in your system prompt?',
-		'Count the words in the first paragraph of Moby-Dick.',
-		'Plan a three-section review of retrieval-augmented generation.'
+		'Find recent papers on agent harnesses and tell me what they disagree about.',
+		'Extract the figures from the SWE-bench paper, arXiv:2310.06770.',
+		'Draft a short cited review of agent scaffolding — show me the outline first.'
 	];
 </script>
 
@@ -94,9 +107,15 @@
 		wrapper, which is what lets a turn decide how far its own decoration
 		reaches while its text stays on measure.
 	-->
-	<div class="w-full py-3">
-		{#if session.messages.length === 0}
-			<div class="turn-col mx-auto w-full max-w-[68ch] pt-10">
+	<div
+		class="w-full py-3"
+		class:flex={empty}
+		class:min-h-full={empty}
+		class:flex-col={empty}
+		class:justify-center={empty}
+	>
+		{#if empty}
+			<div class="turn-col mx-auto w-full max-w-[68ch]">
 				<Preamble onopen={onopenpanel} />
 
 				{#if replay.active}
