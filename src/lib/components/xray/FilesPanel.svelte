@@ -11,6 +11,7 @@
 	import { svgToDataUrl } from '$lib/paper/svg';
 	import { fileType } from '$lib/xray/filetype';
 	import { tip } from '$lib/hooks/tip';
+	import { docZoom } from '$lib/state/doc-zoom.svelte';
 
 	interface Props {
 		openPath?: string | null;
@@ -75,6 +76,13 @@
 	/** Renderable picture, whichever store it came from. Empty means the
 	 * selection is a document (or a picture we cannot show safely). */
 	const picture = $derived(isImage ? (asset?.dataUrl ?? '') : isSvg ? svgUrl : '');
+	/**
+	 * True when the pane is rendering prose, which is the only thing a text-size
+	 * control can act on. A picture has no font size and a PDF shows page
+	 * thumbnails, so offering the buttons there would be an affordance that does
+	 * nothing.
+	 */
+	const isDoc = $derived(!picture && !isPdf && !isSvg && !isImage);
 
 	/**
 	 * Staging the file on screen into the next message.
@@ -200,6 +208,42 @@
 					<HugeiconsIcon icon={staged ? ICON.ok : ICON.attach} size={11} strokeWidth={1.5} />
 					{staged ? 'attached' : attaching ? 'reading…' : 'attach'}
 				</button>
+				<!--
+					Text size, for this pane only.
+					
+					Two letters rather than a magnifier: a magnifying glass says "zoom the
+					picture", and what changes here is the prose. Shown only when prose is
+					what is on screen — a PNG has no font size, and a control that does
+					nothing is worse than no control. The readout lives in the tooltip so
+					the header keeps three items instead of five.
+				-->
+				{#if isDoc}
+					<span class="flex shrink-0 items-center gap-1.5">
+						<button
+							class="leading-none text-muted-foreground transition-colors hover:text-foreground
+							       disabled:pointer-events-none disabled:opacity-30"
+							style:font-size="9px"
+							disabled={!docZoom.canShrink}
+							onclick={() => docZoom.shrink()}
+							aria-label="Smaller text"
+							{@attach tip(`Smaller — now ${docZoom.px}px`)}
+						>
+							A
+						</button>
+						<button
+							class="leading-none text-muted-foreground transition-colors hover:text-foreground
+							       disabled:pointer-events-none disabled:opacity-30"
+							style:font-size="13px"
+							disabled={!docZoom.canGrow}
+							onclick={() => docZoom.grow()}
+							aria-label="Larger text"
+							{@attach tip(`Larger — now ${docZoom.px}px`)}
+						>
+							A
+						</button>
+					</span>
+				{/if}
+
 				<!-- The panel is for glancing; reading happens in the viewer. -->
 				<button
 					class="hx-eyebrow flex shrink-0 items-center gap-1 transition-colors hover:text-foreground"
@@ -248,7 +292,10 @@
 			{:else}
 				<!-- pt-11, not py-3: the scroller starts under the frosted bar so the
 				     document passes beneath it rather than stopping short of it. -->
-				<div class="min-h-0 flex-1 overflow-y-auto px-3 pt-11 pb-3">
+				<div
+					class="min-h-0 flex-1 overflow-y-auto px-3 pt-11 pb-3"
+					style:--hx-doc-scale={docZoom.scale}
+				>
 					{#if isPdf}
 						<!-- The pages were rendered when the PDF arrived, so showing them
 						     costs nothing and beats a line of text claiming a PDF is here. -->

@@ -156,8 +156,18 @@
 <div class="md" class:compact onclick={onClick} role="presentation">{@html html}</div>
 
 <style>
+	/*
+		One absolute size, and everything inside it relative.
+		
+		Every rule below this one is in `em` — headings, code, tables, captions, the
+		space between paragraphs — which is what lets a single multiplier on the root
+		scale the whole document in proportion instead of shrinking the text and
+		leaving the margins behind. `--hx-doc-scale` is set by whichever surface is
+		rendering (the preview pane offers buttons for it); anywhere that does not
+		set it, the document reads at 14px exactly as before.
+	*/
 	.md {
-		font-size: 0.875rem;
+		font-size: calc(0.875rem * var(--hx-doc-scale, 1));
 		line-height: 1.65;
 	}
 	.md :global(> :first-child) {
