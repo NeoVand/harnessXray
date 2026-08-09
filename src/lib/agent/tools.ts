@@ -9,6 +9,7 @@ import {
 	confirmMetadata
 } from './retrieval';
 import { sources } from './sources';
+import { paperText, checkQuote, MIN_QUOTE_CHARS } from './paper-text';
 import { bus } from '$lib/xray/bus.svelte';
 import { compactRequest } from './compaction';
 
@@ -104,6 +105,9 @@ export const fetchPaperTool = tool(
 			return toolError(e);
 		}
 		sources.markFetched(paper.arxivId, { title: paper.title, authors: paper.authors });
+		// Keep the words. Untruncated, so a quote from a section this reader never
+		// received can still be checked — see paper-text.ts.
+		await paperText.put(paper.arxivId, paper.fullText);
 		// Only when the read itself could not say. The HTML edition carries its
 		// own header, and a paper found by `search_papers` already has canonical
 		// metadata — so this costs a request for pre-2024 papers fetched straight
@@ -463,9 +467,36 @@ export const listFiguresTool = tool(
 );
 
 export const citeTool = tool(
-	async ({ arxivId }) => {
+	async ({ arxivId, quote }) => {
 		const id = arxivId.trim().replace(/^arxiv:/i, '');
-		return sources.cite(id).text;
+
+		// The quote is checked BEFORE the citation is granted, so a refusal does
+		// not also record a use of the source.
+		let vouched = '';
+		if (quote?.trim()) {
+			const check = checkQuote(quote, await paperText.get(id));
+			if (check.status === 'absent')
+				return (
+					`REFUSED: that sentence is not in arXiv:${id}. The paper's own text was searched ` +
+					`(ignoring case, spacing and punctuation) and this wording does not occur. Either ` +
+					`quote the paper exactly, or drop the claim — do not attach it to this paper. If ` +
+					`you are paraphrasing, quote the span you are paraphrasing instead.`
+				);
+			if (check.status === 'too-short')
+				return (
+					`REFUSED: that quote is too short to verify (needs about ${MIN_QUOTE_CHARS} ` +
+					`characters of actual words). A handful of words matches every paper in the ` +
+					`corpus. Quote a full clause.`
+				);
+			if (check.status === 'no-text')
+				vouched =
+					`\n  NOT VERIFIED — no stored text for this paper, so the quote could not be ` +
+					`checked. Cite it if you are sure of the wording.`;
+			else vouched = `\n  Quote verified in the paper. In context: "…${check.context}…"`;
+		}
+
+		const res = sources.cite(id);
+		return res.text + (res.ok ? vouched : '');
 	},
 	{
 		name: 'cite',
@@ -473,9 +504,21 @@ export const citeTool = tool(
 			'Get the canonical inline citation for a paper — and a refusal if this run never ' +
 			'actually read it. Call this for EVERY citation you write. It fails on papers that were ' +
 			'never seen, and on papers only seen as search snippets, which is exactly the point: a ' +
-			'reference list should contain nothing the run cannot vouch for.',
+			'reference list should contain nothing the run cannot vouch for. ' +
+			"Pass `quote` with the paper's own sentence that supports your claim and it is checked " +
+			'against the real text — a sentence the paper does not contain is refused. Use this for ' +
+			'every claim that matters; it costs nothing and it is the difference between a citation ' +
+			'and an attribution you merely believe.',
 		schema: z.object({
-			arxivId: z.string().describe('arXiv id — modern (2401.12345) or legacy (hep-th/9711200)')
+			arxivId: z.string().describe('arXiv id — modern (2401.12345) or legacy (hep-th/9711200)'),
+			quote: z
+				.string()
+				.optional()
+				.describe(
+					'A sentence or clause copied from the paper that supports the claim you are citing ' +
+						'it for. Checked verbatim against the stored text, ignoring case, spacing and ' +
+						'punctuation. Omit only when citing the paper as a whole.'
+				)
 		})
 	}
 );

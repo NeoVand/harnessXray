@@ -715,6 +715,14 @@ export interface FetchedPaper {
 	text: string;
 	chars: number;
 	truncated: boolean;
+	/**
+	 * The whole paper, before `maxChars` cut it down.
+	 *
+	 * The model reads `text`; the verifier keeps this. A quote from a section the
+	 * reader never received still has to check out, or a truncated read would
+	 * manufacture accusations against honest citations. See paper-text.ts.
+	 */
+	fullText: string;
 	/** First-page thumbnails, when the source was a PDF. */
 	pages?: string[];
 	/**
@@ -753,6 +761,7 @@ export async function fetchPaper(arxivId: string, maxChars = 24000): Promise<Fet
 					text: parsed.text.slice(0, maxChars),
 					chars: parsed.text.length,
 					truncated: parsed.text.length > maxChars,
+					fullText: parsed.text,
 					title: parsed.title,
 					authors: parsed.authors
 				};
@@ -815,6 +824,7 @@ export async function fetchPaper(arxivId: string, maxChars = 24000): Promise<Fet
 		text: text.slice(0, maxChars),
 		chars: text.length,
 		truncated: text.length > maxChars,
+		fullText: text,
 		pages
 		// Deliberately no title or authors. Pre-2024 papers have no HTML edition
 		// and arXiv's own metadata routes are CORS-blocked, so there is no header

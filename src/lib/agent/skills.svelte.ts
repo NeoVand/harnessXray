@@ -180,6 +180,13 @@ How they show it. Two or three sentences.
 ## Numbers
 The specific results worth quoting, with units.
 
+## Quotes
+Two or three sentences copied **verbatim** from the paper, each with what it
+supports. Copy, do not retype from memory: these are handed to the cite tool,
+which checks them against the paper's real text. You are the only agent that
+ever sees the full paper — a quote you do not record here cannot be recovered
+by anyone downstream.
+
 ## Use in the review
 Which section this supports, and what it is evidence *for*.
 \`\`\`
@@ -189,6 +196,11 @@ Which section this supports, and what it is evidence *for*.
 - Every citation comes from the **cite tool** — it returns the canonical
   \`(Author, year, arXiv:ID)\` string and refuses papers this run never read.
   A refusal means the claim is unsupportable: cut it or read the paper.
+- Pass \`quote\` with the paper's own sentence whenever the claim is specific.
+  The tool checks it against the real text and refuses a sentence the paper does
+  not contain, which is the difference between a citation and an attribution you
+  merely believe. Take the quote from the note's **Quotes** section — a note is
+  a paraphrase, and a paraphrase cannot verify itself.
 - The References section comes from the **bibliography tool**, verbatim.
 - **Never invent a citation.** If you cannot support a claim, cut the claim.
 - Structure: motivation → what came before → the current split in approaches →
