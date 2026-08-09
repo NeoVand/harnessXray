@@ -12,15 +12,22 @@
 />
 
 <p class="lead">
-	Sometimes the right move is to stop and ask. This harness stops for exactly two tools:
-	<em>present_outline</em>, because the outline steers everything that comes after it, and
-	<em>generate_image</em>, because it spends real money.
+	Sometimes the right move is to stop and ask. This harness stops for four tools, for two reasons.
+	<em>present_outline</em> steers everything that comes after it. <em>generate_image</em>,
+	<em>edit_image</em> and <em>stylize_figure</em> each spend real money at the image rate.
 </p>
 
 <p>
 	Nothing else, and that restraint is deliberate. An agent that asks permission to read a file
 	trains you to click Approve without looking, which is worse than never asking. Gate what is
 	expensive or steering; never gate a read.
+</p>
+
+<p>
+	Gate it in the lane that <em>calls</em> it, too. <em>edit_image</em> was gated on the main agent and
+	not inside image-smith — the one subagent that ever uses it — so the only lane that could spend at the
+	image rate was the lane that never asked. "Restyle that banner" quietly re-rendered a 1.9MB picture
+	for about twenty cents. An edit is a fresh render, not a patch.
 </p>
 
 <h2>What actually happens when it pauses</h2>

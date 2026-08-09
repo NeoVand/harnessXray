@@ -25,7 +25,9 @@
 
 <p>
 	So the harness is mostly a stack of these layers around a very small loop. Everything in chapters
-	2 through 7 arrives that way, and this app wrote none of it.
+	2 through 7 is a layer, and this app wrote none of them — though it does now have to ask for one
+	by name. The plan layer stopped being a default in an upgrade, so it is installed here explicitly.
+	Inherited is not the same as guaranteed, and the difference is invisible until a panel goes blank.
 </p>
 
 <h2>What this app adds</h2>
@@ -41,6 +43,12 @@
 	</li>
 	<li><em>interruptOn</em> installs the gate itself — that is chapter 9.</li>
 </ul>
+
+<p>
+	Nine layers are installed. Six of them draw a node on the graph and three do not, which looks like
+	a miscount until you know why: a layer becomes a node only if it owns a hook. The other three
+	contribute tools or state and do their work without ever appearing on the drawing.
+</p>
 
 <img
 	class="plate"

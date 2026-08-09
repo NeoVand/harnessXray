@@ -21,6 +21,7 @@
 	<li>a system prompt, which the harness extends with one fragment per layer</li>
 	<li>subagents, described in plain prose</li>
 	<li>skills, as a directory of markdown</li>
+	<li>middleware, including any layer you want that is not a default</li>
 	<li>a backend, deciding where files actually live</li>
 	<li>a checkpointer, which is what makes any of it resumable</li>
 	<li><em>interruptOn</em>, naming what a human must see first</li>
@@ -47,8 +48,20 @@
 	<li>
 		Let tools fail as text. An error the model can read is a setback; an exception is a crash.
 	</li>
-	<li>Gate what is costly or steering, and nothing that is merely a read.</li>
+	<li>
+		Gate what is costly or steering, and nothing that is merely a read — in the lane that actually
+		calls it.
+	</li>
 	<li>Give every subagent a reply contract, or you have moved the cost instead of removing it.</li>
+	<li>
+		Check deterministically whatever can be checked. Asking a second model to judge the first one's
+		work is the expensive answer and often the wrong one; where a question has a right answer, look
+		it up instead.
+	</li>
+	<li>
+		Pin what you inherit. A default that disappears in an upgrade takes a whole feature with it and
+		nothing turns red — so name the layers you depend on in a test that fails with their names.
+	</li>
 </ul>
 
 <p>
