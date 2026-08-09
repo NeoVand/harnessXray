@@ -16,7 +16,7 @@
  */
 import {
 	Activity01Icon,
-	AiBrain01Icon,
+	BrainCircuitIcon,
 	Alert01Icon,
 	ArrowDown01Icon,
 	ArrowRight01Icon,
@@ -147,7 +147,15 @@ export const ICON = {
 	rewind: ArrowTurnBackwardIcon,
 
 	// the agent's anatomy — one icon per concept, used consistently everywhere
-	agent: AiBrain01Icon,
+	/**
+	 * The app's own mark, and the model's glyph wherever one is needed.
+	 *
+	 * Half brain, half circuit — a model inside a machine, which is the whole
+	 * subject. The plain two-lobe brain it replaced said only "AI"; this one says
+	 * what kind. Also the favicon, generated from these same paths rather than
+	 * redrawn, so the two cannot drift.
+	 */
+	agent: BrainCircuitIcon,
 	model: BrainIcon,
 	tool: Wrench01Icon,
 	/**
