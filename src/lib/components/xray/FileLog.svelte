@@ -5,6 +5,8 @@
 	import { subagentIcon } from '$lib/agent/subagent-meta';
 	import { isEvicted, EVICT_HELP } from '$lib/agent/eviction';
 	import { HugeiconsIcon } from '@hugeicons/svelte';
+	import EmptyPanel from './EmptyPanel.svelte';
+	import { ICON } from '$lib/icons';
 	import { tip } from '$lib/hooks/tip';
 
 	/**
@@ -83,9 +85,11 @@
 </script>
 
 {#if !writes.length}
-	<p class="px-3 py-3 text-xs text-muted-foreground">
-		Nothing written yet. Every file the run creates lands here in order.
-	</p>
+	<EmptyPanel
+		icon={ICON.file}
+		color="var(--hx-fs)"
+		line="Every write the run makes, newest first."
+	/>
 {:else}
 	{#each writes as w (w.id)}
 		{@const type = fileType(w.path)}

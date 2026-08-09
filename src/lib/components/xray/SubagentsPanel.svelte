@@ -6,6 +6,7 @@
 	import { toolMeta } from '$lib/agent/tool-meta';
 	import { subagentIcon, subagentColor } from '$lib/agent/subagent-meta';
 	import { HugeiconsIcon } from '@hugeicons/svelte';
+	import EmptyPanel from './EmptyPanel.svelte';
 	import { ICON } from '$lib/icons';
 
 	/**
@@ -45,11 +46,12 @@
 <div class="h-full min-h-0 overflow-y-auto">
 	<div class="px-3 pt-3 pb-3">
 		{#if !roster.length}
-			<p class="text-xs leading-relaxed text-muted-foreground">
-				Read off the <span class="font-mono">task</span> schema on the wire, so it needs a wire: after
-				the first message this lists every subagent the model may dispatch — including the one the harness
-				adds without being asked.
-			</p>
+			<EmptyPanel
+				icon={ICON.subagent}
+				color="var(--hx-subagent)"
+				line="Who the model may delegate to, once it has asked."
+				hint="Read off the task schema on the wire — including the subagent the harness adds without being asked."
+			/>
 		{:else}
 			<div class="mb-3 flex items-baseline justify-between gap-2">
 				<span class="hx-num text-[15px]" style:color="var(--hx-subagent)">

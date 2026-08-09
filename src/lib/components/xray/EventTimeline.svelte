@@ -13,6 +13,7 @@
 	import RawView from './RawView.svelte';
 	import { explanations, explain } from '$lib/lab/sidecar.svelte';
 	import { HugeiconsIcon } from '@hugeicons/svelte';
+	import EmptyPanel from './EmptyPanel.svelte';
 	import { ICON } from '$lib/icons';
 	import { tip } from '$lib/hooks/tip';
 	import { isEvicted, EVICT_HELP } from '$lib/agent/eviction';
@@ -171,9 +172,11 @@
 		style:padding-top={topPad}
 	>
 		{#if rows.length === 0}
-			<p class="px-3 py-6 text-xs text-muted-foreground">
-				Nothing yet. Send a message and every byte will appear here.
-			</p>
+			<EmptyPanel
+				icon={ICON.events}
+				color="var(--hx-model)"
+				line="Every byte of the run lands here, in order."
+			/>
 		{/if}
 
 		{#each rows as r (r.e.id)}
