@@ -17,6 +17,7 @@ import { oneGatePerTurnMiddleware } from './one-gate';
 import { manifest, type Attachment } from './uploads';
 import { assets, setAssetScope } from '$lib/storage/assets.svelte';
 import { sources } from './sources';
+import { setPaperScope, paperText } from './paper-text';
 import { replay } from '$lib/xray/replay.svelte';
 import type { Todo, ToolStart as ToolStartEvent } from '$lib/xray/events';
 import type { IdbStore, IdbCheckpointSaver } from './persistence';
@@ -231,6 +232,7 @@ class Session {
 			// Binaries are per-thread; point the store at whichever we restored.
 			setAssetScope(this.threadId);
 			sources.setScope(this.threadId);
+			setPaperScope(this.threadId);
 			const stored = Number(localStorage.getItem(CEILING_KEY));
 			if (Number.isFinite(stored) && stored >= 50) this.stepCeiling = Math.min(stored, 2000);
 			const evict = Number(localStorage.getItem(EVICT_KEY));
@@ -383,6 +385,7 @@ class Session {
 		this.threadId = id;
 		setAssetScope(id);
 		sources.setScope(id);
+		setPaperScope(id);
 		replay.resetWebRecording();
 		if (replay.active) replay.rewindServing();
 		this.#agent = null; // a thread is a checkpoint scope; don't carry state across
@@ -412,6 +415,7 @@ class Session {
 		this.threadId = `t${Date.now().toString(36)}`;
 		setAssetScope(this.threadId);
 		sources.setScope(this.threadId);
+		setPaperScope(this.threadId);
 		replay.resetWebRecording();
 		if (replay.active) replay.rewindServing();
 		this.#agent = null;
@@ -456,6 +460,7 @@ class Session {
 			// history shrinks.
 			void assets.dropThread(id);
 			sources.drop(id);
+			void paperText.drop(id);
 		}
 		if (id === this.threadId) this.newThread();
 	}

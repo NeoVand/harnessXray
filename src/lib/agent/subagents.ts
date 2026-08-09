@@ -164,6 +164,10 @@ trust the tool result.`,
 3. Every factual claim carries an inline citation — get the exact string from
    the cite tool. If cite REFUSES an id, the claim loses its citation and you
    must cut or soften the claim. Never hand-write a citation.
+   For any specific claim — a number, a mechanism, a comparison — pass \`quote\`
+   with the paper's own sentence, copied from the note's Quotes section. It is
+   checked against the paper's real text, so a refusal means you are attributing
+   something the paper does not say: fix the claim, not the quote.
 4. Build the References section from the bibliography tool, verbatim. Do not
    recall references from memory.
 5. Place EVERY figure from list_figures with ![caption](/figures/….png), near
