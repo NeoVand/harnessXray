@@ -1,19 +1,33 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
   <!--
-    The same brain glyph the app wears in its header, so the tab and the
-    window agree about what this is.
+    The same brain-circuit glyph the app wears in its header and on its title
+    card, so the tab, the window and the page agree about what this is.
+
+    Generated from hugeicons' `BrainCircuitIcon` rather than redrawn — the
+    previous favicon was a hand-transcription of the old glyph, which is a
+    second copy of the artwork that can drift from the first. Regenerate with
+    the snippet in docs/PLAN.md if the icon ever changes again.
 
     Colour is set on :root and inherited through currentColor rather than
     hardcoded per path: an SVG favicon is rendered against the browser's own
     chrome, which is dark for some people and light for others, and a single
     fixed ink disappears into one of them.
+
+    Stroke is 1.6 rather than the icon's native 1.5 — at 16px the extra tenth
+    is the difference between traces that read and traces that dissolve.
   -->
   <style>
     :root { color: #1c1c1e; }
     @media (prefers-color-scheme: dark) { :root { color: #e6e6e6; } }
   </style>
   <g stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M7 4.5C5.34315 4.5 4 5.84315 4 7.5C4 8.06866 4.15822 8.60037 4.43304 9.0535C3.04727 9.31855 2 10.537 2 12C2 13.463 3.04727 14.6814 4.43304 14.9465M7 4.5C7 3.11929 8.11929 2 9.5 2C10.8807 2 12 3.11929 12 4.5V19.5C12 20.8807 10.8807 22 9.5 22C8.11929 22 7 20.8807 7 19.5C5.34315 19.5 4 18.1569 4 16.5C4 15.9313 4.15822 15.3996 4.43304 14.9465M7 4.5C7 5.31791 7.39278 6.04408 8 6.50018M4.43304 14.9465C4.78948 14.3588 5.34207 13.9032 6 13.6707" />
-    <path d="M17 19.4999C18.6569 19.4999 20 18.1567 20 16.4999C20 15.9312 19.8418 15.3995 19.567 14.9464C20.9527 14.6813 22 13.4629 22 11.9999C22 10.5369 20.9527 9.31843 19.567 9.05338M17 19.4999C17 20.8806 15.8807 21.9999 14.5 21.9999C13.1193 21.9999 12 20.8806 12 19.4999L12 4.49988C12 3.11917 13.1193 1.99988 14.5 1.99988C15.8807 1.99988 17 3.11917 17 4.49988C18.6569 4.49988 20 5.84302 20 7.49988C20 8.06854 19.8418 8.60024 19.567 9.05338M17 19.4999C17 18.682 16.6072 17.9558 16 17.4997M19.567 9.05338C19.2105 9.64109 18.6579 10.0966 18 10.3292" />
+    <path d="M10.2222 22C10.5126 22 10.7972 21.9626 11.074 21.897C11.7831 21.729 12.1377 21.6449 12.5688 21.0996C13 20.5543 13 19.9909 13 18.864V4.80464C13 3.71729 13 3.17361 12.4167 2.58825L12.4117 2.58333C11.8264 2 11.4768 2 10.7778 2C8.94375 2 7.36918 3.11089 6.69025 4.6965C6.54998 5.02409 6.47984 5.18789 6.39638 5.26209C6.31291 5.33629 6.13704 5.38825 5.78531 5.49215C4.17506 5.96781 3 7.45779 3 9.22223C3 9.94404 3.19666 10.6199 3.53931 11.1992C3.80114 11.6419 3.93205 11.8632 3.93205 12C3.93205 12.1368 3.80114 12.3581 3.53931 12.8008C3.19666 13.3801 3 14.0559 3 14.7777C3 16.2312 3.79726 17.4983 4.97829 18.1658C5.20609 18.2945 5.31999 18.3589 5.37635 18.4236C5.43272 18.4884 5.47857 18.6044 5.57028 18.8365C6.30231 20.6893 8.10921 22 10.2222 22Z" />
+    <path d="M13 9C13 11.2091 11.2091 13 9 13" />
+    <path d="M13 12H20.5" />
+    <path d="M18.5 3.25V3.5M19 3.5C19 3.77614 18.7761 4 18.5 4C18.2239 4 18 3.77614 18 3.5C18 3.22386 18.2239 3 18.5 3C18.7761 3 19 3.22386 19 3.5Z" />
+    <path d="M13 8H14C15.3978 8 16.0967 8 16.6481 7.77164C17.3831 7.46716 17.9672 6.88313 18.2716 6.14805C18.5 5.59674 18.5 4.89782 18.5 3.5" />
+    <path d="M13 16H14C15.3978 16 16.0967 16 16.6481 16.2284C17.3831 16.5328 17.9672 17.1169 18.2716 17.8519C18.5 18.4033 18.5 19.1022 18.5 20.5" />
+    <path d="M18.5 20.75V20.5M19 20.5C19 20.2239 18.7761 20 18.5 20C18.2239 20 18 20.2239 18 20.5C18 20.7761 18.2239 21 18.5 21C18.7761 21 19 20.7761 19 20.5Z" />
+    <path d="M20.5 11.75V12M21 12C21 12.2761 20.7761 12.5 20.5 12.5C20.2239 12.5 20 12.2761 20 12C20 11.7239 20.2239 11.5 20.5 11.5C20.7761 11.5 21 11.7239 21 12Z" />
   </g>
 </svg>
