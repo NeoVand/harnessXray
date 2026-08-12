@@ -31,6 +31,8 @@
 	import { HugeiconsIcon } from '@hugeicons/svelte';
 	import { ICON } from '$lib/icons';
 	import { tip } from '$lib/hooks/tip';
+	import Cockpit from '$lib/components/cockpit/Cockpit.svelte';
+	import { cockpit } from '$lib/state/cockpit.svelte';
 
 	let selectedId = $state<string | null>(null);
 	let settingsOpen = $state(false);
@@ -169,11 +171,25 @@
 	}
 
 	function onKeydown(e: KeyboardEvent) {
-		if (e.key === 'Escape' && session.busy) {
-			e.preventDefault();
-			session.stop();
-			return;
+		// One window listener, because there are two things that want Escape and
+		// the loser would be decided by mount order. Leaving the cockpit outranks
+		// stopping the run: the cockpit is a view and closing it costs nothing,
+		// while `session.stop()` is destructive and must never be what happens
+		// when someone meant "get me out of this screen".
+		if (e.key === 'Escape') {
+			if (cockpit.open) {
+				e.preventDefault();
+				cockpit.close();
+				return;
+			}
+			if (session.busy) {
+				e.preventDefault();
+				session.stop();
+				return;
+			}
 		}
+		// Fed here rather than from its own listener, for the same reason.
+		if (cockpit.feed(e)) return;
 		if (!(e.metaKey || e.ctrlKey)) return;
 		if (e.key === ',') {
 			e.preventDefault();
@@ -264,6 +280,21 @@
 			>
 				<HugeiconsIcon icon={ICON.help} size={15} strokeWidth={1.5} />
 			</button>
+
+			<!-- Only after it has been found. An Easter egg that advertises itself is
+			     a feature with a silly door, and one you must re-earn every visit is
+			     a chore — so the button appears the moment the code lands and stays. -->
+			{#if cockpit.discovered}
+				<button
+					class="text-muted-foreground transition-colors hover:text-foreground"
+					style:color={cockpit.open ? 'var(--hx-accent)' : undefined}
+					onclick={() => cockpit.toggle()}
+					aria-label="Cockpit"
+					{@attach tip('Cockpit — every instrument at once')}
+				>
+					<HugeiconsIcon icon={ICON.sparkle} size={15} strokeWidth={1.5} />
+				</button>
+			{/if}
 
 			<!-- One click, one theme. The glyph is the readout — it says where you
 			     are, and the tooltip names where the next click lands, so the cycle
@@ -704,6 +735,13 @@
 <SettingsSheet bind:open={settingsOpen} />
 <SkillsSheet bind:open={skillsOpen} />
 <AboutSheet bind:open={aboutOpen} />
+
+<!-- The Easter egg. Konami opens it; escape leaves. Mounted last and fixed, so
+     it covers the working layout without unmounting it — the run keeps running
+     underneath and comes back exactly as you left it. -->
+{#if cockpit.open}
+	<Cockpit onopensettings={() => (settingsOpen = true)} />
+{/if}
 
 <style>
 	:global(html) {
