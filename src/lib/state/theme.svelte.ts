@@ -17,7 +17,7 @@
  * every consumer.
  */
 
-export type ThemeId = 'midnight' | 'rainy' | 'cloudy' | 'sunny';
+export type ThemeId = 'midnight' | 'aurora' | 'rainy' | 'cloudy' | 'sunny';
 
 export interface ThemeSpec {
 	id: ThemeId;
@@ -28,13 +28,18 @@ export interface ThemeSpec {
 }
 
 /**
- * Four themes, two per scheme. Cycle order keeps the darks together and the
- * lights together — a cycle is a sequence you feel your way along, so
+ * Five themes, three dark and two light. Cycle order keeps the darks together
+ * and the lights together — a cycle is a sequence you feel your way along, so
  * neighbours should be neighbours, and only one click in the loop crosses the
  * dark/light divide.
+ *
+ * Aurora sits second rather than first. It is the loudest thing here by a wide
+ * margin, and the theme you land on with no stored preference should be the
+ * quiet one — but it should also be one click away, not four.
  */
 export const THEMES: ThemeSpec[] = [
 	{ id: 'midnight', label: 'Midnight', meta: '#131316', dark: true },
+	{ id: 'aurora', label: 'Aurora', meta: '#0f1223', dark: true },
 	{ id: 'rainy', label: 'Rainy', meta: '#121820', dark: true },
 	{ id: 'cloudy', label: 'Cloudy', meta: '#eef1f3', dark: false },
 	{ id: 'sunny', label: 'Sunny', meta: '#f5f1e8', dark: false }
