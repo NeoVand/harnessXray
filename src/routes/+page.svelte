@@ -740,7 +740,7 @@
      it covers the working layout without unmounting it — the run keeps running
      underneath and comes back exactly as you left it. -->
 {#if cockpit.open}
-	<Cockpit onopensettings={() => (settingsOpen = true)} />
+	<Cockpit onopensettings={() => (settingsOpen = true)} onread={(p) => (readPath = p)} />
 {/if}
 
 <style>
