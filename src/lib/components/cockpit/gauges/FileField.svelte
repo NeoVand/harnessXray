@@ -28,16 +28,36 @@
 	}
 	let { selected = null, onopen }: Props = $props();
 
-	/** Top-level directory → colour, reusing the file-type family. */
-	const TONE: Record<string, string> = {
-		paper: 'var(--hx-file-doc)',
-		notes: 'var(--hx-file-plain)',
-		figures: 'var(--hx-file-image)',
-		skills: 'var(--hx-accent)',
-		memories: 'var(--hx-memory)',
-		uploads: 'var(--hx-file-data)'
+	/**
+	 * Colour by file TYPE, not by directory.
+	 *
+	 * Directory was the first instinct and it produced a wall of one green: an
+	 * agent's output clusters into two or three folders, and two of those mapped
+	 * to neighbouring hues, so the treemap carried no information in its colour at
+	 * all. Type varies the way real output varies — prose, figures, data, code —
+	 * and the `--hx-file-*` family already exists for exactly this, tuned per
+	 * theme, with the conventional associations a reader brings.
+	 */
+	const BY_EXT: Record<string, string> = {
+		md: 'var(--hx-file-doc)',
+		txt: 'var(--hx-file-plain)',
+		pdf: 'var(--hx-file-pdf)',
+		png: 'var(--hx-file-image)',
+		jpg: 'var(--hx-file-image)',
+		jpeg: 'var(--hx-file-image)',
+		svg: 'var(--hx-file-image)',
+		webp: 'var(--hx-file-image)',
+		json: 'var(--hx-file-data)',
+		csv: 'var(--hx-file-data)',
+		yaml: 'var(--hx-file-data)',
+		yml: 'var(--hx-file-data)',
+		ts: 'var(--hx-file-code)',
+		js: 'var(--hx-file-code)',
+		py: 'var(--hx-file-code)',
+		sh: 'var(--hx-file-code)'
 	};
-	const toneOf = (p: string) => TONE[p.split('/').filter(Boolean)[0] ?? ''] ?? 'var(--hx-fs)';
+	const toneOf = (p: string) =>
+		BY_EXT[(p.split('.').pop() ?? '').toLowerCase()] ?? 'var(--hx-file-plain)';
 
 	const files = $derived.by(() => {
 		const src = session.files ?? {};
@@ -177,29 +197,57 @@
 		background: color-mix(in oklab, var(--foreground) 4%, transparent);
 	}
 
+	/*
+		Inset and rounded rather than butted together with an inset hairline.
+
+		The hairline version drew a hard line down every shared edge, which is a
+		grid — the exact thing this mode is trying to stop looking like. Pulling
+		each cell in by a pixel and rounding it lets the field read as tiles
+		floating on a ground, and the separation comes from the gap rather than
+		from a stroke.
+	*/
 	.hx-cell {
 		position: absolute;
-		border: 0;
+		/* A transparent border plus `background-clip: padding-box` insets the
+		   PAINT by a pixel without touching the geometry. `margin` would have to
+		   resolve an over-constrained box (left, top, width and height are all
+		   set) and browsers settle that by shifting the element rather than
+		   shrinking it, which slides tiles off their computed cells. */
+		border: 1px solid transparent;
+		background-clip: padding-box;
+		box-sizing: border-box;
 		padding: 2px 3px;
 		overflow: hidden;
 		text-align: left;
-		/* The hairline is the background showing through, not a drawn border —
-		   so cells never add up to a grid of boxes. */
-		box-shadow: 0 0 0 1px var(--background) inset;
-		background: color-mix(in oklab, var(--c) 30%, transparent);
-		color: color-mix(in oklab, var(--c) 45%, var(--foreground));
+		border-radius: 3.5px;
+		background-image: linear-gradient(
+			160deg,
+			color-mix(in oklab, var(--c) 34%, transparent),
+			color-mix(in oklab, var(--c) 17%, transparent)
+		);
+		color: color-mix(in oklab, var(--c) 30%, var(--foreground));
 		transition:
 			background 160ms ease,
 			color 160ms ease;
 	}
+	/* `background-image`, not the `background` shorthand — the shorthand resets
+	   the gradient set above and the tile would flatten on hover. */
 	.hx-cell:hover {
-		background: color-mix(in oklab, var(--c) 55%, transparent);
+		background-image: linear-gradient(
+			160deg,
+			color-mix(in oklab, var(--c) 52%, transparent),
+			color-mix(in oklab, var(--c) 32%, transparent)
+		);
+		color: var(--foreground);
 	}
 	.hx-sel {
-		background: color-mix(in oklab, var(--c) 62%, transparent);
-		box-shadow:
-			0 0 0 1px var(--background) inset,
-			0 0 0 1px var(--c);
+		background-image: linear-gradient(
+			160deg,
+			color-mix(in oklab, var(--c) 60%, transparent),
+			color-mix(in oklab, var(--c) 38%, transparent)
+		);
+		color: var(--foreground);
+		box-shadow: 0 0 0 1px color-mix(in oklab, var(--c) 75%, transparent);
 	}
 	.hx-cell span {
 		display: block;
