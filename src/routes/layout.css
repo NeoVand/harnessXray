@@ -320,6 +320,96 @@
 	--hx-error: oklch(0.68 0.13 18);
 }
 
+/* Aurora — the experiment in what this instrument looks like at full chroma.
+
+   Every other theme keeps the legend in the register the file sets out above:
+   "chroma stays ≤0.13 so nothing competes with the content". That ceiling is
+   what makes midnight calm, and it is also why the app reads as a terminal
+   rather than a cockpit — nine hues at chroma 0.05–0.09 are, perceptually, nine
+   greys with a rumour of colour. This block asks what happens if the ceiling
+   comes off: same nine meanings, same hue families, roughly double the chroma,
+   on a ground that is itself blue rather than black.
+
+   The surprise is that it reads BETTER, not just louder. Nearest-neighbour
+   distance across the nine legend colours, in sRGB:
+
+       midnight   state/subagent  Δ15      (then Δ22, Δ22)
+       aurora     state/subagent  Δ60      (then Δ61, Δ69)
+
+   Four times the separation. The muted palette was not a legibility choice that
+   cost some prettiness; it was costing legibility too, and the timeline had been
+   asking nine categories to live inside a range that fits about four.
+
+   Two constraints that shaped the numbers, both learned by measuring rather than
+   by taste:
+
+   1. sRGB runs out before oklch does. `--hx-interrupt` at its natural spot
+      (L0.83 C0.15 H62) clips the red channel, and a clipped orange does not
+      dim — it slides toward yellow, straight into `--hx-tool`. Amber is now the
+      brighter of the two (L0.82 vs 0.74) with 17° between them, which is the
+      separation the shipped dark theme gets from lightness anyway.
+   2. `--hx-memory` must NOT follow the general chroma rise. It sits 5° from
+      `--hx-error`, and the two have always been told apart by chroma (0.065 vs
+      0.14), not hue. Saturating memory along with everything else collapsed the
+      pair to Δ39. Held at 0.09 against error's 0.19, it stays legible.
+
+   `--hx-tok-write` clips its blue channel. So does the shipped `.dark` value it
+   replaces, and a maxed blue on a pale blue stays a pale blue — unlike the
+   orange above, there is no hue slide to fix. Left as-is, deliberately. */
+:root[data-theme='aurora'] {
+	/* Not black. The single biggest reason midnight reads as surveillance rather
+	   than sky is that its ground has chroma 0.004 — it is neutral, and neutral
+	   under low light is a bunker. A real aurora sky is deep indigo. */
+	--background: oklch(0.19 0.035 274);
+	--foreground: oklch(0.925 0.014 270);
+	--card: oklch(0.235 0.04 274);
+	--popover: oklch(0.235 0.04 274);
+	--muted: oklch(0.29 0.045 274);
+	--muted-foreground: oklch(0.71 0.03 270);
+	/* The hairline carries hue too, so the app's structure glows faintly instead
+	   of being ruled in grey. Same 13% weight the other dark themes use. */
+	--border: oklch(0.8 0.1 265 / 13%);
+	--hx-accent: oklch(0.84 0.17 158); /* aurora green — the theme's whole thesis */
+
+	--hx-user: oklch(0.78 0.17 328);
+	--hx-model: oklch(0.82 0.14 192);
+	--hx-tool: oklch(0.74 0.14 85);
+	--hx-state: oklch(0.74 0.12 258);
+	--hx-fs: oklch(0.83 0.16 142);
+	--hx-memory: oklch(0.74 0.09 25); /* held down on purpose — see (2) above */
+	--hx-subagent: oklch(0.77 0.13 228);
+	--hx-interrupt: oklch(0.82 0.13 68); /* brighter than tool, not just hotter */
+	--hx-error: oklch(0.66 0.19 22);
+
+	/* The ground has chroma of its own now, so a plum wash at midnight's 12%
+	   half-disappears into the indigo it is mixed with. Both come up a notch to
+	   land where they read on a neutral ground. */
+	--hx-you-wash: color-mix(in oklab, var(--hx-user) 14%, var(--background));
+	--hx-you-edge: color-mix(in oklab, var(--hx-user) 30%, transparent);
+
+	/* Tinted rather than neutral white, or the one grey element in the app is
+	   the scrollbar. Literal alpha, for the reason the :root block gives. */
+	--hx-scroll: oklch(0.88 0.06 270 / 0.14);
+	--hx-scroll-hover: oklch(0.88 0.06 270 / 0.26);
+	--hx-scroll-active: oklch(0.88 0.06 270 / 0.36);
+
+	--hx-file-doc: oklch(0.76 0.1 255);
+	--hx-file-pdf: oklch(0.71 0.18 27);
+	--hx-file-image: oklch(0.76 0.13 305);
+	--hx-file-data: oklch(0.79 0.15 150);
+	--hx-file-code: oklch(0.81 0.14 88);
+	--hx-file-plain: oklch(0.72 0.022 268);
+
+	/* Lightness still carries the rate, so the ramps read in order if hue is
+	   lost entirely; only the chroma ceiling moves. */
+	--hx-tok-write: oklch(0.86 0.11 258);
+	--hx-tok-new: oklch(0.73 0.12 258);
+	--hx-tok-cached: oklch(0.56 0.07 258);
+	--hx-tok-out: oklch(0.85 0.14 80);
+	--hx-tok-reason: oklch(0.66 0.09 80);
+	--hx-tok-image: oklch(0.78 0.16 328);
+}
+
 :root[data-theme='cloudy'] {
 	--background: oklch(0.965 0.004 230);
 	--foreground: oklch(0.2 0.012 240);

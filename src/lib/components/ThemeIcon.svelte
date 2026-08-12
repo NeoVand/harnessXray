@@ -1,6 +1,12 @@
 <script lang="ts">
 	import { HugeiconsIcon } from '@hugeicons/svelte';
-	import { CloudIcon, CloudRainIcon, Moon02Icon, Sun03Icon } from '@hugeicons/core-free-icons';
+	import {
+		CloudIcon,
+		CloudRainIcon,
+		Moon02Icon,
+		SparklesIcon,
+		Sun03Icon
+	} from '@hugeicons/core-free-icons';
 	import type { ThemeId } from '$lib/state/theme.svelte';
 
 	/**
@@ -18,8 +24,15 @@
 	 * key block is the same idea, made explicit.
 	 */
 
+	/**
+	 * Sparkles for aurora rather than the obvious `ConstellationIcon`: at 15px a
+	 * constellation is a few dots joined by lines, which is exactly what every
+	 * graph node in this app looks like. Shimmer beats stars when the app is
+	 * already full of stars.
+	 */
 	const ICONS = {
 		midnight: Moon02Icon,
+		aurora: SparklesIcon,
 		rainy: CloudRainIcon,
 		cloudy: CloudIcon,
 		sunny: Sun03Icon
