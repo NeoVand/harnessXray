@@ -86,7 +86,21 @@
 
 	<!-- ── The conversation ────────────────────────────────────────────── -->
 	<div class="hx-chat">
-		<div class="relative h-full min-h-0">
+		<!--
+			`flex flex-col`, and it is load-bearing.
+
+			`Conversation`'s own root element IS the scroller, and it is declared
+			`min-h-0 flex-1 overflow-y-auto` — i.e. it expects to be a flex child that
+			gets its height from the column it sits in. Given a plain block parent,
+			`flex-1` is inert, the scroller sizes to its CONTENT, and `overflow-y:
+			auto` never triggers because nothing overflows the scroller — it overflows
+			the box around it, which clips it.
+
+			The symptom was that a long turn simply ended at the bottom edge with no
+			way to reach it: an approval card's buttons were below the fold and there
+			was nothing to scroll. Measured 834px of scroller inside a 706px box.
+		-->
+		<div class="relative flex h-full min-h-0 flex-col">
 			<Conversation
 				{onopensettings}
 				{onread}
@@ -206,25 +220,47 @@
 	.hx-right {
 		grid-area: right;
 	}
-	/* Ratios rather than equal thirds: the graph and the treemap earn area, the
-	   ring and the lanes are legible small. */
+	/*
+		The arc, and why the flanks are not columns.
+
+		Three instruments stacked with matching left edges is a column, and three
+		columns is a grid however little chrome each one has — the alignment does
+		the same job a border would, and the eye finds it just as fast. Removing
+		borders was not enough on its own.
+
+		So each flank bows: the middle instrument sits furthest out and the ends
+		tuck in, which is the shape of a console closing around a seat. It is done
+		with margins, not rotation — the earlier wrap was cut for resampling the
+		type into mush, and nothing here is transformed, so every instrument stays
+		exactly as sharp as it is in the working layout.
+
+		Sizes are deliberately unequal for the same reason. Near-equal thirds read
+		as cells; a graph at twice the height of the ring beneath it reads as a
+		panel that was laid out rather than divided.
+	*/
 	.hx-left > :global(:nth-child(1)) {
-		flex: 1.15;
+		flex: 1.45;
+		margin-left: 22px;
 	}
 	.hx-left > :global(:nth-child(2)) {
-		flex: 0.85;
+		flex: 0.72;
+		margin-left: 2px;
 	}
 	.hx-left > :global(:nth-child(3)) {
-		flex: 0.9;
+		flex: 0.83;
+		margin-left: 26px;
 	}
 	.hx-right > :global(:nth-child(1)) {
-		flex: 0.9;
+		flex: 0.85;
+		margin-right: 26px;
 	}
 	.hx-right > :global(:nth-child(2)) {
-		flex: 1.5;
+		flex: 1.6;
+		margin-right: 2px;
 	}
 	.hx-right > :global(:nth-child(3)) {
-		flex: 0.7;
+		flex: 0.6;
+		margin-right: 22px;
 	}
 	.hx-col > :global(*) {
 		min-height: 0;
@@ -243,16 +279,35 @@
 		box-shadow: 0 24px 70px -34px oklch(0 0 0 / 0.7);
 	}
 
+	/* The deck bows too, the other way: the ends ride up, the middle sits low.
+	   Five labels on one baseline is the most grid-like line on the screen, and
+	   a few pixels of stagger is enough to break it without anything looking
+	   misaligned. Widths are uneven for the same reason. */
 	.hx-deck {
 		grid-area: deck;
 		display: grid;
-		grid-template-columns: 1.1fr 0.85fr 1.15fr 1.15fr 1fr;
-		gap: 22px;
+		grid-template-columns: 1.05fr 0.78fr 1.25fr 1.1fr 0.95fr;
+		gap: 26px;
 		min-width: 0;
 		min-height: 0;
 	}
 	.hx-deck > :global(*) {
 		min-width: 0;
+	}
+	.hx-deck > :global(:nth-child(1)) {
+		padding-top: 0;
+	}
+	.hx-deck > :global(:nth-child(2)) {
+		padding-top: 9px;
+	}
+	.hx-deck > :global(:nth-child(3)) {
+		padding-top: 15px;
+	}
+	.hx-deck > :global(:nth-child(4)) {
+		padding-top: 9px;
+	}
+	.hx-deck > :global(:nth-child(5)) {
+		padding-top: 0;
 	}
 
 	.hx-preview {
