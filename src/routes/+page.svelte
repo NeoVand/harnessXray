@@ -4,6 +4,7 @@
 	import * as Resizable from '$lib/components/ui/resizable';
 	import Conversation from '$lib/components/chat/Conversation.svelte';
 	import Composer from '$lib/components/chat/Composer.svelte';
+	import ThreadList from '$lib/components/chat/ThreadList.svelte';
 	import EventTimeline from '$lib/components/xray/EventTimeline.svelte';
 	import PlanPanel from '$lib/components/xray/PlanPanel.svelte';
 	import Inspector from '$lib/components/xray/Inspector.svelte';
@@ -198,14 +199,6 @@
 			e.preventDefault();
 			session.newThread();
 		}
-	}
-
-	function ago(t: number) {
-		const s = Math.round((Date.now() - t) / 1000);
-		if (s < 60) return 'just now';
-		if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-		if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
-		return `${Math.floor(s / 86400)}d ago`;
 	}
 
 	const statusColor = $derived(
@@ -408,54 +401,7 @@
 							class="hx-rule hx-frost absolute inset-x-0 top-[76px] z-30 flex max-h-[45%] flex-col
 							       border-b shadow-[0_10px_30px_-18px_rgb(0_0_0/0.55)]"
 						>
-							<!-- Title and dismiss share a row: closing a panel should not mean
-							     hunting for the control that opened it. -->
-							<div class="flex shrink-0 items-center justify-between px-4 pt-3 pb-2">
-								<span class="hx-eyebrow">history</span>
-								<button
-									class="text-muted-foreground transition-colors hover:text-foreground"
-									onclick={() => (historyOpen = false)}
-									aria-label="Close history"
-									{@attach tip('Close')}
-								>
-									<HugeiconsIcon icon={ICON.close} size={13} strokeWidth={1.5} />
-								</button>
-							</div>
-
-							<div class="min-h-0 flex-1 overflow-y-auto">
-								{#if session.threads.length === 0}
-									<p class="px-4 pb-3 text-xs text-muted-foreground">No saved chats yet.</p>
-								{:else}
-									{#each session.threads as t (t.id)}
-										<div
-											class="group flex items-center transition-colors hover:bg-muted/60"
-											class:bg-muted={t.id === session.threadId}
-										>
-											<button
-												class="flex min-w-0 flex-1 items-baseline gap-2 py-1.5 pl-4 text-left"
-												onclick={() => {
-													session.openThread(t.id);
-													historyOpen = false;
-												}}
-											>
-												<span class="min-w-0 flex-1 truncate text-xs">{t.title}</span>
-												<span class="hx-num shrink-0 text-[10px] text-muted-foreground">
-													{t.messages} · {ago(t.updated)}
-												</span>
-											</button>
-											<button
-												class="shrink-0 px-3 py-1.5 text-muted-foreground/0 transition-colors
-												       group-hover:text-muted-foreground/70 hover:!text-[var(--hx-error)]"
-												onclick={() => session.deleteThread(t.id)}
-												aria-label="Delete chat"
-												{@attach tip('Delete this chat')}
-											>
-												<HugeiconsIcon icon={ICON.clear} size={12} strokeWidth={1.5} />
-											</button>
-										</div>
-									{/each}
-								{/if}
-							</div>
+							<ThreadList onclose={() => (historyOpen = false)} />
 						</div>
 					{/if}
 					<!-- topPad no longer depends on historyOpen: the panel floats above the
