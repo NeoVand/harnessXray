@@ -119,6 +119,9 @@ function arxivIdFromDoi(doi: string | undefined): string | null {
 	return m ? m[1] : null;
 }
 
+// arXiv-only work is classified as a preprint, not a journal article.
+const OPENALEX_TYPES = 'article|preprint';
+
 async function searchOpenAlex(
 	query: string,
 	limit: number,
@@ -126,7 +129,7 @@ async function searchOpenAlex(
 	sort: string,
 	author: string | null
 ): Promise<PaperHit[]> {
-	const filters = ['type:article'];
+	const filters = [`type:${OPENALEX_TYPES}`];
 	if (fromYear) filters.push(`from_publication_date:${fromYear}-01-01`);
 	// `search=` matches title/abstract TEXT — an author's name in it finds
 	// papers that mention them, not papers by them. Author queries need the
@@ -236,7 +239,8 @@ export async function searchPapers(opts: {
 	author?: string | null;
 }): Promise<PaperHit[] & { source?: string }> {
 	const { query, limit = 8, fromYear = null, sort = 'relevance', author = null } = opts;
-	const key = `oa:${query}|${limit}|${fromYear}|${sort}|${author ?? ''}`;
+	// Including the type selection prevents reuse of old article-only results.
+	const key = `oa:${OPENALEX_TYPES}:${query}|${limit}|${fromYear}|${sort}|${author ?? ''}`;
 
 	const hits = await cached(key, async () => {
 		try {
@@ -581,6 +585,11 @@ function htmlMeta(doc: Document): { title: string; authors: string[] } {
 			(
 				doc.querySelector('.ltx_title_document') ??
 				doc.querySelector('h1.ltx_title') ??
+				// Custom LaTeX title blocks (e.g. LeJEPA) can omit the normal
+				// heading while the HTML <title> incorrectly contains a caption.
+				doc.querySelector(
+					'.ltx_document > .ltx_logical-block:first-child .ltx_p.ltx_align_center > .ltx_text.ltx_font_bold'
+				) ??
 				doc.querySelector('title')
 			)?.textContent
 		);
@@ -592,10 +601,13 @@ function htmlMeta(doc: Document): { title: string; authors: string[] } {
 	const authors: string[] = [...metaAuthors];
 	for (const a of authors) seen.add(a);
 	for (const el of doc.querySelectorAll('.ltx_personname, .ltx_creator .ltx_text')) {
-		const name = clean((el.textContent ?? '').split('\n')[0]);
+		const copy = el.cloneNode(true) as Element;
+		copy.querySelectorAll('sup, .ltx_sup').forEach((n) => n.remove());
+		const name = clean((copy.textContent ?? '').split('\n')[0]);
 		// Same 25 the search path keeps: enough for the senior author on a long
 		// paper to survive, short of turning a collaboration into a wall.
-		if (!name || name.length > 80 || seen.has(name) || authors.length >= 25) continue;
+		if (!name || name.includes('@') || name.length > 80 || seen.has(name) || authors.length >= 25)
+			continue;
 		seen.add(name);
 		authors.push(name);
 	}
@@ -696,9 +708,29 @@ export function parseHtmlPaper(html: string): { text: string; title: string; aut
 		.querySelectorAll('script,style,nav,footer,.ltx_bibliography,.ltx_page_footer')
 		.forEach((n) => n.remove());
 	const root = doc.querySelector('.ltx_page_content') ?? doc.body;
+	// MathML's textContent concatenates the rendered symbols and TeX annotation.
+	// Preserve the original TeX once, including display equations outside <p>
+	// (LaTeXML commonly puts those in equation tables).
+	for (const math of root.querySelectorAll('math')) {
+		const tex =
+			math.getAttribute('alttext') ??
+			math.querySelector('annotation[encoding="application/x-tex"]')?.textContent ??
+			math.textContent ??
+			'';
+		const block = math.getAttribute('display') === 'block';
+		const replacement = doc.createElement('span');
+		if (block) replacement.setAttribute('data-paper-equation', '');
+		const delimiter = block ? '$$' : '$';
+		replacement.textContent = `${delimiter}${tex}${delimiter}`;
+		math.replaceWith(replacement);
+	}
 
 	const out: string[] = [];
-	root.querySelectorAll('h1,h2,h3,h4,p,li').forEach((el) => {
+	const blocks = 'h1,h2,h3,h4,p,li,[data-paper-equation]';
+	root.querySelectorAll(blocks).forEach((el) => {
+		// A display equation inside a paragraph, or paragraph inside a list
+		// item, is already included by its enclosing block.
+		if (el.parentElement?.closest(blocks)) return;
 		const text = (el.textContent ?? '').replace(/\s+/g, ' ').trim();
 		if (!text) return;
 		const tag = el.tagName.toLowerCase();
