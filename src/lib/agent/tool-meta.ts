@@ -1,3 +1,4 @@
+import { IMAGE_MODEL } from './image-model';
 import {
 	AsteriskIcon,
 	Bookmark01Icon,
@@ -61,7 +62,7 @@ const META: Record<string, ToolMeta> = {
 		origin: 'ours',
 		blurb: 'structure, paused for approval'
 	},
-	generate_image: { icon: SparklesIcon, origin: 'ours', blurb: 'gpt-image-2 illustration' },
+	generate_image: { icon: SparklesIcon, origin: 'ours', blurb: `${IMAGE_MODEL} illustration` },
 	edit_image: { icon: PaintBrush01Icon, origin: 'ours', blurb: 'redraw an existing image' },
 	stylize_figure: {
 		icon: PaintBoardIcon,

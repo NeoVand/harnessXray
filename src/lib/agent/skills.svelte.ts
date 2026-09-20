@@ -1,3 +1,4 @@
+import { IMAGE_MODEL } from './image-model';
 import { browser } from '$app/environment';
 
 /**
@@ -228,11 +229,11 @@ Which section this supports, and what it is evidence *for*.
 
 const INFOGRAPHIC = composeSkill(
 	'infographic',
-	'Design a rich, labeled infographic or poster and get it generated well with gpt-image-2. Use when a document needs an infographic, diagram, banner or concept art — anything made with generate_image.',
+	`Design a rich, labeled infographic or poster and get it generated well with ${IMAGE_MODEL}. Use when a document needs an infographic, diagram, banner or concept art — anything made with generate_image.`,
 	`# Infographics and illustrations
 
 These are made with **generate_image** (usually by delegating to the
-**image-smith** subagent, which writes the final brief). gpt-image-2 renders
+**image-smith** subagent, which writes the final brief). ${IMAGE_MODEL} renders
 rich, accurate in-image text AND designs beautifully on its own — the craft
 is specifying the content exactly while leaving the design to the model.
 
@@ -321,9 +322,8 @@ class SkillLibrary {
 	}
 
 	/**
-	 * Changes to the library must rebuild the agent, because the skills
-	 * middleware caches the scan in a closure — a skill added to a live agent
-	 * would never be seen. This signature is folded into the agent's cache key.
+	 * The enabled library is part of the agent cache key. Skill metadata itself
+	 * lives in thread state in deepagents 1.14 and is supplied on each send.
 	 */
 	get signature(): string {
 		return this.active.map((s) => s.name).join(',');

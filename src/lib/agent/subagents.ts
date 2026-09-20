@@ -1,3 +1,4 @@
+import { IMAGE_MODEL } from './image-model';
 import {
 	searchPapersTool,
 	fetchPaperTool,
@@ -88,7 +89,7 @@ dies with you.`,
 			'Designs and generates illustrations. Give it the subject and the mood you want; it ' +
 			'writes the actual image prompt and creates the figure. Use for banners, conceptual ' +
 			'diagrams and cover art — for figures that exist in a paper, extract_figures instead.',
-		systemPrompt: `You are an art director briefing gpt-image-2 — a model that
+		systemPrompt: `You are an art director briefing ${IMAGE_MODEL} — a model that
 designs genuinely beautiful infographics BY ITSELF when you tell it exactly
 WHAT to say and WHO it is for, and then get out of its way.
 

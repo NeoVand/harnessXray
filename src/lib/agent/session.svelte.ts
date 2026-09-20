@@ -504,9 +504,8 @@ class Session {
 		// Rebuilding per thread would throw the conversation history away, which
 		// is precisely the bug this replaced.
 		//
-		// The skill library is part of the signature because SkillsMiddleware
-		// scans once and caches the result in a closure. A skill added to a live
-		// agent would simply never be seen.
+		// Keep rebuilding when the enabled skill set changes; send() also supplies
+		// current metadata explicitly, since 1.14 caches it in thread state.
 		// evictTokens is in the signature because the threshold is captured by the
 		// filesystem middleware when it is constructed — changing it on a live
 		// agent would be silently ignored, which is the worst kind of setting.
@@ -765,19 +764,15 @@ class Session {
 		await this.#drive({
 			messages: [...backfill, { role: 'user', content }],
 			...(Object.keys(seedFiles).length ? { files: seedFiles } : {}),
-			// The middleware caches its scan, so on a thread whose checkpoint
-			// already holds a skill list it will adopt that list rather than
-			// rescanning. Passing the current one keeps a newly added skill from
-			// being invisible until the next chat.
-			...(skills.active.length
-				? {
-						skillsMetadata: skills.active.map((s) => ({
-							name: s.name,
-							description: s.description,
-							path: skillPath(s.name)
-						}))
-					}
-				: {})
+			// 1.14 keeps metadata in thread state. Supply the enabled library on
+			// every turn, including [] when its final skill is disabled; omitting
+			// that empty list would retain the checkpoint's old skills. A null
+			// rescan would also rediscover disabled files still in the workspace.
+			skillsMetadata: skills.active.map((s) => ({
+				name: s.name,
+				description: s.description,
+				path: skillPath(s.name)
+			}))
 		});
 	}
 

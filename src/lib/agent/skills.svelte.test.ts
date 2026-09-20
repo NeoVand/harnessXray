@@ -27,19 +27,23 @@ function textOf(m: BaseMessage): string {
 	return typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
 }
 
-/** Run the real middleware the way the harness does, capture the prompt it built. */
-async function assembledPrompt(): Promise<string> {
-	const mw = createSkillsMiddleware({
+function middleware() {
+	return createSkillsMiddleware({
 		// The same factory shape session.svelte.ts hands to createDeepAgent.
 		backend: (cfg: { state: unknown }) => new StateBackend(cfg as never),
 		sources: [SKILLS_ROOT]
 	}) as unknown as {
-		beforeAgent: (state: unknown) => Promise<{ skillsMetadata?: unknown[] } | undefined | void>;
+		beforeModel: (state: unknown) => Promise<{ skillsMetadata?: unknown[] } | undefined | void>;
 		wrapModelCall: (request: unknown, handler: (r: unknown) => unknown) => unknown;
 	};
+}
+
+/** Run the real middleware the way the harness does, capture the prompt it built. */
+async function assembledPrompt(): Promise<string> {
+	const mw = middleware();
 
 	const files = skills.seed();
-	const patch = await mw.beforeAgent({ files, skillsMetadata: [] });
+	const patch = await mw.beforeModel({ files, skillsMetadata: null });
 	const meta = (patch && patch.skillsMetadata) || [];
 
 	// The scan half: every seeded skill was found, at the path we seeded it to.
@@ -67,6 +71,32 @@ async function assembledPrompt(): Promise<string> {
 }
 
 describe('skills through the real deepagents middleware', () => {
+	it('isolates skill scans between threads and reloads after explicit invalidation', async () => {
+		const mw = middleware();
+		const files = skills.seed();
+		const first = await mw.beforeModel({ files, skillsMetadata: null });
+		expect(first?.skillsMetadata).toHaveLength(BUILTIN_SKILLS.length);
+		const second = await mw.beforeModel({ files: {}, skillsMetadata: null });
+		expect(second?.skillsMetadata).toEqual([]);
+		const refreshed = await mw.beforeModel({ files, skillsMetadata: null });
+		expect(refreshed?.skillsMetadata).toEqual(first?.skillsMetadata);
+	});
+
+	it('keeps an explicitly disabled library empty even when skill files remain', async () => {
+		const mw = middleware();
+		const state = { files: skills.seed(), skillsMetadata: [] };
+		expect(await mw.beforeModel(state)).toBeUndefined();
+		let prompt = '';
+		await mw.wrapModelCall(
+			{ state, systemMessage: new SystemMessage('BASE PROMPT'), messages: [] },
+			(request) => {
+				prompt = textOf((request as { systemMessage: BaseMessage }).systemMessage);
+				return new AIMessage('ok');
+			}
+		);
+		for (const s of BUILTIN_SKILLS) expect(prompt).not.toContain(skillPath(s.name));
+	});
+
 	it('puts every name, description and path in the prompt — and no bodies', async () => {
 		const prompt = await assembledPrompt();
 

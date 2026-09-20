@@ -31,10 +31,10 @@ export type ModelId = (typeof MODELS)[number]['id'];
 export const RATES_VERIFIED = '2026-07';
 
 /**
- * gpt-image-2 output, USD per 1M tokens. Verified 2026-07 (PLAN D7). Only the
- * output rate was verified; image *input* tokens are counted in the Run panel
- * but not priced, which errs a few hundredths of a cent low rather than
- * inventing a rate.
+ * GPT Image 2.5 Flare output, USD per 1M tokens. Verified 2026-09-19:
+ * https://developers.openai.com/api/docs/models/gpt-image-2.5-flare
+ * This is also the rate for historical GPT Image 2 recordings. The existing
+ * ledger prices output only; input tokens are counted but not priced.
  */
 export const IMAGE_OUT_RATE = 30;
 

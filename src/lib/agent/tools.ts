@@ -1,3 +1,4 @@
+import { IMAGE_MODEL } from './image-model';
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
 import {
@@ -181,7 +182,7 @@ export const generateImageTool = tool(
 	{
 		name: 'generate_image',
 		description:
-			'Generate an illustration or infographic with gpt-image-2 and save it under /figures/. ' +
+			`Generate an illustration or infographic with ${IMAGE_MODEL} and save it under /figures/. ` +
 			'It renders in-image TEXT accurately and designs beautifully on its own: specify the ' +
 			'content exactly (title and every label as exact quoted strings, audience, purpose, a ' +
 			'quality bar like "Nature explainer") and do NOT dictate palette/style/strokes — ' +

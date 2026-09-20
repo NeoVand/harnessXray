@@ -3,12 +3,13 @@ import { keys } from '$lib/state/keys.svelte';
 import { createInstrumentedFetch } from '$lib/xray/wire';
 import { replay, replayTransport } from '$lib/xray/replay.svelte';
 import { assets, thumbnail } from '$lib/storage/assets.svelte';
+import { IMAGE_MODEL } from './image-model';
 
 /**
  * Image generation.
  *
  * This is the one place the app talks to OpenAI without LangChain in the
- * middle, because there is no `gpt-image-2` wrapper to go through. It is kept
+ * middle, using the Images API directly. It is kept
  * behind this single function so the Azure swap later is one file, and it still
  * goes through the instrumented fetch — so the X-ray sees this traffic exactly
  * like it sees the model calls.
@@ -78,7 +79,7 @@ export async function generateImage(opts: GenerateImageOptions): Promise<Generat
 			'content-type': 'application/json'
 		},
 		body: JSON.stringify({
-			model: 'gpt-image-2',
+			model: IMAGE_MODEL,
 			prompt,
 			size,
 			quality,
@@ -92,7 +93,7 @@ export async function generateImage(opts: GenerateImageOptions): Promise<Generat
 		const detail = await res.text().catch(() => '');
 		throw new Error(
 			res.status === 403
-				? 'gpt-image-2 requires API organization verification on your OpenAI account.'
+				? `${IMAGE_MODEL} access was denied. Check model access and organization verification on your OpenAI account.`
 				: `Image generation failed (HTTP ${res.status}). ${detail.slice(0, 200)}`
 		);
 	}
@@ -200,10 +201,8 @@ export async function generateImage(opts: GenerateImageOptions): Promise<Generat
  * deterministic, and the multipart body it needs is now described on the wire
  * (see describeForm in wire.ts) rather than dropped.
  *
- * Multipart also means no streaming: the edits endpoint does not document
- * `stream: true`, and asking for it returns the whole image in one JSON reply.
- * So there are no partial frames here, and the timeline says so instead of
- * pretending a progressive render happened.
+ * This edit path requests a single completed image as JSON. It does not opt
+ * into the endpoint's streaming mode, so the timeline reports no partial frames.
  */
 export interface EditImageOptions {
 	/** Asset-store path of the image to edit. Must already exist. */
@@ -248,7 +247,7 @@ export async function editImage(opts: EditImageOptions): Promise<GeneratedImage>
 	);
 
 	const form = new FormData();
-	form.append('model', 'gpt-image-2');
+	form.append('model', IMAGE_MODEL);
 	form.append('prompt', prompt);
 	// Named so the field reads as a filename in the multipart description; the
 	// extension has to match the blob's type or the API rejects it.
@@ -269,7 +268,7 @@ export async function editImage(opts: EditImageOptions): Promise<GeneratedImage>
 		const detail = await res.text().catch(() => '');
 		throw new Error(
 			res.status === 403
-				? 'gpt-image-2 requires API organization verification on your OpenAI account.'
+				? `${IMAGE_MODEL} access was denied. Check model access and organization verification on your OpenAI account.`
 				: `Image edit failed (HTTP ${res.status}). ${detail.slice(0, 200)}`
 		);
 	}
